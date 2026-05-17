@@ -1,0 +1,11 @@
+/* Re-export of Revora design tokens for embed-in-hoops scenarios (LAD-7).
+ *
+ * Phase 0: placeholder. Phase 1 syncs this with apps/revora-panel/src/app.css
+ * @theme block so hoops-panel can `@import "@revora/review-ui/styles"` and
+ * inherit the same Tailwind 4 token set (with optional overrides).
+ */
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #2563EB;
+}

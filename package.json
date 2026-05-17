@@ -1,0 +1,20 @@
+{
+  "name": "revora-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Revora hotel review intelligence frontend (panel + shared packages)",
+  "scripts": {
+    "dev": "pnpm --filter revora-panel dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "check": "pnpm -r check"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@11.1.2"
+}

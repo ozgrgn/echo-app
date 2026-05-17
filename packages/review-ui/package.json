@@ -1,0 +1,28 @@
+{
+  "name": "@revora/review-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "svelte": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./styles": "./src/styles/tokens.css"
+  },
+  "scripts": {
+    "check": "echo 'review-ui check: TODO (svelte-check after Phase 1)'",
+    "lint": "echo 'review-ui lint: TODO'"
+  },
+  "peerDependencies": {
+    "svelte": "^5.0.0"
+  },
+  "dependencies": {
+    "@revora/review-core": "workspace:*"
+  },
+  "devDependencies": {
+    "svelte": "^5.0.0",
+    "typescript": "^5.6.0"
+  }
+}
