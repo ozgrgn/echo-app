@@ -154,7 +154,7 @@
 							{#each cs.topIssues.slice(0, 2) as issue (issue.subcategory)}
 								<li class="flex items-center gap-1.5">
 									<span class="w-1.5 h-1.5 rounded-full bg-danger shrink-0"></span>
-									<span class="text-text-2 truncate">{subcategoryLabel(issue.subcategory)}</span>
+									<span class="text-text-2 truncate capitalize">{subcategoryLabel(issue.subcategory)}</span>
 									<span class="ml-auto text-text-3 font-mono">×{issue.count}</span>
 								</li>
 							{/each}
@@ -178,19 +178,21 @@
 				<ul class="divide-y divide-border">
 					{#each allTopIssues as issue (`${issue.category}-${issue.subcategory}`)}
 						{@const catLabel = CATEGORIES[issue.category].label}
-						<li class="py-2.5 flex items-start gap-3">
+						<li
+							class="py-2.5 grid grid-cols-[7rem_1fr_3rem] items-start gap-3"
+						>
 							<span
-								class="px-2 py-0.5 rounded-md text-xs font-medium {zoneBgClass(0)} shrink-0"
+								class="inline-block text-center px-2 py-0.5 rounded-md text-xs font-medium bg-danger-light text-danger truncate"
 							>
 								{catLabel}
 							</span>
-							<div class="flex-1 min-w-0">
-								<div class="text-sm text-text-1 font-medium">
+							<div class="min-w-0">
+								<div class="text-sm text-text-1 font-medium capitalize">
 									{subcategoryLabel(issue.subcategory)}
 								</div>
 								<div class="text-xs text-text-3 truncate italic">"{issue.sampleExcerpt}"</div>
 							</div>
-							<span class="text-sm font-bold text-danger shrink-0">×{issue.count}</span>
+							<span class="text-sm font-bold text-danger text-right">×{issue.count}</span>
 						</li>
 					{/each}
 				</ul>
@@ -208,19 +210,21 @@
 				<ul class="divide-y divide-border">
 					{#each allTopPraises as praise (`${praise.category}-${praise.subcategory}`)}
 						{@const catLabel = CATEGORIES[praise.category].label}
-						<li class="py-2.5 flex items-start gap-3">
+						<li
+							class="py-2.5 grid grid-cols-[7rem_1fr_3rem] items-start gap-3"
+						>
 							<span
-								class="px-2 py-0.5 rounded-md text-xs font-medium bg-success-light text-success shrink-0"
+								class="inline-block text-center px-2 py-0.5 rounded-md text-xs font-medium bg-success-light text-success truncate"
 							>
 								{catLabel}
 							</span>
-							<div class="flex-1 min-w-0">
-								<div class="text-sm text-text-1 font-medium">
+							<div class="min-w-0">
+								<div class="text-sm text-text-1 font-medium capitalize">
 									{subcategoryLabel(praise.subcategory)}
 								</div>
 								<div class="text-xs text-text-3 truncate italic">"{praise.sampleExcerpt}"</div>
 							</div>
-							<span class="text-sm font-bold text-success shrink-0">×{praise.count}</span>
+							<span class="text-sm font-bold text-success text-right">×{praise.count}</span>
 						</li>
 					{/each}
 				</ul>

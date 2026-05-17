@@ -85,12 +85,12 @@
 				{@const active = page.url.pathname.startsWith(item.href)}
 				<a
 					href={item.href}
-					class="flex items-center gap-3 px-6 py-3 text-sm border-l-[3px] transition-colors hover:bg-white/5 hover:text-sidebar-text-active"
-					class:border-l-transparent={!active}
-					class:border-l-sidebar-accent={active}
-					class:bg-white={active}
-					class:bg-opacity-10={active}
-					class:text-sidebar-text-active={active}
+					class={[
+						'flex items-center gap-3 px-6 py-3 text-sm border-l-[3px] transition-colors hover:bg-white/5 hover:text-sidebar-text-active',
+						active
+							? 'border-l-sidebar-accent bg-white/10 text-sidebar-text-active'
+							: 'border-l-transparent'
+					]}
 					title={collapsed ? item.label : undefined}
 				>
 					<span class="text-lg shrink-0">{item.icon}</span>

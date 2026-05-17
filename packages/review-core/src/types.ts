@@ -36,6 +36,11 @@ export interface CategoryMeta {
   label: string;           // display name (Turkish)
   labelEn: string;
   weight: number;          // 0–1, sum = 1.0
+  /** Seed list of subcategory keys. NOT an exhaustive enum — ABSA pipeline
+   *  may discover new subcategories at runtime (LLM produces them per review).
+   *  This array is used for UI suggestions, filter dropdowns, and as ABSA
+   *  prompt hints. Level-3 granularity lives in review excerpts and keywords,
+   *  not in a deeper subcategory hierarchy. */
   subcategories: string[];
   department: string;      // responsible department manager
 }

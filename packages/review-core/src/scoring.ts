@@ -13,6 +13,7 @@
 
 import { CATEGORIES } from './categories.js';
 import type {
+  CategoryKey,
   CategoryScore,
   CompetitorScore,
   SentimentItem
@@ -30,23 +31,32 @@ export const SOURCE_WEIGHTS = {
   gr_feedback: 0.00,   // NOT in GPI
 } as const;
 
-// Severity multipliers per subcategory.
-// Applied when negative: high-impact issues weigh more.
-export const SEVERITY_MULTIPLIERS: Record<string, number> = {
-  // FOOD
-  'kahvalti':         1.2,
-  'tat_cesit':        1.1,
-  'servis_hizi':      1.0,
-  // ROOM
-  'temizlik':         1.3,
-  'ses_izolasyon':    1.2,
-  'klima':            1.1,
-  'koku':             1.3,
-  // FRONT
-  'check_in':         1.2,
-  'bekleme_suresi':   1.1,
-  // Default for unlisted
-  '_default':         1.0,
+/**
+ * Severity multipliers — per CATEGORY, not per subcategory.
+ *
+ * Applied when sentiment is negative: high-impact categories weigh more
+ * in the final GPI computation. Calibrated so that:
+ *   - FOOD/ROOM = 1.30 (most punishing — guests'in en hassas olduğu alan)
+ *   - STAFF/FRONT = 1.15-1.20 (yüksek etki, gözle görülür)
+ *   - POOL/FACILITY/VALUE = 1.00-1.10 (baseline)
+ *   - ANIM/SPA/GENERAL = 0.75-0.85 (yumuşak — opsiyonel/sezonsal etki)
+ *
+ * Subcategory-level multipliers bilerek kaldırıldı; subcategory listesi
+ * seed olarak yaşadığından (runtime'da LLM yeni key üretebilir) sabit
+ * subcategory-level kalibrasyon dayanıklı değil. Category-level kalibrasyon
+ * hem schema-stable hem business-meaningful.
+ */
+export const SEVERITY_MULTIPLIERS: Record<CategoryKey, number> = {
+  FOOD:     1.30,
+  ROOM:     1.30,
+  STAFF:    1.20,
+  FRONT:    1.15,
+  POOL:     1.10,
+  FACILITY: 1.00,
+  VALUE:    1.00,
+  GENERAL:  0.80,
+  ANIM:     0.85,
+  SPA:      0.75,
 };
 
 // ─── Sentiment weighting (YOUR INPUT NEEDED — see TODO below) ───────────────
