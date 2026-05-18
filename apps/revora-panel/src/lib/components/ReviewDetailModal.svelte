@@ -80,6 +80,27 @@
 		});
 	}
 
+	// ── Response timing helpers ──
+	function hoursSince(iso: string): number {
+		return Math.max(0, (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60));
+	}
+
+	function fmtRelativeHours(hours: number): string {
+		if (hours < 1) return 'birkaç dakika';
+		if (hours < 24) return `${Math.round(hours)} saat`;
+		const days = Math.round(hours / 24);
+		if (days < 30) return `${days} gün`;
+		const months = Math.round(days / 30);
+		return `${months} ay`;
+	}
+
+	function responseSpeedBadge(hours: number): { label: string; icon: string; cls: string } {
+		if (hours <= 6) return { label: 'Çok Hızlı', icon: '⚡', cls: 'bg-success-light text-success' };
+		if (hours <= 24) return { label: 'Hızlı', icon: '✓', cls: 'bg-success-light text-success' };
+		if (hours <= 72) return { label: 'Normal', icon: '·', cls: 'bg-surface-2 text-text-2' };
+		return { label: 'Yavaş', icon: '🐢', cls: 'bg-warning-light text-warning' };
+	}
+
 	let ownerResponseExpanded = $state(false);
 	$effect(() => {
 		// Reset accordion state when modal opens with a new review
@@ -175,24 +196,61 @@
 						Otel Cevabı
 					</h3>
 					{#if review.ownerResponse}
-						<div class="rounded-md bg-brand-light/30 border border-brand-light p-3">
+						{@const resp = review.ownerResponse}
+						{@const isLangMatch = resp.language === review.lang}
+						{@const speedBadge = responseSpeedBadge(resp.responseTimeHours)}
+						<div class="rounded-md bg-brand-light/30 border border-brand-light p-3 space-y-2">
+							<!-- Meta row: when + how fast + language -->
+							<div class="flex items-center gap-2 text-xs flex-wrap">
+								<span class={['px-2 py-0.5 rounded-full font-medium', speedBadge.cls]}>
+									{speedBadge.icon} {speedBadge.label}
+								</span>
+								<span class="text-text-3">·</span>
+								<span class="text-text-2">{fmtRelativeHours(resp.responseTimeHours)} sonra cevaplandı</span>
+								<span class="text-text-3">·</span>
+								<span class="text-text-2 inline-flex items-center gap-1">
+									<span>{langFlag(resp.language)}</span>
+									{#if isLangMatch}
+										<span title="Yorum diliyle eşleşiyor">Yorum diliyle aynı</span>
+									{:else}
+										<span class="text-warning" title="Yorum diliyle eşleşmiyor">
+											{langFlag(review.lang)} dilinde değil
+										</span>
+									{/if}
+								</span>
+								<span class="ml-auto text-text-3" title={resp.respondedAt}>
+									{fmtDate(resp.respondedAt)}
+								</span>
+							</div>
+
+							<!-- Body -->
 							<button
 								onclick={() => (ownerResponseExpanded = !ownerResponseExpanded)}
 								class="w-full text-left text-sm text-text-1 leading-relaxed"
 							>
 								{#if ownerResponseExpanded}
-									{review.ownerResponse}
+									{resp.text}
 									<span class="block text-xs text-brand mt-2">Daralt ▲</span>
 								{:else}
-									<span class="line-clamp-2">{review.ownerResponse}</span>
+									<span class="line-clamp-2">{resp.text}</span>
 									<span class="block text-xs text-brand mt-2">Tamamını göster ▼</span>
 								{/if}
 							</button>
 						</div>
 					{:else}
-						<p class="text-sm text-text-3 italic p-3 rounded-md bg-surface-2">
-							Bu yoruma henüz cevap verilmedi.
-						</p>
+						{@const hoursSincePublished = hoursSince(review.publishedDate)}
+						<div class="rounded-md bg-warning-light/50 border border-warning/30 p-3">
+							<div class="flex items-center gap-2 text-sm text-text-1">
+								<span>⏳</span>
+								<strong>Bu yoruma henüz cevap verilmedi.</strong>
+							</div>
+							<div class="text-xs text-text-2 mt-1">
+								Yayınlanma üzerinden <strong>{fmtRelativeHours(hoursSincePublished)}</strong> geçti.
+								{#if hoursSincePublished > 48}
+									Cevap için ideal süre kaçtı — yine de bir cevap engagement için değerli.
+								{/if}
+							</div>
+						</div>
 					{/if}
 				</section>
 

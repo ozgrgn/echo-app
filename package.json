@@ -5,6 +5,8 @@
   "description": "Revora hotel review intelligence frontend (panel + shared packages)",
   "scripts": {
     "dev": "pnpm --filter revora-panel dev",
+    "dev:clean": "pnpm kill-port && pnpm dev",
+    "kill-port": "lsof -ti :5173 2>/dev/null | xargs -r kill -9 2>/dev/null; echo 'port 5173 freed'",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "check": "pnpm -r check"

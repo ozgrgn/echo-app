@@ -6,6 +6,7 @@
 		type Sentiment,
 		type CategoryKey
 	} from '@revora/review-core';
+	import { page } from '$app/state';
 	import ReviewDetailModal from '$lib/components/ReviewDetailModal.svelte';
 
 	let { data } = $props();
@@ -17,11 +18,17 @@
 	type LangFilter = string | 'all';
 	type ResponseFilter = 'all' | 'with' | 'without';
 
+	// Read initial filter values from URL params (?response=without etc.)
+	// so Dashboard KPI clicks can deep-link into a pre-filtered view.
+	const urlResponse = page.url.searchParams.get('response');
+	const initialResponse: ResponseFilter =
+		urlResponse === 'with' || urlResponse === 'without' ? urlResponse : 'all';
+
 	let platformFilter = $state<PlatformFilter>('all');
 	let sentimentFilter = $state<SentimentFilter>('all');
 	let categoryFilter = $state<CategoryFilter>('all');
 	let langFilter = $state<LangFilter>('all');
-	let responseFilter = $state<ResponseFilter>('all');
+	let responseFilter = $state<ResponseFilter>(initialResponse);
 	let visibleCount = $state(8); // Phase 1 "load more" pagination
 
 	function resetFilters() {
@@ -114,6 +121,24 @@
 		return PLATFORM_REGISTRY[key]?.icon ?? '🌐';
 	}
 
+	function hoursSince(iso: string): number {
+		return Math.max(0, (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60));
+	}
+	function fmtRelativeHours(hours: number): string {
+		if (hours < 1) return 'birkaç dakika';
+		if (hours < 24) return `${Math.round(hours)} saat`;
+		const days = Math.round(hours / 24);
+		if (days < 30) return `${days} gün`;
+		const months = Math.round(days / 30);
+		return `${months} ay`;
+	}
+	function responseSpeedBadge(hours: number): { icon: string; cls: string } {
+		if (hours <= 6) return { icon: '⚡', cls: 'bg-success-light text-success' };
+		if (hours <= 24) return { icon: '✓', cls: 'bg-success-light text-success' };
+		if (hours <= 72) return { icon: '·', cls: 'bg-surface-2 text-text-2' };
+		return { icon: '🐢', cls: 'bg-warning-light text-warning' };
+	}
+
 	function topSentimentBadge(r: Review): { label: string; cls: string } {
 		const counts: Record<string, number> = { positive: 0, negative: 0, neutral: 0, mixed: 0 };
 		for (const s of r.sentiments) counts[s.sentiment] = (counts[s.sentiment] ?? 0) + 1;
@@ -184,35 +209,55 @@
 				{/each}
 			</div>
 
-			<!-- Row 2: dropdowns -->
+			<!-- Row 2: response status chips + dropdowns -->
 			<div class="flex flex-wrap items-center gap-2 text-sm">
+				<span class="text-xs text-text-3 uppercase tracking-wider font-semibold mr-1">
+					Cevap:
+				</span>
+				{#each [{ v: 'all', l: 'Hepsi', icon: '' }, { v: 'with', l: 'Cevaplandı', icon: '↳' }, { v: 'without', l: 'Bekliyor', icon: '⏳' }] as opt (opt.v)}
+					{@const isActive = responseFilter === opt.v}
+					<button
+						onclick={() => (responseFilter = opt.v as ResponseFilter)}
+						class={[
+							'inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-colors',
+							isActive
+								? opt.v === 'with'
+									? 'bg-success-light text-success border-success'
+									: opt.v === 'without'
+										? 'bg-warning-light text-warning border-warning'
+										: 'bg-brand text-white border-brand'
+								: 'bg-surface-1 text-text-2 border-border hover:bg-surface-2'
+						]}
+					>
+						{#if opt.icon}<span>{opt.icon}</span>{/if}
+						<span>{opt.l}</span>
+					</button>
+				{/each}
+
+				<span class="text-xs text-text-3 uppercase tracking-wider font-semibold ml-3 mr-1">
+					Kategori:
+				</span>
 				<select
 					bind:value={categoryFilter}
 					class="rounded-md border border-border bg-surface-1 px-2 py-1 text-xs focus:border-brand focus:outline-none"
 				>
-					<option value="all">Tüm kategoriler</option>
+					<option value="all">Tümü</option>
 					{#each categoryList as cat (cat)}
 						<option value={cat}>{CATEGORIES[cat].label}</option>
 					{/each}
 				</select>
 
+				<span class="text-xs text-text-3 uppercase tracking-wider font-semibold ml-2 mr-1">
+					Dil:
+				</span>
 				<select
 					bind:value={langFilter}
 					class="rounded-md border border-border bg-surface-1 px-2 py-1 text-xs focus:border-brand focus:outline-none"
 				>
-					<option value="all">Tüm diller</option>
+					<option value="all">Tümü</option>
 					{#each data.availableLanguages as l (l)}
 						<option value={l}>{langFlag(l)} {langLabel(l)}</option>
 					{/each}
-				</select>
-
-				<select
-					bind:value={responseFilter}
-					class="rounded-md border border-border bg-surface-1 px-2 py-1 text-xs focus:border-brand focus:outline-none"
-				>
-					<option value="all">Tüm yorumlar</option>
-					<option value="with">↳ Cevap verilmiş</option>
-					<option value="without">⊘ Cevap verilmemiş</option>
 				</select>
 
 				<button
@@ -303,8 +348,20 @@
 								<span class="text-text-3">+{review.sentiments.length - 4} daha</span>
 							{/if}
 							{#if review.ownerResponse}
-								<span class="ml-auto inline-flex items-center gap-1 text-brand font-medium">
-									↳ Cevap verilmiş
+								{@const speed = responseSpeedBadge(review.ownerResponse.responseTimeHours)}
+								<span
+									class={['ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-medium', speed.cls]}
+									title="Cevap verildi · {fmtRelativeHours(review.ownerResponse.responseTimeHours)} sonra"
+								>
+									{speed.icon} {fmtRelativeHours(review.ownerResponse.responseTimeHours)}
+								</span>
+							{:else}
+								{@const waiting = hoursSince(review.publishedDate)}
+								<span
+									class="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-medium bg-warning-light/60 text-warning"
+									title="Cevap bekleniyor · {fmtRelativeHours(waiting)}"
+								>
+									⏳ {fmtRelativeHours(waiting)} bekliyor
 								</span>
 							{/if}
 						</div>

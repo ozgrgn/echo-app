@@ -31,6 +31,17 @@ export const MOCK_HOTEL_SCORE: HotelScore = {
   gpi: 81.4,
   rpi: 100.1,
   reviewCount: 847,
+  // Response stats — 38% response rate (below industry "good" of ~60%,
+  // above average ~35%). Mock is consistent with the 20-review sample
+  // in MOCK_REVIEWS (8 with ownerResponse / 20 ≈ 40%, rounded to 38%
+  // here to reflect monthly aggregate vs sample subset).
+  responseStats: {
+    respondedCount: 322,
+    totalCount: 847,
+    rate: 0.38,
+    medianResponseTimeHours: 18,
+    rateTrend: -2.5  // slight decline vs April
+  },
   updatedAt: '2025-05-15T03:00:00Z',
   categoryScores: [
     {

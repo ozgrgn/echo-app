@@ -42,7 +42,12 @@ export const MOCK_REVIEWS: Review[] = [
 			{ category: 'POOL', subcategory: 'plaj_deniz', sentiment: 'positive', intensity: 0.9, excerpt: 'beach is beautiful and clean' },
 			{ category: 'FOOD', subcategory: 'tat_cesit', sentiment: 'positive', intensity: 0.88, excerpt: 'dinner buffet top notch' }
 		],
-		ownerResponse: 'Thank you so much for your kind words! We are thrilled you enjoyed your stay and that your kids loved the mini club. We hope to welcome you back soon!'
+		ownerResponse: {
+			text: 'Thank you so much for your kind words! We are thrilled you enjoyed your stay and that your kids loved the mini club. We hope to welcome you back soon!',
+			respondedAt: '2025-05-10T14:30:00Z',
+			responseTimeHours: 14,
+			language: 'en'
+		}
 	},
 	{
 		id: 'rev_003',
@@ -75,7 +80,12 @@ export const MOCK_REVIEWS: Review[] = [
 			{ category: 'FOOD', subcategory: 'tat_cesit', sentiment: 'positive', intensity: 0.9, excerpt: 'besonders das türkische Frühstück' },
 			{ category: 'POOL', subcategory: 'havuz', sentiment: 'positive', intensity: 0.85, excerpt: 'Der Pool war sauber und groß genug' }
 		],
-		ownerResponse: 'Vielen Dank für Ihre wundervolle Bewertung! Es freut uns sehr, dass Ihre Familie eine schöne Zeit hatte.'
+		ownerResponse: {
+			text: 'Vielen Dank für Ihre wundervolle Bewertung! Es freut uns sehr, dass Ihre Familie eine schöne Zeit hatte.',
+			respondedAt: '2025-05-07T09:15:00Z',
+			responseTimeHours: 33,
+			language: 'de'
+		}
 	},
 	{
 		id: 'rev_005',
@@ -125,7 +135,12 @@ export const MOCK_REVIEWS: Review[] = [
 			{ category: 'STAFF', subcategory: 'tutum', sentiment: 'positive', intensity: 0.8, excerpt: 'personel ilgili' },
 			{ category: 'ANIM', subcategory: 'gece_gosteri', sentiment: 'negative', intensity: 0.7, excerpt: 'gece eğlenceleri tekrarlıydı' }
 		],
-		ownerResponse: 'Geri bildiriminiz için teşekkür ederiz. Animasyon programımızı çeşitlendirmek üzere ekibimizle birlikte çalışıyoruz.'
+		ownerResponse: {
+			text: 'Geri bildiriminiz için teşekkür ederiz. Animasyon programımızı çeşitlendirmek üzere ekibimizle birlikte çalışıyoruz.',
+			respondedAt: '2025-05-02T11:00:00Z',
+			responseTimeHours: 84,
+			language: 'tr'
+		}
 	},
 	{
 		id: 'rev_008',
@@ -205,7 +220,12 @@ export const MOCK_REVIEWS: Review[] = [
 			{ category: 'ANIM', subcategory: 'cocuk', sentiment: 'positive', intensity: 0.98, excerpt: 'best week of her life at the kids club' },
 			{ category: 'ANIM', subcategory: 'gunduz', sentiment: 'positive', intensity: 0.9, excerpt: 'Daytime activities were fun for all ages' }
 		],
-		ownerResponse: 'We are delighted your daughter enjoyed her time with us! Our animation team will be thrilled to hear this.'
+		ownerResponse: {
+			text: 'We are delighted your daughter enjoyed her time with us! Our animation team will be thrilled to hear this.',
+			respondedAt: '2025-04-18T15:00:00Z',
+			responseTimeHours: 6,
+			language: 'en'
+		}
 	},
 	{
 		id: 'rev_013',
@@ -255,7 +275,12 @@ export const MOCK_REVIEWS: Review[] = [
 			{ category: 'FOOD', subcategory: 'tat_cesit', sentiment: 'positive', intensity: 0.88, excerpt: 'Yemek seçenekleri herkesin damak tadına uygundu' },
 			{ category: 'GENERAL', subcategory: 'genel', sentiment: 'positive', intensity: 0.95, excerpt: 'Tekrar geleceğiz' }
 		],
-		ownerResponse: 'Geniş ailenizi ağırlamak bizim için bir onurdu! Tekrar görüşmek üzere.'
+		ownerResponse: {
+			text: 'Geniş ailenizi ağırlamak bizim için bir onurdu! Tekrar görüşmek üzere.',
+			respondedAt: '2025-04-11T18:30:00Z',
+			responseTimeHours: 2,
+			language: 'tr'
+		}
 	},
 	{
 		id: 'rev_016',
@@ -319,7 +344,12 @@ export const MOCK_REVIEWS: Review[] = [
 			{ category: 'FOOD', subcategory: 'tat_cesit', sentiment: 'positive', intensity: 0.9, excerpt: 'Breakfast on the terrace was magical' },
 			{ category: 'GENERAL', subcategory: 'genel', sentiment: 'positive', intensity: 0.92, excerpt: 'Will definitely recommend to friends' }
 		],
-		ownerResponse: 'Thank you for the lovely review! We are so glad you enjoyed the view.'
+		ownerResponse: {
+			text: 'Thank you for the lovely review! We are so glad you enjoyed the view.',
+			respondedAt: '2025-04-04T16:00:00Z',
+			responseTimeHours: 16,
+			language: 'en'
+		}
 	},
 	{
 		id: 'rev_020',

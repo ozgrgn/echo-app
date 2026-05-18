@@ -74,7 +74,18 @@ export interface HotelScore {
   rpi: number | null;      // null if no competitors configured
   reviewCount: number;
   categoryScores: CategoryScore[];
+  responseStats: ResponseStats;  // owner-response performance for this period
   updatedAt: string;       // ISO date
+}
+
+/** Aggregate metrics about how well the hotel responds to its reviews.
+ *  Computed by the backend per period. */
+export interface ResponseStats {
+  respondedCount: number;        // reviews with an ownerResponse
+  totalCount: number;            // all reviews in this period (= reviewCount)
+  rate: number;                  // 0..1 — respondedCount / totalCount
+  medianResponseTimeHours: number | null;  // median over responded reviews
+  rateTrend: number;             // delta vs previous period (e.g. +5.2 = up 5.2 percentage points)
 }
 
 export interface CompetitorScore {
@@ -97,8 +108,18 @@ export interface Review {
   lang: string;            // ISO 639-1
   travelType: string;
   sentiments: SentimentItem[];
-  ownerResponse?: string;
+  ownerResponse?: OwnerResponse;
   sourceUrl?: string;      // link to platform (for "Open in TripAdvisor")
+}
+
+/** Owner's published reply to a review. Pre-computed fields (responseTimeHours)
+ *  are set by the Silver layer normalization job so the frontend doesn't
+ *  re-derive on every render. */
+export interface OwnerResponse {
+  text: string;
+  respondedAt: string;          // ISO date — when owner posted the reply
+  responseTimeHours: number;    // hours between publishedDate and respondedAt
+  language: string;             // ISO 639-1 — language the owner wrote in
 }
 
 export interface SentimentItem {

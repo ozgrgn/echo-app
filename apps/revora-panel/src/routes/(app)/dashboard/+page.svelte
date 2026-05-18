@@ -63,11 +63,32 @@
 	function subcategoryLabel(subcat: string): string {
 		return subcat.replace(/_/g, ' ');
 	}
+
+	// ── Response rate KPI helpers (derived from responseStats) ──
+	const rs = $derived(data.hotelScore.responseStats);
+	const responseRatePct = $derived(rs.rate * 100);
+	const responseRateZone = $derived(
+		responseRatePct >= 60 ? 'green' : responseRatePct >= 35 ? 'yellow' : 'red'
+	);
+	const responseRateColorClass = $derived(
+		responseRateZone === 'green'
+			? 'text-success'
+			: responseRateZone === 'yellow'
+				? 'text-warning'
+				: 'text-danger'
+	);
+	const responseRateBorderClass = $derived(
+		responseRateZone === 'green'
+			? 'border-l-success'
+			: responseRateZone === 'yellow'
+				? 'border-l-warning'
+				: 'border-l-danger'
+	);
 </script>
 
 <div class="space-y-6">
 	<!-- ── KPI Row ─────────────────────────────────────────────────────── -->
-	<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+	<div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
 		<!-- GPI -->
 		<div
 			class="bg-surface-1 border border-border rounded-lg p-5 border-l-4 {zoneBorderClass(
@@ -85,7 +106,7 @@
 
 		<!-- RPI -->
 		<div class="bg-surface-1 border border-border rounded-lg p-5 shadow-sm">
-			<div class="text-xs text-text-2 uppercase tracking-wider mb-1">RPI (Rakip Karşılaştırma)</div>
+			<div class="text-xs text-text-2 uppercase tracking-wider mb-1">RPI</div>
 			<div class="text-3xl font-bold text-text-1">
 				{data.hotelScore.rpi?.toFixed(1) ?? '—'}
 			</div>
@@ -113,6 +134,28 @@
 			</div>
 			<div class="text-xs text-text-3 mt-1">GPI'den türetildi</div>
 		</div>
+
+		<!-- Response Rate (rs / responseRatePct / etc. defined as $derived in <script>) -->
+		<a
+			href="/reviews?response=without"
+			class="bg-surface-1 border border-border rounded-lg p-5 border-l-4 {responseRateBorderClass} shadow-sm hover:shadow-md transition-shadow block"
+			title="Cevap bekleyen yorumlara git"
+		>
+			<div class="text-xs text-text-2 uppercase tracking-wider mb-1">Cevap Oranı</div>
+			<div class="text-3xl font-bold {responseRateColorClass}">
+				%{Math.round(responseRatePct)}
+			</div>
+			<div class="text-xs text-text-3 mt-1 flex items-center gap-1 flex-wrap">
+				<span class={trendClass(rs.rateTrend)}>
+					{rs.rateTrend > 0 ? '▲' : rs.rateTrend < 0 ? '▼' : '—'}
+					{rs.rateTrend > 0 ? '+' : ''}{rs.rateTrend.toFixed(1)}pp
+				</span>
+				{#if rs.medianResponseTimeHours !== null}
+					<span class="text-text-3">·</span>
+					<span>medyan {rs.medianResponseTimeHours}sa</span>
+				{/if}
+			</div>
+		</a>
 	</div>
 
 	<!-- ── Category Grid ───────────────────────────────────────────────── -->
