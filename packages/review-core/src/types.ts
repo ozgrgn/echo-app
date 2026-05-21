@@ -20,10 +20,15 @@ export interface PlatformMeta {
   status: PlatformStatus;
 }
 
+// Status reflects backend implementation as of AGENT_USAGE.md:
+//   - tripadvisor:  shipped (Apify TripAdvisor actor, ~$0.50/1K reviews)
+//   - google:       shipped (Apify Google Maps actor, ~$0.60/1K reviews)
+//   - holidaycheck: shipped (Lexis Solutions actor, ~$30/mo flat, ignores maxItems — fetches all)
+//   - check24:      planned (501 Not Implemented currently)
 export const PLATFORM_REGISTRY: Record<string, PlatformMeta> = {
   tripadvisor:  { key: 'tripadvisor',  label: 'TripAdvisor',  icon: '🦉', status: 'shipped' },
-  google:       { key: 'google',       label: 'Google',       icon: '🔍', status: 'planned' },
-  holidaycheck: { key: 'holidaycheck', label: 'HolidayCheck', icon: '🇩🇪', status: 'planned' },
+  google:       { key: 'google',       label: 'Google',       icon: '🔍', status: 'shipped' },
+  holidaycheck: { key: 'holidaycheck', label: 'HolidayCheck', icon: '🇩🇪', status: 'shipped' },
   check24:      { key: 'check24',      label: 'Check24',      icon: '✅', status: 'planned' }
 };
 

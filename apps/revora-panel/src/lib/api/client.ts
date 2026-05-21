@@ -13,7 +13,7 @@
  * USAGE inside SvelteKit load() functions: see api wrappers (next step).
  */
 
-import { login, BASE_URL, type AuthCredentials } from '@revora/review-core';
+import { login, getApiBaseUrl, type AuthCredentials } from '@revora/review-core';
 import { auth } from '$lib/stores/auth.svelte';
 import type { RevoraContextValue } from '$lib/context/revora.svelte';
 
@@ -41,7 +41,7 @@ export async function apiFetch(
 	path: string,
 	init: RequestInit = {}
 ): Promise<Response> {
-	const baseUrl = ctx.apiBaseUrl ?? BASE_URL;
+	const baseUrl = ctx.apiBaseUrl ?? getApiBaseUrl();
 
 	// In Mode A after a 401 refresh, auth.token has the fresh value.
 	// In Mode B1, auth.token is null — we always use ctx.jwt.

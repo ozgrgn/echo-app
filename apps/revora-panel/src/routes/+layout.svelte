@@ -3,10 +3,20 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { setRevoraContext } from '$lib/context/revora.svelte';
+	import { setApiBaseUrl } from '@revora/review-core';
+	import { env } from '$env/dynamic/public';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 
 	let { children } = $props();
+
+	// ── API base URL setup ──
+	// Point review-core's API client at the configured backend. Falls back
+	// to the package default (production Railway URL) if the env var is unset.
+	// Runs once at module init — not reactive.
+	if (env.PUBLIC_REVORA_API_URL) {
+		setApiBaseUrl(env.PUBLIC_REVORA_API_URL);
+	}
 
 	// ── Auth guard ──
 	// If not logged in and not heading to /login, redirect to /login.
