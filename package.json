@@ -1,10 +1,10 @@
 {
-  "name": "revora-frontend",
+  "name": "echo-frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "Revora hotel review intelligence frontend (panel + shared packages)",
+  "description": "ECHO hotel review intelligence frontend (panel + shared packages)",
   "scripts": {
-    "dev": "pnpm --filter revora-panel dev",
+    "dev": "pnpm --filter echo-panel dev",
     "dev:clean": "pnpm kill-port && pnpm dev",
     "kill-port": "lsof -ti :5173 2>/dev/null | xargs -r kill -9 2>/dev/null; echo 'port 5173 freed'",
     "build": "pnpm -r build",
@@ -18,5 +18,10 @@
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
   },
-  "packageManager": "pnpm@11.1.2"
+  "packageManager": "pnpm@11.1.2",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
 }

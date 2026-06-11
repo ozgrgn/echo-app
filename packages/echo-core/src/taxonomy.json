@@ -1,0 +1,1286 @@
+{
+  "version": "resort_taxonomy_v1.0.0",
+  "categories": [
+    {
+      "key": "FOOD",
+      "label": "Yeme & İçme",
+      "labelEn": "Food & Beverage",
+      "weight": 0.17,
+      "inGpi": true,
+      "primaryOwner": "F&B Müdürü",
+      "subcategories": [
+        "breakfast",
+        "buffet",
+        "a_la_carte",
+        "restaurant_general",
+        "restaurant_reservation",
+        "food_quality_taste",
+        "food_variety",
+        "food_freshness_temperature",
+        "fb_service",
+        "drinks_bar",
+        "alcohol_quality_brands",
+        "snack_food",
+        "late_night_food",
+        "diet_allergy_kids_food"
+      ]
+    },
+    {
+      "key": "ROOM",
+      "label": "Oda",
+      "labelEn": "Room",
+      "weight": 0.17,
+      "inGpi": true,
+      "primaryOwner": "Kat Hizmetleri Müdürü",
+      "subcategories": [
+        "room_general",
+        "room_cleanliness",
+        "comfort_bed_sleep",
+        "bathroom_shower",
+        "air_conditioning",
+        "room_maintenance",
+        "room_wifi_internet",
+        "room_noise",
+        "room_electricity_lighting",
+        "towel_linen",
+        "view_balcony_size",
+        "minibar_amenities"
+      ]
+    },
+    {
+      "key": "STAFF",
+      "label": "Personel",
+      "labelEn": "Staff",
+      "weight": 0.11,
+      "inGpi": true,
+      "primaryOwner": "Genel Müdür",
+      "subcategories": [
+        "staff_general_attitude",
+        "friendliness_helpfulness",
+        "communication_language",
+        "professionalism",
+        "solution_orientation"
+      ]
+    },
+    {
+      "key": "FRONT",
+      "label": "Resepsiyon",
+      "labelEn": "Front Office",
+      "weight": 0.08,
+      "inGpi": true,
+      "primaryOwner": "Ön Büro Müdürü",
+      "subcategories": [
+        "welcome_arrival",
+        "check_in_out",
+        "reception_service",
+        "queue_waiting",
+        "information_support",
+        "billing_deposit",
+        "room_assignment_upgrade"
+      ]
+    },
+    {
+      "key": "POOL",
+      "label": "Havuz",
+      "labelEn": "Pool",
+      "weight": 0.08,
+      "inGpi": true,
+      "primaryOwner": "Rekreasyon Müdürü",
+      "subcategories": [
+        "pool_general",
+        "pool_cleanliness",
+        "pool_size_crowd",
+        "pool_size_variety",
+        "aquapark_slides",
+        "water_temperature",
+        "pool_safety",
+        "pool_towel",
+        "sunbed_availability",
+        "cabana_pavilion"
+      ]
+    },
+    {
+      "key": "BEACH",
+      "label": "Plaj & Deniz",
+      "labelEn": "Beach & Sea",
+      "weight": 0.07,
+      "inGpi": true,
+      "primaryOwner": "Rekreasyon Müdürü",
+      "subcategories": [
+        "beach_general",
+        "beach_cleanliness",
+        "sea_quality",
+        "sand_pebble_rocks",
+        "sunbed_shade",
+        "beach_cabana",
+        "beach_bar_service",
+        "pier_access",
+        "water_sports"
+      ]
+    },
+    {
+      "key": "ENTERTAINMENT",
+      "label": "Animasyon & Eğlence",
+      "labelEn": "Entertainment",
+      "weight": 0.06,
+      "inGpi": true,
+      "primaryOwner": "Animasyon Müdürü",
+      "subcategories": [
+        "day_activities",
+        "night_shows",
+        "live_music",
+        "sports_activities",
+        "entertainment_staff",
+        "entertainment_noise"
+      ]
+    },
+    {
+      "key": "KIDS",
+      "label": "Çocuk & Aile",
+      "labelEn": "Kids & Family",
+      "weight": 0.06,
+      "inGpi": true,
+      "primaryOwner": "Animasyon Müdürü",
+      "subcategories": [
+        "kids_club",
+        "mini_disco",
+        "children_activities",
+        "teen_activities",
+        "playground",
+        "baby_facilities",
+        "kids_pool_area"
+      ]
+    },
+    {
+      "key": "FACILITY",
+      "label": "Tesis",
+      "labelEn": "Facility",
+      "weight": 0.07,
+      "inGpi": true,
+      "primaryOwner": "Teknik Müdür",
+      "subcategories": [
+        "building_condition",
+        "property_general",
+        "ambience_decoration",
+        "common_area_cleanliness",
+        "general_maintenance",
+        "garden_landscape",
+        "elevators",
+        "wifi_common_area",
+        "accessibility"
+      ]
+    },
+    {
+      "key": "SPA",
+      "label": "SPA & Wellness",
+      "labelEn": "SPA & Wellness",
+      "weight": 0.04,
+      "inGpi": true,
+      "primaryOwner": "SPA Müdürü",
+      "subcategories": [
+        "spa_general",
+        "spa_cleanliness",
+        "massage_treatment",
+        "sauna_hamam",
+        "fitness",
+        "spa_staff_service",
+        "spa_price_reservation"
+      ]
+    },
+    {
+      "key": "VALUE",
+      "label": "Fiyat / Değer",
+      "labelEn": "Value for Money",
+      "weight": 0.07,
+      "inGpi": true,
+      "primaryOwner": "Genel Müdür",
+      "subcategories": [
+        "value_for_money",
+        "extra_charges",
+        "concept_inclusion",
+        "price_transparency",
+        "upselling_pressure"
+      ]
+    },
+    {
+      "key": "GENERAL",
+      "label": "Genel",
+      "labelEn": "General",
+      "weight": 0.02,
+      "inGpi": true,
+      "primaryOwner": "Genel Müdür",
+      "subcategories": [
+        "overall_experience",
+        "loyalty_revisit",
+        "expectation_match"
+      ]
+    },
+    {
+      "key": "LOCATION",
+      "label": "Konum & Ulaşım",
+      "labelEn": "Location & Access",
+      "weight": 0,
+      "inGpi": false,
+      "informationalOnly": true,
+      "primaryOwner": "Genel Müdür",
+      "subcategories": [
+        "location_general",
+        "transport_access",
+        "parking",
+        "surroundings",
+        "sea_access_quality",
+        "proximity_to_town"
+      ]
+    },
+    {
+      "key": "SECURITY",
+      "label": "Güvenlik",
+      "labelEn": "Security & Safety",
+      "weight": 0,
+      "inGpi": false,
+      "alertOnly": true,
+      "primaryOwner": "Genel Müdür",
+      "subcategories": [
+        "guest_safety",
+        "theft_lost_item",
+        "lifeguard_safety",
+        "food_safety",
+        "emergency_medical",
+        "privacy_disturbance",
+        "smoking_policy_violation"
+      ]
+    }
+  ],
+  "subcategories": [
+    {
+      "key": "breakfast",
+      "category": "FOOD",
+      "label": "Kahvaltı",
+      "labelEn": "Breakfast",
+      "weight": 1.2
+    },
+    {
+      "key": "buffet",
+      "category": "FOOD",
+      "label": "Açık Büfe",
+      "labelEn": "Buffet",
+      "weight": 1.1
+    },
+    {
+      "key": "a_la_carte",
+      "category": "FOOD",
+      "label": "À la Carte Restoran",
+      "labelEn": "À la Carte",
+      "weight": 0.9
+    },
+    {
+      "key": "restaurant_general",
+      "category": "FOOD",
+      "label": "Restoran (Genel)",
+      "labelEn": "Restaurant (General)",
+      "weight": 1
+    },
+    {
+      "key": "restaurant_reservation",
+      "category": "FOOD",
+      "label": "Restoran Rezervasyonu",
+      "labelEn": "Restaurant Reservation",
+      "weight": 0.9
+    },
+    {
+      "key": "food_quality_taste",
+      "category": "FOOD",
+      "label": "Yemek Lezzeti",
+      "labelEn": "Food Quality & Taste",
+      "weight": 1.2
+    },
+    {
+      "key": "food_variety",
+      "category": "FOOD",
+      "label": "Yemek Çeşitliliği",
+      "labelEn": "Food Variety",
+      "weight": 1
+    },
+    {
+      "key": "food_freshness_temperature",
+      "category": "FOOD",
+      "label": "Tazelik & Sıcaklık",
+      "labelEn": "Freshness & Temperature",
+      "weight": 1.3,
+      "severityBase": "high"
+    },
+    {
+      "key": "fb_service",
+      "category": "FOOD",
+      "label": "Servis (Garson)",
+      "labelEn": "F&B Service",
+      "weight": 1
+    },
+    {
+      "key": "drinks_bar",
+      "category": "FOOD",
+      "label": "Bar & İçecekler",
+      "labelEn": "Drinks & Bar",
+      "weight": 0.9
+    },
+    {
+      "key": "alcohol_quality_brands",
+      "category": "FOOD",
+      "label": "İçki Markaları & Kalite",
+      "labelEn": "Alcohol Brands & Quality",
+      "weight": 1
+    },
+    {
+      "key": "snack_food",
+      "category": "FOOD",
+      "label": "Atıştırmalık",
+      "labelEn": "Snack Food",
+      "weight": 0.8
+    },
+    {
+      "key": "late_night_food",
+      "category": "FOOD",
+      "label": "Gece Yemek",
+      "labelEn": "Late-Night Food",
+      "weight": 0.9
+    },
+    {
+      "key": "diet_allergy_kids_food",
+      "category": "FOOD",
+      "label": "Diyet/Alerji/Çocuk Yemeği",
+      "labelEn": "Diet/Allergy/Kids Food",
+      "weight": 1.1
+    },
+    {
+      "key": "room_cleanliness",
+      "category": "ROOM",
+      "label": "Oda Temizliği",
+      "labelEn": "Room Cleanliness",
+      "weight": 1.3
+    },
+    {
+      "key": "towel_linen",
+      "category": "ROOM",
+      "label": "Havlu & Çarşaf",
+      "labelEn": "Towel & Linen",
+      "weight": 0.9
+    },
+    {
+      "key": "comfort_bed_sleep",
+      "category": "ROOM",
+      "label": "Yatak & Uyku Konforu",
+      "labelEn": "Bed & Sleep Comfort",
+      "weight": 1.1
+    },
+    {
+      "key": "room_general",
+      "category": "ROOM",
+      "label": "Oda (Genel)",
+      "labelEn": "Room (General)",
+      "weight": 1
+    },
+    {
+      "key": "view_balcony_size",
+      "category": "ROOM",
+      "label": "Manzara & Balkon",
+      "labelEn": "View & Balcony",
+      "weight": 0.7
+    },
+    {
+      "key": "minibar_amenities",
+      "category": "ROOM",
+      "label": "Minibar & Amenities",
+      "labelEn": "Minibar & Amenities",
+      "weight": 0.6
+    },
+    {
+      "key": "air_conditioning",
+      "category": "ROOM",
+      "label": "Klima",
+      "labelEn": "Air Conditioning",
+      "weight": 1.2,
+      "severityBase": "high"
+    },
+    {
+      "key": "room_maintenance",
+      "category": "ROOM",
+      "label": "Oda Bakımı",
+      "labelEn": "Room Maintenance",
+      "weight": 1.1
+    },
+    {
+      "key": "bathroom_shower",
+      "category": "ROOM",
+      "label": "Banyo & Duş",
+      "labelEn": "Bathroom & Shower",
+      "weight": 1.2
+    },
+    {
+      "key": "room_wifi_internet",
+      "category": "ROOM",
+      "label": "Odada Wi-Fi",
+      "labelEn": "Room Wi-Fi",
+      "weight": 0.8
+    },
+    {
+      "key": "room_electricity_lighting",
+      "category": "ROOM",
+      "label": "Elektrik & Aydınlatma",
+      "labelEn": "Electricity & Lighting",
+      "weight": 0.9
+    },
+    {
+      "key": "room_noise",
+      "category": "ROOM",
+      "label": "Oda Gürültüsü",
+      "labelEn": "Room Noise",
+      "weight": 1
+    },
+    {
+      "key": "staff_general_attitude",
+      "category": "STAFF",
+      "label": "Personel Tutumu",
+      "labelEn": "Staff Attitude",
+      "weight": 1
+    },
+    {
+      "key": "friendliness_helpfulness",
+      "category": "STAFF",
+      "label": "Güler Yüz & Yardımseverlik",
+      "labelEn": "Friendliness & Helpfulness",
+      "weight": 1.1
+    },
+    {
+      "key": "communication_language",
+      "category": "STAFF",
+      "label": "İletişim & Yabancı Dil",
+      "labelEn": "Communication & Language",
+      "weight": 1
+    },
+    {
+      "key": "professionalism",
+      "category": "STAFF",
+      "label": "Profesyonellik",
+      "labelEn": "Professionalism",
+      "weight": 1
+    },
+    {
+      "key": "solution_orientation",
+      "category": "STAFF",
+      "label": "Çözüm Odaklılık",
+      "labelEn": "Solution Orientation",
+      "weight": 1.1
+    },
+    {
+      "key": "welcome_arrival",
+      "category": "FRONT",
+      "label": "Karşılama",
+      "labelEn": "Welcome & Arrival",
+      "weight": 1.1
+    },
+    {
+      "key": "check_in_out",
+      "category": "FRONT",
+      "label": "Check-in / Check-out",
+      "labelEn": "Check-in / Check-out",
+      "weight": 1.2
+    },
+    {
+      "key": "reception_service",
+      "category": "FRONT",
+      "label": "Resepsiyon Hizmeti",
+      "labelEn": "Reception Service",
+      "weight": 1.1
+    },
+    {
+      "key": "queue_waiting",
+      "category": "FRONT",
+      "label": "Kuyruk & Bekleme",
+      "labelEn": "Queue & Waiting",
+      "weight": 1
+    },
+    {
+      "key": "information_support",
+      "category": "FRONT",
+      "label": "Bilgilendirme & Destek",
+      "labelEn": "Information & Support",
+      "weight": 1
+    },
+    {
+      "key": "billing_deposit",
+      "category": "FRONT",
+      "label": "Faturalama & Depozito",
+      "labelEn": "Billing & Deposit",
+      "weight": 1
+    },
+    {
+      "key": "room_assignment_upgrade",
+      "category": "FRONT",
+      "label": "Oda Atama & Upgrade",
+      "labelEn": "Room Assignment & Upgrade",
+      "weight": 0.9
+    },
+    {
+      "key": "pool_cleanliness",
+      "category": "POOL",
+      "label": "Havuz Temizliği",
+      "labelEn": "Pool Cleanliness",
+      "weight": 1.2
+    },
+    {
+      "key": "pool_size_crowd",
+      "category": "POOL",
+      "label": "Havuz Kalabalığı",
+      "labelEn": "Pool Crowding",
+      "weight": 1.1
+    },
+    {
+      "key": "pool_size_variety",
+      "category": "POOL",
+      "label": "Havuz Çeşitliliği",
+      "labelEn": "Pool Variety",
+      "weight": 1
+    },
+    {
+      "key": "pool_safety",
+      "category": "POOL",
+      "label": "Havuz Güvenliği",
+      "labelEn": "Pool Safety",
+      "weight": 1.2,
+      "severityBase": "high"
+    },
+    {
+      "key": "aquapark_slides",
+      "category": "POOL",
+      "label": "Aquapark & Kaydıraklar",
+      "labelEn": "Aquapark & Slides",
+      "weight": 0.9
+    },
+    {
+      "key": "water_temperature",
+      "category": "POOL",
+      "label": "Su Sıcaklığı",
+      "labelEn": "Water Temperature",
+      "weight": 1
+    },
+    {
+      "key": "pool_towel",
+      "category": "POOL",
+      "label": "Havuz Havlusu",
+      "labelEn": "Pool Towel",
+      "weight": 0.8
+    },
+    {
+      "key": "pool_general",
+      "category": "POOL",
+      "label": "Havuz (Genel)",
+      "labelEn": "Pool (General)",
+      "weight": 1
+    },
+    {
+      "key": "sunbed_availability",
+      "category": "POOL",
+      "label": "Şezlong Bulunabilirliği",
+      "labelEn": "Sunbed Availability",
+      "weight": 1.1
+    },
+    {
+      "key": "cabana_pavilion",
+      "category": "POOL",
+      "label": "Cabana / Pavilion",
+      "labelEn": "Cabana / Pavilion",
+      "weight": 1
+    },
+    {
+      "key": "beach_cleanliness",
+      "category": "BEACH",
+      "label": "Plaj Temizliği",
+      "labelEn": "Beach Cleanliness",
+      "weight": 1.2
+    },
+    {
+      "key": "sea_quality",
+      "category": "BEACH",
+      "label": "Deniz Kalitesi",
+      "labelEn": "Sea Quality",
+      "weight": 1.1
+    },
+    {
+      "key": "sunbed_shade",
+      "category": "BEACH",
+      "label": "Şezlong & Gölgelik",
+      "labelEn": "Sunbed & Shade",
+      "weight": 1.1
+    },
+    {
+      "key": "beach_cabana",
+      "category": "BEACH",
+      "label": "Plaj Cabana",
+      "labelEn": "Beach Cabana",
+      "weight": 1
+    },
+    {
+      "key": "beach_bar_service",
+      "category": "BEACH",
+      "label": "Plaj Bar Servisi",
+      "labelEn": "Beach Bar Service",
+      "weight": 0.9
+    },
+    {
+      "key": "pier_access",
+      "category": "BEACH",
+      "label": "İskele & Erişim",
+      "labelEn": "Pier Access",
+      "weight": 0.8
+    },
+    {
+      "key": "water_sports",
+      "category": "BEACH",
+      "label": "Su Sporları",
+      "labelEn": "Water Sports",
+      "weight": 0.9
+    },
+    {
+      "key": "sand_pebble_rocks",
+      "category": "BEACH",
+      "label": "Kum / Çakıl / Kayalık",
+      "labelEn": "Sand / Pebble / Rocks",
+      "weight": 0.9
+    },
+    {
+      "key": "beach_general",
+      "category": "BEACH",
+      "label": "Plaj (Genel)",
+      "labelEn": "Beach (General)",
+      "weight": 1
+    },
+    {
+      "key": "day_activities",
+      "category": "ENTERTAINMENT",
+      "label": "Gündüz Aktiviteleri",
+      "labelEn": "Day Activities",
+      "weight": 1
+    },
+    {
+      "key": "night_shows",
+      "category": "ENTERTAINMENT",
+      "label": "Gece Şovları",
+      "labelEn": "Night Shows",
+      "weight": 1
+    },
+    {
+      "key": "live_music",
+      "category": "ENTERTAINMENT",
+      "label": "Canlı Müzik",
+      "labelEn": "Live Music",
+      "weight": 0.9
+    },
+    {
+      "key": "sports_activities",
+      "category": "ENTERTAINMENT",
+      "label": "Spor Aktiviteleri",
+      "labelEn": "Sports Activities",
+      "weight": 0.9
+    },
+    {
+      "key": "entertainment_staff",
+      "category": "ENTERTAINMENT",
+      "label": "Animasyon Ekibi",
+      "labelEn": "Entertainment Staff",
+      "weight": 1
+    },
+    {
+      "key": "entertainment_noise",
+      "category": "ENTERTAINMENT",
+      "label": "Animasyon Gürültüsü",
+      "labelEn": "Entertainment Noise",
+      "weight": 1.1
+    },
+    {
+      "key": "kids_club",
+      "category": "KIDS",
+      "label": "Mini Klüp",
+      "labelEn": "Kids Club",
+      "weight": 1.2
+    },
+    {
+      "key": "mini_disco",
+      "category": "KIDS",
+      "label": "Mini Disco",
+      "labelEn": "Mini Disco",
+      "weight": 0.9
+    },
+    {
+      "key": "children_activities",
+      "category": "KIDS",
+      "label": "Çocuk Aktiviteleri",
+      "labelEn": "Children's Activities",
+      "weight": 1.1
+    },
+    {
+      "key": "teen_activities",
+      "category": "KIDS",
+      "label": "Genç Aktiviteleri (12+)",
+      "labelEn": "Teen Activities",
+      "weight": 1
+    },
+    {
+      "key": "playground",
+      "category": "KIDS",
+      "label": "Oyun Parkı",
+      "labelEn": "Playground",
+      "weight": 0.9
+    },
+    {
+      "key": "baby_facilities",
+      "category": "KIDS",
+      "label": "Bebek Olanakları",
+      "labelEn": "Baby Facilities",
+      "weight": 1
+    },
+    {
+      "key": "kids_pool_area",
+      "category": "KIDS",
+      "label": "Çocuk Havuz Alanı",
+      "labelEn": "Kids Pool Area",
+      "weight": 1
+    },
+    {
+      "key": "common_area_cleanliness",
+      "category": "FACILITY",
+      "label": "Ortak Alan Temizliği",
+      "labelEn": "Common Area Cleanliness",
+      "weight": 1.1
+    },
+    {
+      "key": "building_condition",
+      "category": "FACILITY",
+      "label": "Bina Durumu",
+      "labelEn": "Building Condition",
+      "weight": 1.2
+    },
+    {
+      "key": "general_maintenance",
+      "category": "FACILITY",
+      "label": "Genel Bakım",
+      "labelEn": "General Maintenance",
+      "weight": 1.1
+    },
+    {
+      "key": "elevators",
+      "category": "FACILITY",
+      "label": "Asansörler",
+      "labelEn": "Elevators",
+      "weight": 1
+    },
+    {
+      "key": "wifi_common_area",
+      "category": "FACILITY",
+      "label": "Ortak Alan Wi-Fi",
+      "labelEn": "Common Area Wi-Fi",
+      "weight": 0.9
+    },
+    {
+      "key": "garden_landscape",
+      "category": "FACILITY",
+      "label": "Bahçe & Peyzaj",
+      "labelEn": "Garden & Landscape",
+      "weight": 0.8
+    },
+    {
+      "key": "ambience_decoration",
+      "category": "FACILITY",
+      "label": "Ambiyans & Dekor",
+      "labelEn": "Ambience & Decor",
+      "weight": 0.8
+    },
+    {
+      "key": "property_general",
+      "category": "FACILITY",
+      "label": "Tesis (Genel)",
+      "labelEn": "Property (General)",
+      "weight": 1
+    },
+    {
+      "key": "accessibility",
+      "category": "FACILITY",
+      "label": "Engelli Erişimi",
+      "labelEn": "Accessibility",
+      "weight": 1
+    },
+    {
+      "key": "massage_treatment",
+      "category": "SPA",
+      "label": "Masaj & Bakım",
+      "labelEn": "Massage & Treatment",
+      "weight": 1.2
+    },
+    {
+      "key": "spa_cleanliness",
+      "category": "SPA",
+      "label": "SPA Temizliği",
+      "labelEn": "SPA Cleanliness",
+      "weight": 1.1
+    },
+    {
+      "key": "spa_staff_service",
+      "category": "SPA",
+      "label": "SPA Personeli",
+      "labelEn": "SPA Staff",
+      "weight": 1
+    },
+    {
+      "key": "sauna_hamam",
+      "category": "SPA",
+      "label": "Sauna & Hamam",
+      "labelEn": "Sauna & Hamam",
+      "weight": 1
+    },
+    {
+      "key": "fitness",
+      "category": "SPA",
+      "label": "Fitness Salonu",
+      "labelEn": "Fitness",
+      "weight": 0.9
+    },
+    {
+      "key": "spa_price_reservation",
+      "category": "SPA",
+      "label": "SPA Fiyat & Rezervasyon",
+      "labelEn": "SPA Price & Reservation",
+      "weight": 0.8
+    },
+    {
+      "key": "spa_general",
+      "category": "SPA",
+      "label": "SPA (Genel)",
+      "labelEn": "SPA (General)",
+      "weight": 1
+    },
+    {
+      "key": "value_for_money",
+      "category": "VALUE",
+      "label": "Fiyat / Performans",
+      "labelEn": "Value for Money",
+      "weight": 1.1
+    },
+    {
+      "key": "extra_charges",
+      "category": "VALUE",
+      "label": "Ekstra Ücretler",
+      "labelEn": "Extra Charges",
+      "weight": 1.2
+    },
+    {
+      "key": "concept_inclusion",
+      "category": "VALUE",
+      "label": "Konsept Kapsamı (Her Şey Dahil)",
+      "labelEn": "Concept Inclusion",
+      "weight": 1
+    },
+    {
+      "key": "price_transparency",
+      "category": "VALUE",
+      "label": "Fiyat Şeffaflığı",
+      "labelEn": "Price Transparency",
+      "weight": 1
+    },
+    {
+      "key": "upselling_pressure",
+      "category": "VALUE",
+      "label": "Satış Baskısı",
+      "labelEn": "Upselling Pressure",
+      "weight": 1.1
+    },
+    {
+      "key": "overall_experience",
+      "category": "GENERAL",
+      "label": "Genel Deneyim",
+      "labelEn": "Overall Experience",
+      "weight": 1
+    },
+    {
+      "key": "loyalty_revisit",
+      "category": "GENERAL",
+      "label": "Tekrar Gelme / Tavsiye",
+      "labelEn": "Loyalty & Revisit",
+      "weight": 1
+    },
+    {
+      "key": "expectation_match",
+      "category": "GENERAL",
+      "label": "Beklenti Karşılama",
+      "labelEn": "Expectation Match",
+      "weight": 1
+    },
+    {
+      "key": "location_general",
+      "category": "LOCATION",
+      "label": "Konum (Genel)",
+      "labelEn": "Location (General)",
+      "weight": 0
+    },
+    {
+      "key": "transport_access",
+      "category": "LOCATION",
+      "label": "Ulaşım & Transfer",
+      "labelEn": "Transport & Access",
+      "weight": 0
+    },
+    {
+      "key": "parking",
+      "category": "LOCATION",
+      "label": "Otopark",
+      "labelEn": "Parking",
+      "weight": 0
+    },
+    {
+      "key": "surroundings",
+      "category": "LOCATION",
+      "label": "Çevre",
+      "labelEn": "Surroundings",
+      "weight": 0
+    },
+    {
+      "key": "sea_access_quality",
+      "category": "LOCATION",
+      "label": "Denize Erişim",
+      "labelEn": "Sea Access",
+      "weight": 0
+    },
+    {
+      "key": "proximity_to_town",
+      "category": "LOCATION",
+      "label": "Şehir Merkezine Yakınlık",
+      "labelEn": "Proximity to Town",
+      "weight": 0
+    },
+    {
+      "key": "guest_safety",
+      "category": "SECURITY",
+      "label": "Misafir Güvenliği",
+      "labelEn": "Guest Safety",
+      "weight": 0,
+      "severityBase": "critical"
+    },
+    {
+      "key": "theft_lost_item",
+      "category": "SECURITY",
+      "label": "Hırsızlık / Kayıp Eşya",
+      "labelEn": "Theft / Lost Item",
+      "weight": 0,
+      "severityBase": "critical"
+    },
+    {
+      "key": "lifeguard_safety",
+      "category": "SECURITY",
+      "label": "Cankurtaran Güvenliği",
+      "labelEn": "Lifeguard Safety",
+      "weight": 0,
+      "severityBase": "critical"
+    },
+    {
+      "key": "food_safety",
+      "category": "SECURITY",
+      "label": "Gıda Güvenliği",
+      "labelEn": "Food Safety",
+      "weight": 0,
+      "severityBase": "critical"
+    },
+    {
+      "key": "emergency_medical",
+      "category": "SECURITY",
+      "label": "Tıbbi Acil",
+      "labelEn": "Medical Emergency",
+      "weight": 0,
+      "severityBase": "critical"
+    },
+    {
+      "key": "privacy_disturbance",
+      "category": "SECURITY",
+      "label": "Mahremiyet İhlali",
+      "labelEn": "Privacy Disturbance",
+      "weight": 0,
+      "severityBase": "high"
+    },
+    {
+      "key": "smoking_policy_violation",
+      "category": "SECURITY",
+      "label": "Sigara Politikası İhlali",
+      "labelEn": "Smoking Policy Violation",
+      "weight": 0,
+      "severityBase": "high"
+    }
+  ],
+  "disambiguationRules": [
+    {
+      "pattern": "Havlu gelmedi / oda havlusu",
+      "category": "ROOM",
+      "subcategory": "towel_linen",
+      "excludeCategories": [
+        "POOL",
+        "STAFF"
+      ],
+      "rationale": "Room towel service is housekeeping, not pool"
+    },
+    {
+      "pattern": "Havuz havlusu yoktu",
+      "category": "POOL",
+      "subcategory": "pool_towel",
+      "excludeCategories": [
+        "ROOM"
+      ],
+      "rationale": "Pool-area towel is pool department"
+    },
+    {
+      "pattern": "Garson / servis yavaş / kaba",
+      "category": "FOOD",
+      "subcategory": "fb_service",
+      "excludeCategories": [
+        "STAFF"
+      ],
+      "rationale": "Waiter attitude is F&B service, not cross-cutting staff"
+    },
+    {
+      "pattern": "Resepsiyoncu / front desk kaba",
+      "category": "FRONT",
+      "subcategory": "reception_service",
+      "excludeCategories": [
+        "STAFF"
+      ],
+      "rationale": "Reception desk behaviour routes to Front Office"
+    },
+    {
+      "pattern": "Personel / herkes çok iyiydi",
+      "category": "STAFF",
+      "subcategory": "friendliness_helpfulness",
+      "excludeCategories": [
+        "FRONT",
+        "FOOD",
+        "ROOM"
+      ],
+      "rationale": "Unattributed staff praise → cross-cutting STAFF"
+    },
+    {
+      "pattern": "Restoran / yemek alanı kirlik",
+      "category": "FACILITY",
+      "subcategory": "common_area_cleanliness",
+      "excludeCategories": [
+        "FOOD",
+        "ROOM"
+      ],
+      "rationale": "Common dining area cleanliness is facility/housekeeping"
+    },
+    {
+      "pattern": "Odada WiFi / internet yok",
+      "category": "ROOM",
+      "subcategory": "room_wifi_internet",
+      "excludeCategories": [
+        "FACILITY"
+      ]
+    },
+    {
+      "pattern": "Lobide / ortak alanda WiFi yok",
+      "category": "FACILITY",
+      "subcategory": "wifi_common_area",
+      "excludeCategories": [
+        "ROOM"
+      ]
+    },
+    {
+      "pattern": "Havuz kötüydü / pis",
+      "category": "POOL",
+      "subcategory": "pool_cleanliness",
+      "excludeCategories": [
+        "FACILITY"
+      ]
+    },
+    {
+      "pattern": "Havuz şezlongu yetersiz / Liegestühle am Pool",
+      "category": "POOL",
+      "subcategory": "sunbed_availability",
+      "excludeCategories": [
+        "BEACH"
+      ],
+      "rationale": "Sunbed availability at the pool belongs to POOL; beach sunbeds use sunbed_shade under BEACH"
+    },
+    {
+      "pattern": "Plajda şezlong yeterli/yetersiz / beach sun loungers",
+      "category": "BEACH",
+      "subcategory": "sunbed_shade",
+      "excludeCategories": [
+        "POOL"
+      ],
+      "rationale": "Beach sunbed availability is captured by BEACH/sunbed_shade (covers both shade and number)"
+    },
+    {
+      "pattern": "Animasyon / gece şov gürültüsü uyutmadı",
+      "category": "ENTERTAINMENT",
+      "subcategory": "entertainment_noise",
+      "excludeCategories": [
+        "ROOM"
+      ],
+      "rationale": "Noise source is entertainment; impact on sleep captured in evidence"
+    },
+    {
+      "pattern": "Çocuk yemeği / bebek maması",
+      "category": "FOOD",
+      "subcategory": "diet_allergy_kids_food",
+      "excludeCategories": [
+        "KIDS"
+      ],
+      "rationale": "Child-specific food requests are handled by F&B; KIDS is for activities/club only"
+    },
+    {
+      "pattern": "Mini klüp / kids club / kids disco / mini disco (sabit mekan + program)",
+      "category": "KIDS",
+      "subcategory": "kids_club",
+      "excludeCategories": [
+        "ENTERTAINMENT"
+      ],
+      "rationale": "Fixed-venue child program (mini club, kids disco) routes to KIDS/kids_club; ENTERTAINMENT is for general/adult animation"
+    },
+    {
+      "pattern": "Animatörler çocuklarla ilgilendi / havuzda çocuk oyunu / sahil çocuk aktivitesi (mekandan bağımsız)",
+      "category": "KIDS",
+      "subcategory": "children_activities",
+      "excludeCategories": [
+        "ENTERTAINMENT",
+        "STAFF"
+      ],
+      "rationale": "Venue-agnostic child activities belong to KIDS/children_activities, NOT entertainment_staff"
+    },
+    {
+      "pattern": "Hırsızlık / eşya çalındı",
+      "category": "SECURITY",
+      "subcategory": "theft_lost_item",
+      "excludeCategories": [
+        "FACILITY",
+        "FRONT"
+      ]
+    },
+    {
+      "pattern": "Yiyecek zehirlenmesi / mide",
+      "category": "SECURITY",
+      "subcategory": "food_safety",
+      "excludeCategories": [
+        "FOOD"
+      ]
+    },
+    {
+      "pattern": "Sigara içilmeyen alanda sigara / kuralı ihlal",
+      "category": "SECURITY",
+      "subcategory": "smoking_policy_violation",
+      "excludeCategories": [
+        "FACILITY",
+        "ROOM"
+      ],
+      "rationale": "Smoking-policy violations are a safety/policy issue, not a facility complaint"
+    },
+    {
+      "pattern": "Ekstra ücret / paid extra / charge / için ücret istendi",
+      "category": "VALUE",
+      "subcategory": "extra_charges",
+      "excludeCategories": [
+        "FOOD",
+        "ROOM",
+        "FACILITY",
+        "SPA"
+      ],
+      "rationale": "When the main complaint is the charge itself, classify under VALUE/extra_charges. Do NOT create FOOD/ROOM/FACILITY/SPA aspects merely because the charged item belongs to those domains, unless the review separately evaluates the item quality."
+    },
+    {
+      "pattern": "Her şey dahil yanıltıcı / dahil sanılan şey ücretli çıktı",
+      "category": "VALUE",
+      "subcategory": "concept_inclusion",
+      "excludeCategories": [
+        "FOOD",
+        "ROOM"
+      ],
+      "rationale": "All-inclusive scope misrepresentation routes to VALUE/concept_inclusion"
+    },
+    {
+      "pattern": "Fiyatına değmedi / pahalıydı (genel)",
+      "category": "VALUE",
+      "subcategory": "value_for_money",
+      "excludeCategories": [],
+      "rationale": "Generic price-vs-quality complaint with no specific item → VALUE/value_for_money"
+    },
+    {
+      "pattern": "SPA satışı baskısı / fotoğraf baskısı / üyelik teklifi / sürekli ürün satışı",
+      "category": "VALUE",
+      "subcategory": "upselling_pressure",
+      "excludeCategories": [
+        "SPA",
+        "STAFF"
+      ],
+      "rationale": "Sales pressure complaint about being constantly pitched extras routes to VALUE/upselling_pressure, not to the department being sold"
+    },
+    {
+      "pattern": "Havuz kenarı cabana / pavilion / VIP gölgelik",
+      "category": "POOL",
+      "subcategory": "cabana_pavilion",
+      "excludeCategories": [
+        "BEACH",
+        "FACILITY"
+      ],
+      "rationale": "Poolside premium shade structures route to POOL/cabana_pavilion"
+    },
+    {
+      "pattern": "Plaj cabana / plajda pavilion / beach VIP",
+      "category": "BEACH",
+      "subcategory": "beach_cabana",
+      "excludeCategories": [
+        "POOL",
+        "FACILITY"
+      ],
+      "rationale": "Beachside premium shade structures route to BEACH/beach_cabana"
+    },
+    {
+      "pattern": "Resepsiyondaki personel yardımcı / staff at reception helpful / Personal an der Rezeption freundlich / персонал ресепшена",
+      "category": "FRONT",
+      "subcategory": "reception_service",
+      "excludeCategories": [
+        "STAFF"
+      ],
+      "rationale": "Reception-desk staff (any language) routes to FRONT/reception_service, NOT cross-cutting STAFF. Only unattributed/general staff praise goes to STAFF."
+    },
+    {
+      "pattern": "Animatörler profesyonel / çocuklarla ilgili / animators great with children / Animateure professionell mit Kindern",
+      "category": "KIDS",
+      "subcategory": "kids_club",
+      "excludeCategories": [
+        "STAFF",
+        "ENTERTAINMENT"
+      ],
+      "rationale": "Animator professionalism in a child-program context belongs to KIDS, NOT STAFF/professionalism or ENTERTAINMENT."
+    },
+    {
+      "pattern": "Genel servis kalitesi / overall service quality (no food/restaurant context) / allgemeiner Service",
+      "category": "STAFF",
+      "subcategory": "friendliness_helpfulness",
+      "excludeCategories": [
+        "FOOD"
+      ],
+      "rationale": "Generic \"service quality\" with no dining context is overall staff service (STAFF), NOT FOOD/fb_service. fb_service requires explicit waiter/restaurant/table-service mention."
+    },
+    {
+      "pattern": "Oda içi sorun hızlı çözüldü (kasa, klima, lamba) / room issue fixed quickly / Zimmerproblem schnell behoben",
+      "category": "ROOM",
+      "subcategory": "room_maintenance",
+      "excludeCategories": [
+        "FACILITY"
+      ],
+      "rationale": "In-room equipment fixes (safe, AC, lighting) route to ROOM/room_maintenance, NOT FACILITY/general_maintenance. FACILITY is for common-area/building-wide maintenance."
+    },
+    {
+      "pattern": "SPA / masaj ücreti yüksek / spa treatment overpriced / Spa-Preise zu hoch",
+      "category": "SPA",
+      "subcategory": "spa_price_reservation",
+      "excludeCategories": [
+        "VALUE"
+      ],
+      "rationale": "A pricing complaint scoped to the SPA must use category=SPA with subcategory=spa_price_reservation (both fields SPA). Do NOT keep category=VALUE. VALUE/extra_charges is only for hotel-wide all-inclusive surcharge surprises with no specific department."
+    }
+  ]
+}

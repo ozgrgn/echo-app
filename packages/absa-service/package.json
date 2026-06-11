@@ -1,0 +1,19 @@
+{
+  "name": "@talkwo/absa-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check":   "tsc --noEmit",
+    "eval":    "tsx evals/run-eval.ts",
+    "eval:dry": "tsx evals/run-eval.ts --dry-run"
+  },
+  "dependencies": {
+    "@talkwo/echo-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx":        "^4.0.0",
+    "typescript": "^5.6.0"
+  }
+}

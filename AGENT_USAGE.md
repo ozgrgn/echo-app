@@ -1,10 +1,10 @@
-# Revora API — Agent Usage Guide
+# ECHO API — Agent Usage Guide
 
-A self-contained guide for an AI agent (e.g., another Claude) to integrate with the Revora hotel review aggregation API.
+A self-contained guide for an AI agent (e.g., another Claude) to integrate with the ECHO hotel review aggregation API.
 
 ---
 
-## What is Revora?
+## What is ECHO?
 
 A multi-tenant Bronze-layer review aggregation API. You give it a hotel and a platform (TripAdvisor, Google, HolidayCheck), it scrapes the reviews via Apify and stores them in MongoDB. You can then query the raw reviews back.
 
@@ -27,7 +27,7 @@ CLIENT_SECRET=cs_2ynCatJLjeLDuRjuvFq-WpKtbBs1YBVvWSXWwfDtGmo
 
 ## 1. Authentication (do this once, then reuse the token)
 
-Revora uses JWT Bearer tokens (OAuth 2.0 Client Credentials). You exchange `tenantKey` + `clientSecret` for a short-lived access token (1 hour TTL).
+ECHO uses JWT Bearer tokens (OAuth 2.0 Client Credentials). You exchange `tenantKey` + `clientSecret` for a short-lived access token (1 hour TTL).
 
 ### Request
 
@@ -289,7 +289,7 @@ curl "https://backend-production-5c03.up.railway.app/v1/reviews?platform=tripadv
 }
 ```
 
-The doc contains the **raw provider payload** (Bronze layer) plus Revora metadata fields prefixed with `_`. Schema follows the provider's response exactly — no normalization.
+The doc contains the **raw provider payload** (Bronze layer) plus ECHO metadata fields prefixed with `_`. Schema follows the provider's response exactly — no normalization.
 
 ### Pagination
 
@@ -323,7 +323,7 @@ You can fetch the following for Lago immediately:
 
 ```bash
 curl https://backend-production-5c03.up.railway.app/health
-# {"status":"ok","service":"revora-api","uptime":1234.5}
+# {"status":"ok","service":"echo-backend","uptime":1234.5}
 
 curl https://backend-production-5c03.up.railway.app/readiness
 # {"status":"ready","checks":{"mongo":"ok"}}
