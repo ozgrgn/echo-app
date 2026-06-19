@@ -8,6 +8,7 @@
     "dev:clean": "pnpm kill-port && pnpm dev",
     "kill-port": "lsof -ti :5173 2>/dev/null | xargs -r kill -9 2>/dev/null; echo 'port 5173 freed'",
     "build": "pnpm -r build",
+    "start": "pnpm --filter echo-panel start",
     "lint": "pnpm -r lint",
     "check": "pnpm -r check"
   },
