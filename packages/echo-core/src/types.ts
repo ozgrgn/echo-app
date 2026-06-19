@@ -313,6 +313,58 @@ export interface EchoSubscription extends TenantSubscription {
   };
 }
 
+// ─── Hoops Notification Settings (per-venue, stored in echo-backend) ─────────
+
+/** Valid department keys for Hoops task routing. */
+export type HoopsDepartment = 'hk' | 'fnb' | 'mnt' | 'spa' | 'gr';
+
+/** Escalation strategy when a review goes unanswered past the SLA. */
+export type HoopsEscalation = 'normal_to_urgent' | 'normal_to_high' | 'fixed_normal';
+
+/**
+ * Per-venue Hoops notification config — saved via PATCH /v1/venues/:slug/settings.
+ * Controls which ECHO events trigger ops-engine workflows and for which departments.
+ */
+export interface HoopsNotifSettings {
+  triggers: {
+    /** 🔴 Kritik yorum (düşük puan): acil task oluştur. */
+    critical: {
+      enabled: boolean;
+      ratingThreshold: number;   // reviews with rating ≤ this value
+      departments: HoopsDepartment[];
+      slaMinutes: number;
+    };
+    /** 🟡 Olumsuz yorum: yüksek öncelikli task oluştur. */
+    negative: {
+      enabled: boolean;
+      ratingThreshold: number;
+      departments: HoopsDepartment[];
+      slaMinutes: number;
+    };
+    /** ⏳ Yanıtsız yorum: belirli süreden sonra eskalasyon. */
+    unanswered: {
+      enabled: boolean;
+      hoursThreshold: number;
+      escalation: HoopsEscalation;
+    };
+    /** ↔️ Aspect yönlendirme: ABSA sonucuna göre ilgili departmana yönlendir. */
+    aspectRouting: {
+      enabled: boolean;
+    };
+    /** 📅 Günlük özet: seçili departmanlara günlük review özeti gönder. */
+    dailyDigest: {
+      enabled: boolean;
+      sendHour: number;          // 0–23 (UTC)
+      departments: HoopsDepartment[];
+    };
+  };
+}
+
+/** Top-level ECHO per-venue settings document (stored embedded in the venue doc). */
+export interface EchoVenueSettings {
+  hoopsNotifications?: HoopsNotifSettings;
+}
+
 // ─── Portfolio (cross-venue chain dashboard) ─────────────────────────────────
 
 export interface PortfolioScore {

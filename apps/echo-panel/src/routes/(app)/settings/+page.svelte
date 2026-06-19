@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { Tabs } from 'bits-ui';
-	import { PLATFORM_REGISTRY } from '@talkwo/echo-core';
+	import { PLATFORM_REGISTRY, type HoopsNotifSettings } from '@talkwo/echo-core';
+	import { patchVenueSettings } from '@talkwo/echo-ui';
+	import { auth } from '$lib/stores/auth.svelte';
 
 	let { data } = $props();
 
@@ -85,37 +87,42 @@
 		{ label: 'Servis & Genel',    dept: 'GR',  deptClass: 'bg-success-light text-success border-success/30' },
 	];
 
-	interface HoopsNotifSettings {
-		triggers: {
-			critical:     { enabled: boolean; ratingThreshold: number; departments: string[]; slaMinutes: number; };
-			negative:     { enabled: boolean; ratingThreshold: number; departments: string[]; slaMinutes: number; };
-			unanswered:   { enabled: boolean; hoursThreshold: number;  escalation: 'normal_to_urgent' | 'normal_to_high' | 'fixed_normal'; };
-			aspectRouting:{ enabled: boolean; };
-			dailyDigest:  { enabled: boolean; sendHour: number; departments: string[]; };
-		};
-	}
-
-	let hoopsNotifs = $state<HoopsNotifSettings>({
+	// HoopsNotifSettings is imported from @talkwo/echo-core.
+	// Initialise from server-loaded settings; fall back to safe defaults if
+	// the venue has never saved Hoops config (first-time setup).
+	const DEFAULT_HOOPS: HoopsNotifSettings = {
 		triggers: {
 			critical:      { enabled: true,  ratingThreshold: 2,  departments: [],         slaMinutes: 30  },
 			negative:      { enabled: true,  ratingThreshold: 3,  departments: [],         slaMinutes: 120 },
 			unanswered:    { enabled: true,  hoursThreshold: 24,  escalation: 'normal_to_urgent'           },
 			aspectRouting: { enabled: true  },
 			dailyDigest:   { enabled: false, sendHour: 8,         departments: ['hk', 'fnb']               },
-		}
-	});
+		},
+	};
+
+	let hoopsNotifs = $state<HoopsNotifSettings>(
+		data.venueSettings?.hoopsNotifications ?? DEFAULT_HOOPS
+	);
 
 	function toggleDeptInList(list: string[], dept: string): string[] {
 		return list.includes(dept) ? list.filter((d) => d !== dept) : [...list, dept];
 	}
 
-	let hoopsSaveStatus = $state<'idle' | 'saving' | 'saved'>('idle');
+	let hoopsSaveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
+	let hoopsSaveError = $state('');
 	async function saveHoopsNotifs() {
+		const { token, venueSlug } = auth;
+		if (!token || !venueSlug) return;
 		hoopsSaveStatus = 'saving';
-		// TODO Phase 2: PATCH /v1/venues/me/settings { hoopsNotifications: hoopsNotifs }
-		await new Promise((r) => setTimeout(r, 400));
-		hoopsSaveStatus = 'saved';
-		setTimeout(() => (hoopsSaveStatus = 'idle'), 2000);
+		hoopsSaveError = '';
+		try {
+			await patchVenueSettings(venueSlug, { hoopsNotifications: hoopsNotifs }, token);
+			hoopsSaveStatus = 'saved';
+			setTimeout(() => (hoopsSaveStatus = 'idle'), 2000);
+		} catch (err) {
+			hoopsSaveStatus = 'error';
+			hoopsSaveError = err instanceof Error ? err.message : 'Kayıt başarısız';
+		}
 	}
 
 	// Toggle helper component (inline since one component file isn't worth it)
@@ -858,6 +865,8 @@
 				<div class="flex items-center gap-3">
 					{#if hoopsSaveStatus === 'saved'}
 						<span class="text-sm text-success">✓ Ayarlar kaydedildi</span>
+					{:else if hoopsSaveStatus === 'error'}
+						<span class="text-sm text-danger">✗ {hoopsSaveError}</span>
 					{/if}
 					<button
 						onclick={saveHoopsNotifs}

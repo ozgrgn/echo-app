@@ -12,14 +12,17 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
-  apps/revora-panel:
+  apps/echo-panel:
     dependencies:
+      '@lucide/svelte':
+        specifier: ^1.20.0
+        version: 1.20.0(svelte@5.55.7)
       '@talkwo/echo-core':
         specifier: workspace:*
-        version: link:../../packages/review-core
+        version: link:../../packages/echo-core
       '@talkwo/echo-ui':
         specifier: workspace:*
-        version: link:../../packages/review-ui
+        version: link:../../packages/echo-ui
       bits-ui:
         specifier: ^2.16.0
         version: 2.18.1(@internationalized/date@3.12.1)(@sveltejs/kit@2.60.1(@sveltejs/vite-plugin-svelte@7.1.2(svelte@5.55.7)(vite@8.0.13(@types/node@25.8.0)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3)))(svelte@5.55.7)(typescript@5.9.3)(vite@8.0.13(@types/node@25.8.0)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3)))(svelte@5.55.7)
@@ -59,7 +62,7 @@ importers:
     dependencies:
       '@talkwo/echo-core':
         specifier: workspace:*
-        version: link:../review-core
+        version: link:../echo-core
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -71,17 +74,17 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
-  packages/review-core:
+  packages/echo-core:
     devDependencies:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
 
-  packages/review-ui:
+  packages/echo-ui:
     dependencies:
       '@talkwo/echo-core':
         specifier: workspace:*
-        version: link:../review-core
+        version: link:../echo-core
     devDependencies:
       svelte:
         specifier: ^5.0.0
@@ -284,6 +287,11 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@lucide/svelte@1.20.0':
+    resolution: {integrity: sha512-s7TKCHEtFEfflOUDPRC0WBZEjoNJHtj/aUmuWxopFe3AKecEoKvMmCaO0sBDkflok8nR0BCFsm44QF+S6/gc+w==}
+    peerDependencies:
+      svelte: ^5
 
   '@napi-rs/wasm-runtime@1.1.4':
     resolution: {integrity: sha512-3NQNNgA1YSlJb/kMH1ildASP9HW7/7kYnRI2szWJaofaS1hWmbGI4H+d3+22aGzXXN9IJ+n+GiFVcGipJP18ow==}
@@ -1253,6 +1261,10 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@lucide/svelte@1.20.0(svelte@5.55.7)':
+    dependencies:
+      svelte: 5.55.7
 
   '@napi-rs/wasm-runtime@1.1.4(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
     dependencies:

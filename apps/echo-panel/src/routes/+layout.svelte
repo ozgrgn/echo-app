@@ -7,6 +7,7 @@
 	import { env } from '$env/dynamic/public';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 
 	let { children } = $props();
 
@@ -24,7 +25,10 @@
 	$effect(() => {
 		const path = page.url.pathname;
 		const isPublic = path.startsWith('/login') || path.startsWith('/dev');
-		if (!auth.isLoggedIn && !isPublic) {
+		// /os in MOCK mode needs no backend/auth — let it through even without a
+		// session (so a presentation survives a full page reload / direct URL).
+		const isMockOs = path.startsWith('/os') && osDataSource.isMock;
+		if (!auth.isLoggedIn && !isPublic && !isMockOs) {
 			goto('/login');
 		}
 	});

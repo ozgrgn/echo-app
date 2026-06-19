@@ -6,10 +6,12 @@
  * values without forking the package (see LAD-7).
  */
 @theme {
-	/* Brand */
-	--color-brand:         #2563EB;
+	/* Brand — ECHO module accent (blue) + Talkwo identity (indigo→purple) */
+	--color-brand:         #3B82F6;   /* ECHO blue */
 	--color-brand-light:   #DBEAFE;
-	--color-brand-dark:    #1D4ED8;
+	--color-brand-dark:    #2563EB;
+	--color-talkwo:        #6D28D9;   /* Talkwo indigo */
+	--color-talkwo-2:      #A855F7;   /* Talkwo purple */
 
 	/* Semantic — GPI zone colors (see scoring.ts gpiZone()) */
 	--color-success:       #16A34A;   /* GPI ≥ 85 */
@@ -27,16 +29,17 @@
 	--color-surface-3:     #E2E8F0;
 	--color-border:        #E2E8F0;
 
-	/* Text */
-	--color-text-1:        #0F172A;
-	--color-text-2:        #475569;
+	/* Text — text-1 softened from near-black #0F172A to slate-800 so headings/
+	 * values read strong but not harsh (OS panels lean heavily on text-1). */
+	--color-text-1:        #1E293B;
+	--color-text-2:        #51607a;
 	--color-text-3:        #94A3B8;
 
-	/* Sidebar (overrides only in standalone shell) */
-	--color-sidebar-bg:           #0F172A;
-	--color-sidebar-text:         #CBD5E1;
+	/* Sidebar (standalone shell) — premium dark to match Talkwo showroom */
+	--color-sidebar-bg:           #0A0E1A;
+	--color-sidebar-text:         #94A3B8;
 	--color-sidebar-text-active:  #FFFFFF;
-	--color-sidebar-accent:       #2563EB;
+	--color-sidebar-accent:       #3B82F6;   /* ECHO blue */
 	--width-sidebar:              240px;
 
 	/* Typography */
@@ -47,6 +50,13 @@
 	--radius-md: 8px;
 	--radius-lg: 12px;
 	--radius-xl: 16px;
+
+	/* Elevation — a deliberate altitude scale so cards read as layered, not flat.
+	 * Soft, low-spread shadows tuned for a light corporate surface (no harsh black).
+	 * Tailwind 4 auto-generates `shadow-card`, `shadow-card-hover`, `shadow-raised`. */
+	--shadow-card:       0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+	--shadow-card-hover: 0 2px 4px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.10);
+	--shadow-raised:     0 4px 8px rgba(15, 23, 42, 0.06), 0 12px 28px rgba(15, 23, 42, 0.12);
 }
 
 /* ─── Dark mode ──────────────────────────────────────────────────────── */

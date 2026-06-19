@@ -1,4 +1,4 @@
-import { listVenues } from '@talkwo/echo-ui';
+import { listVenues, getVenueSettings } from '@talkwo/echo-ui';
 
 // Phase 1 mock region labels — Phase 2: from backend venue metadata
 const COMPETITOR_REGIONS: Record<string, string> = {
@@ -17,7 +17,11 @@ export async function load() {
 	const { token, venueSlug, venueName, tenantKey, subscription } = auth;
 	if (!token || !venueSlug) throw error(401, 'Not authenticated');
 
-	const allVenues = await listVenues(token);
+	const [allVenues, venueSettings] = await Promise.all([
+		listVenues(token),
+		getVenueSettings(venueSlug, token),
+	]);
+
 	const ownVenue = allVenues.find((v) => v.slug === venueSlug);
 	const competitors = allVenues.filter((v) => !v.isOwned);
 
@@ -27,6 +31,7 @@ export async function load() {
 		venueName: venueName ?? venueSlug,
 		tenantKey,
 		subscription,
-		competitorRegions: COMPETITOR_REGIONS
+		competitorRegions: COMPETITOR_REGIONS,
+		venueSettings,
 	};
 }

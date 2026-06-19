@@ -30,7 +30,9 @@ import type {
   Review,
   SurveyResponse,
   SurveyTemplate,
-  GRFeedback
+  GRFeedback,
+  EchoVenueSettings,
+  HoopsNotifSettings,
 } from '@talkwo/echo-core';
 import { adaptTripadvisorReview } from './adapters/tripadvisor.js';
 
@@ -146,32 +148,40 @@ export async function listVenues(token: string): Promise<Venue[]> {
 
 export async function getHotelScore(
   venueSlug: string,
-  period: string,
-  token: string
+  period: string | undefined,
+  token: string,
+  /** Per-channel snapshot, e.g. 'tripadvisor'. Omit (or 'all') for the blended
+   *  cross-platform score. Backend reads ?platform= (scores/read.ts). */
+  platform?: string
 ): Promise<HotelScore> {
   if (MOCK_CONFIG.scores) {
     const { MOCK_HOTEL_SCORE } = await import('./mock/hotel-score.js');
     return MOCK_HOTEL_SCORE;
   }
-  const res = await fetch(`${getApiBaseUrl()}/scores/${venueSlug}?period=${period}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  // No period → backend returns the latest snapshot for this venue.
+  const params = new URLSearchParams();
+  if (period) params.set('period', period);
+  if (platform && platform !== 'all') params.set('platform', platform);
+  const qs = params.toString();
+  const url = `${getApiBaseUrl()}/scores/${venueSlug}${qs ? `?${qs}` : ''}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`getHotelScore failed: ${res.status}`);
   return res.json();
 }
 
 export async function getCompetitorScores(
   venueSlug: string,
-  period: string,
+  period: string | undefined,
   token: string
 ): Promise<CompetitorScore[]> {
   if (MOCK_CONFIG.scores) {
     const { MOCK_COMPETITORS } = await import('./mock/competitors.js');
     return MOCK_COMPETITORS;
   }
-  const res = await fetch(`${getApiBaseUrl()}/scores/${venueSlug}/competitors?period=${period}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  const url = period
+    ? `${getApiBaseUrl()}/scores/${venueSlug}/competitors?period=${encodeURIComponent(period)}`
+    : `${getApiBaseUrl()}/scores/${venueSlug}/competitors`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`getCompetitorScores failed: ${res.status}`);
   return res.json();
 }
@@ -198,6 +208,8 @@ export interface ReviewFilters {
   category?: string;
   sentiment?: string;
   lang?: string;
+  /** Filter by owner-response presence. 'with' = has response, 'without' = no response. */
+  response?: 'with' | 'without';
   cursor?: string;
   limit?: number;
 }
@@ -222,6 +234,36 @@ export async function getReviews(
   });
   if (!res.ok) throw new Error(`getReviews failed: ${res.status}`);
   return res.json();
+}
+
+// ─── Venue Settings ─────────────────────────────────────────────────────────
+
+export async function getVenueSettings(
+  venueSlug: string,
+  token: string,
+): Promise<EchoVenueSettings> {
+  const res = await fetch(`${getApiBaseUrl()}/venues/${encodeURIComponent(venueSlug)}/settings`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`getVenueSettings failed: ${res.status}`);
+  const data = await res.json();
+  return data.settings as EchoVenueSettings;
+}
+
+export async function patchVenueSettings(
+  venueSlug: string,
+  patch: { hoopsNotifications?: HoopsNotifSettings },
+  token: string,
+): Promise<void> {
+  const res = await fetch(`${getApiBaseUrl()}/venues/${encodeURIComponent(venueSlug)}/settings`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    const problem = await res.json().catch(() => ({ detail: 'Save failed' }));
+    throw new Error(problem.detail || `patchVenueSettings failed: ${res.status}`);
+  }
 }
 
 // ─── Survey (Hoops-Integrated mode only) ────────────────────────────────────

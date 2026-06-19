@@ -144,9 +144,6 @@ import { login, listVenues, fetchTenant, getMySubscription } from '@talkwo/echo-
 					{loading ? 'Giriş yapılıyor…' : 'Giriş Yap'}
 				</button>
 
-				<p class="text-xs text-text-3 text-center pt-2">
-					Mock modda: herhangi bir değer girin, giriş başarılı sayılır.
-				</p>
 			</form>
 		{:else}
 			<div class="space-y-4">

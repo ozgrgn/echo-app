@@ -1,7 +1,26 @@
 <script lang="ts">
 	import { CATEGORIES, gpiZone, rpiLabel, getSubcategoryLabel, type CategoryScore, type TopIssue } from '@talkwo/echo-core';
+	import { goto } from '$app/navigation';
 
 	let { data } = $props();
+
+	// ── Period picker ──
+	// Build a list of the last 24 calendar months (newest first) as selectable options.
+	const PERIOD_OPTIONS: { value: string; label: string }[] = (() => {
+		const now = new Date();
+		return Array.from({ length: 24 }, (_, i) => {
+			const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+			return {
+				value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+				label: d.toLocaleDateString('tr-TR', { year: 'numeric', month: 'long' })
+			};
+		});
+	})();
+
+	function onPeriodChange(e: Event) {
+		const v = (e.target as HTMLSelectElement).value;
+		goto(`?period=${v}`, { keepFocus: true });
+	}
 
 	// ── Derived KPI helpers ──
 	const overallZone = $derived(gpiZone(data.hotelScore.gpi));
@@ -101,6 +120,24 @@
 </script>
 
 <div class="space-y-6">
+	<!-- ── Period picker ───────────────────────────────────────────────── -->
+	<div class="flex items-center justify-between">
+		<h1 class="text-xl font-semibold text-text-1">Dashboard</h1>
+		<div class="flex items-center gap-2">
+			<label for="period-picker" class="text-sm text-text-2">Dönem</label>
+			<select
+				id="period-picker"
+				value={data.period}
+				onchange={onPeriodChange}
+				class="text-sm bg-surface-1 border border-border rounded-md px-3 py-1.5 text-text-1 focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer"
+			>
+				{#each PERIOD_OPTIONS as opt (opt.value)}
+					<option value={opt.value}>{opt.label}</option>
+				{/each}
+			</select>
+		</div>
+	</div>
+
 	<!-- ── KPI Row ─────────────────────────────────────────────────────── -->
 	<div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
 		<!-- GPI -->
@@ -136,7 +173,7 @@
 				{data.hotelScore.reviewCount.toLocaleString('tr-TR')}
 			</div>
 			<div class="text-xs text-text-3 mt-1">
-				{data.period} dönemi
+				{PERIOD_OPTIONS.find((o) => o.value === data.period)?.label ?? data.period}
 			</div>
 		</div>
 
@@ -295,8 +332,6 @@
 
 	<!-- Footer note -->
 	<footer class="text-xs text-text-3 text-center pt-2">
-		Mock veri · Phase 2'de gerçek API'ye bağlanacak · Son güncelleme: {new Date(
-			data.hotelScore.updatedAt
-		).toLocaleString('tr-TR')}
+		Son güncelleme: {new Date(data.hotelScore.updatedAt).toLocaleString('tr-TR')}
 	</footer>
 </div>

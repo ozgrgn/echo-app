@@ -13,6 +13,7 @@
 		"lint": "echo 'echo-panel lint: TODO'"
 	},
 	"dependencies": {
+		"@lucide/svelte": "^1.20.0",
 		"@talkwo/echo-core": "workspace:*",
 		"@talkwo/echo-ui": "workspace:*",
 		"bits-ui": "^2.16.0"

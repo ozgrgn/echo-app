@@ -11,7 +11,18 @@ export default defineConfig({
 		// errors when the browser keeps a tab open on the old port. Strict-
 		// port forces us to clean up zombies before starting a new dev.
 		strictPort: true,
-		port: 5173
+		port: 5173,
+		// Dev-only CORS bypass: Vite's Node proxy forwards /v1/* server-to-server,
+		// so the browser never makes a cross-origin request and CORS doesn't apply.
+		// Set PUBLIC_ECHO_API_URL=/v1 in .env.local to route through here.
+		//   local backend  → target: 'http://localhost:3001'
+		//   Railway backend → target: 'https://backend-production-5c03.up.railway.app'
+		proxy: {
+			'/v1': {
+				target: 'http://localhost:3001',
+				changeOrigin: true,
+			},
+		},
 	},
 	ssr: {
 		// Force Vite to transform workspace packages during SSR (not pass them

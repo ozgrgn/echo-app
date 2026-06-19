@@ -15,3 +15,4 @@ export * from './api.js';
 // Mock helpers — Phase 1 only. Removed as backend endpoints ship.
 export * from './mock/review-helpers.js';
 export { MOCK_COMPETITORS } from './mock/competitors.js';
+export { MOCK_HOTEL_SCORE } from './mock/hotel-score.js';
