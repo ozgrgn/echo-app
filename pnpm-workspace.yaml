@@ -1,8 +1,3 @@
 packages:
   - 'apps/*'
   - 'packages/*'
-
-# Allow esbuild to run its postinstall (native binary download).
-# pnpm 10+ blocks dependency build scripts by default; whitelist esbuild here.
-onlyBuiltDependencies:
-  - esbuild
