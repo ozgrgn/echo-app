@@ -15,12 +15,14 @@
 	import CategoryBar from '$lib/components/CategoryBar.svelte';
 	import MentionList from '$lib/components/MentionList.svelte';
 	import DeptCard from '$lib/components/DeptCard.svelte';
-	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert } from '@lucide/svelte';
+	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
+	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert, MessageCircleReply } from '@lucide/svelte';
 
 	import {
 		MOCK_OS_KPIS,
 		MOCK_OS_GPI_TREND,
 		MOCK_OS_DEPTS,
+		MOCK_OS_RESPONSE,
 		type OsPlatform
 	} from '$lib/mock/os';
 
@@ -240,6 +242,17 @@
 		<MentionList items={allPraises} tone="praise" total={hs.reviewCount} />
 	</SectionCard>
 </div>
+
+<!-- ── Management response analytics ──────────────────────────────────────── -->
+<SectionCard title="Yanıt Yönetimi" icon={MessageCircleReply} hint="platform · duygu · pazar" class="mb-3.5">
+	<ResponseAnalytics
+		overallRate={hs.responseStats.rate}
+		medianHours={hs.responseStats.medianResponseTimeHours}
+		byPlatform={MOCK_OS_RESPONSE.byPlatform}
+		bySentiment={MOCK_OS_RESPONSE.bySentiment}
+		competitorAvgRate={MOCK_OS_RESPONSE.competitorAvgRate}
+	/>
+</SectionCard>
 
 <!-- ── Departments ───────────────────────────────────────────────────────── -->
 <SectionCard title="Departmanlar" icon={Users} hint="tıkla → ekip detayı">

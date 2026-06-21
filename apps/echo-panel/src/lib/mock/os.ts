@@ -126,6 +126,43 @@ export const MOCK_OS_COUNTERS = {
 	atRiskGoals: 1    // [MOCK→echo] goal definitions + [MOCK→radar] risk verdict
 };
 
+// ── Management response analytics — [MOCK→radar] ─────────────────────────────
+// The blended response rate is [REAL] (HotelScore.responseStats), but the
+// per-platform / per-sentiment / competitor-average breakdowns are not served by
+// the backend yet. Radar's response-rollup will own these. Rates are 0..1.
+export interface ResponseRateRow {
+	key: string;
+	label: string;
+	/** answered / total, 0..1. */
+	rate: number;
+	responded: number;
+	total: number;
+}
+
+export interface ResponseAnalytics {
+	/** Per-platform response rate. [MOCK→radar] */
+	byPlatform: ResponseRateRow[];
+	/** Per-sentiment response rate (do we answer the angry ones?). [MOCK→radar] */
+	bySentiment: ResponseRateRow[];
+	/** Market average response rate to benchmark against. [MOCK→radar] */
+	competitorAvgRate: number;
+}
+
+export const MOCK_OS_RESPONSE: ResponseAnalytics = {
+	byPlatform: [
+		{ key: 'google', label: 'Google', rate: 0.87, responded: 412, total: 474 },
+		{ key: 'tripadvisor', label: 'TripAdvisor', rate: 0.61, responded: 188, total: 308 },
+		{ key: 'booking', label: 'Booking', rate: 0.74, responded: 233, total: 315 },
+		{ key: 'holidaycheck', label: 'HolidayCheck', rate: 0.52, responded: 64, total: 123 }
+	],
+	bySentiment: [
+		{ key: 'negative', label: 'Olumsuz', rate: 0.43, responded: 86, total: 200 },
+		{ key: 'neutral', label: 'Nötr', rate: 0.58, responded: 145, total: 250 },
+		{ key: 'positive', label: 'Olumlu', rate: 0.81, responded: 666, total: 822 }
+	],
+	competitorAvgRate: 0.69
+};
+
 // ── Rich demo HotelScore (blended + per-platform) ────────────────────────────
 // For presentations: a believable, fully-populated dataset. Built from echo-ui's
 // MOCK_HOTEL_SCORE (already rich: 14 categories, real Turkish excerpts) and
