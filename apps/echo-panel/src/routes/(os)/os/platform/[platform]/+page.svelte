@@ -14,6 +14,10 @@
 	import OpportunityList from '$lib/components/OpportunityList.svelte';
 	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
 	import TrendChart from '$lib/components/TrendChart.svelte';
+	import MentionExplorer from '$lib/components/MentionExplorer.svelte';
+	import { getMentions, type MentionRow } from '@talkwo/echo-ui';
+	import { auth } from '$lib/stores/auth.svelte';
+	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 	import { PLATFORM_COLOR, responseSliceFor, platformTrendFor } from '$lib/mock/os';
 	import { Activity, Rocket, ChartBar, ArrowLeft, MessageSquare, Swords, MessageCircleReply, TrendingUp } from '@lucide/svelte';
 
@@ -52,6 +56,86 @@
 	let activeTab = $state('genel');
 	const tabs = ['Genel', 'Kategoriler', 'Yorumlar', 'Rakipler'];
 	const color = $derived(PLATFORM_COLOR[data.platform as keyof typeof PLATFORM_COLOR] ?? '#64748b');
+
+	// ── Semantic mentions (Yorumlar tab) — REAL data, lazily fetched ─────────
+	let mentions = $state<MentionRow[]>([]);
+	let mentionFilter = $state<'all' | 'negative' | 'positive'>('all');
+	let mentionsLoading = $state(false);
+
+	async function loadMentions() {
+		// Mock mode: derive a few rows from the platform's real topIssues/praises so
+		// the explorer isn't empty in demos. [MOCK→radar] for the full stream.
+		if (osDataSource.isMock) {
+			mentions = mockMentions(mentionFilter);
+			return;
+		}
+		const { token, venueSlug } = auth;
+		if (!token || !venueSlug) return;
+		mentionsLoading = true;
+		try {
+			const res = await getMentions(
+				venueSlug,
+				{ limit: 60, ...(mentionFilter !== 'all' ? { polarity: mentionFilter } : {}) },
+				token
+			);
+			// Backend is venue-wide; narrow to this platform client-side.
+			mentions = res.items.filter((m) => m.platform === data.platform);
+		} catch {
+			mentions = [];
+		} finally {
+			mentionsLoading = false;
+		}
+	}
+
+	// Fetch when the Yorumlar tab is active and (platform or filter) changes.
+	$effect(() => {
+		if (activeTab === 'yorumlar') {
+			// reference reactive deps so the effect re-runs on change
+			void data.platform;
+			void mentionFilter;
+			loadMentions();
+		}
+	});
+
+	function setMentionFilter(f: 'all' | 'negative' | 'positive') {
+		mentionFilter = f;
+	}
+
+	// Mock fallback: build MentionRow[] from the platform score's real excerpts.
+	function mockMentions(f: 'all' | 'negative' | 'positive'): MentionRow[] {
+		const rows: MentionRow[] = [];
+		for (const cs of ps.categoryScores) {
+			for (const it of cs.topIssues ?? []) {
+				rows.push({
+					reviewId: `mock-${cs.category}-i-${it.subcategory}`,
+					platform: data.platform,
+					publishedDate: '',
+					category: cs.category,
+					subcategory: it.subcategory,
+					sentiment: 'negative',
+					polarity: -0.6,
+					excerpt: it.sampleExcerpt,
+					target_text: null
+				});
+			}
+			for (const it of cs.topPraises ?? []) {
+				rows.push({
+					reviewId: `mock-${cs.category}-p-${it.subcategory}`,
+					platform: data.platform,
+					publishedDate: '',
+					category: cs.category,
+					subcategory: it.subcategory,
+					sentiment: 'positive',
+					polarity: 0.7,
+					excerpt: it.sampleExcerpt,
+					target_text: null
+				});
+			}
+		}
+		if (f === 'negative') return rows.filter((r) => r.polarity <= -0.2);
+		if (f === 'positive') return rows.filter((r) => r.polarity >= 0.2);
+		return rows;
+	}
 
 	// Real categories sorted by score (worst first feeds the opportunity list).
 	const categories = $derived(
@@ -217,13 +301,14 @@
 		{/each}
 	</SectionCard>
 {:else if activeTab === 'yorumlar'}
-	<!-- Yorumlar — per-platform review explorer. [MOCK→radar] until the review
-	     stream is wired into this lens. -->
-	<SectionCard title="Yorumlar · {label}" icon={MessageSquare} hint="yakında">
-		<p class="py-8 text-center text-[13px] text-text-3">
-			Bu platformun cümle düzeyli yorum gezgini
-			<span class="font-medium text-text-2">Phase 2'de</span> gelecek.
-		</p>
+	<!-- Yorumlar — sentence-level semantic mentions (REAL via /v1/mentions). -->
+	<SectionCard title="Mentions · {label}" icon={MessageSquare} hint="cümle düzeyi · ABSA">
+		<MentionExplorer
+			items={mentions}
+			filter={mentionFilter}
+			onfilter={setMentionFilter}
+			loading={mentionsLoading}
+		/>
 	</SectionCard>
 {:else if activeTab === 'rakipler'}
 	<!-- Rakipler — per-platform competitor comparison. [MOCK→radar]. -->

@@ -236,6 +236,48 @@ export async function getReviews(
   return res.json();
 }
 
+// ─── Mentions (sentence-level ABSA explorer) ────────────────────────────────
+
+/** One flattened ABSA aspect — the unit the Semantic Mentions explorer renders. */
+export interface MentionRow {
+  reviewId: string;
+  platform: string;
+  publishedDate: string;
+  category: string;
+  subcategory: string;
+  sentiment: string;
+  /** -1..+1, signed. */
+  polarity: number;
+  excerpt: string;
+  target_text: string | null;
+}
+
+export interface MentionFilters {
+  category?: string;
+  subcategory?: string;
+  /** 'negative' → polarity ≤ -0.2, 'positive' → polarity ≥ +0.2. */
+  polarity?: 'negative' | 'positive';
+  limit?: number;
+}
+
+export async function getMentions(
+  venueSlug: string,
+  filters: MentionFilters,
+  token: string
+): Promise<{ items: MentionRow[] }> {
+  const params = new URLSearchParams({
+    venueSlug,
+    ...Object.fromEntries(
+      Object.entries(filters).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    )
+  } as Record<string, string>);
+  const res = await fetch(`${getApiBaseUrl()}/mentions?${params}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error(`getMentions failed: ${res.status}`);
+  return res.json();
+}
+
 // ─── Venue Settings ─────────────────────────────────────────────────────────
 
 export async function getVenueSettings(
