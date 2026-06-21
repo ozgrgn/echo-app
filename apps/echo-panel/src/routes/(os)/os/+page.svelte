@@ -16,7 +16,8 @@
 	import MentionList from '$lib/components/MentionList.svelte';
 	import DeptCard from '$lib/components/DeptCard.svelte';
 	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
-	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert, MessageCircleReply } from '@lucide/svelte';
+	import SegmentBreakdown from '$lib/components/SegmentBreakdown.svelte';
+	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert, MessageCircleReply, PieChart } from '@lucide/svelte';
 
 	import {
 		MOCK_OS_KPIS,
@@ -252,6 +253,11 @@
 		bySentiment={MOCK_OS_RESPONSE.bySentiment}
 		competitorAvgRate={MOCK_OS_RESPONSE.competitorAvgRate}
 	/>
+</SectionCard>
+
+<!-- ── Audience segments: who is reviewing you (language + trip type) ──────── -->
+<SectionCard title="Kitle profili" icon={PieChart} hint="dil · seyahat tipi" class="mb-3.5">
+	<SegmentBreakdown data={data.segments ?? null} />
 </SectionCard>
 
 <!-- ── Departments ───────────────────────────────────────────────────────── -->

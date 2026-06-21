@@ -1,8 +1,9 @@
 import type { PageLoad } from './$types';
-import { getHotelScore, getCompetitorScores } from '@talkwo/echo-ui';
+import { getHotelScore, getCompetitorScores, getSegments } from '@talkwo/echo-ui';
+import type { SegmentsResponse } from '@talkwo/echo-ui';
 import { auth } from '$lib/stores/auth.svelte';
 import { osDataSource } from '$lib/stores/osDataSource.svelte';
-import { DEMO_HOTEL_SCORE, DEMO_PLATFORM_SCORES, DEMO_COMPETITORS } from '$lib/mock/os';
+import { DEMO_HOTEL_SCORE, DEMO_PLATFORM_SCORES, DEMO_COMPETITORS, DEMO_SEGMENTS } from '$lib/mock/os';
 import { error } from '@sveltejs/kit';
 
 // Client-side load. Source toggles at runtime (osDataSource):
@@ -20,6 +21,7 @@ export const load: PageLoad = async ({ url }) => {
 			competitors: DEMO_COMPETITORS,
 			channels: CHANNELS.map((p) => ({ platform: p, score: DEMO_PLATFORM_SCORES[p] })),
 			period: DEMO_HOTEL_SCORE.period,
+			segments: DEMO_SEGMENTS as SegmentsResponse,
 		};
 	}
 
@@ -34,9 +36,11 @@ export const load: PageLoad = async ({ url }) => {
 		? (paramPeriod as string)
 		: undefined;
 
-	const [hotelScore, competitors, ...channelResults] = await Promise.all([
+	const [hotelScore, competitors, segments, ...channelResults] = await Promise.all([
 		getHotelScore(venueSlug, requestPeriod, token),
 		getCompetitorScores(venueSlug, requestPeriod, token),
+		// Segments are best-effort: a failure must not break the whole lens.
+		getSegments(venueSlug, token).catch(() => null),
 		...CHANNELS.map((p) =>
 			getHotelScore(venueSlug, requestPeriod, token, p)
 				.then((s) => ({ platform: p, score: s }))
@@ -46,5 +50,5 @@ export const load: PageLoad = async ({ url }) => {
 
 	const channels = channelResults.filter((c): c is NonNullable<typeof c> => c !== null);
 
-	return { hotelScore, competitors, channels, period: hotelScore.period };
+	return { hotelScore, competitors, channels, period: hotelScore.period, segments };
 };

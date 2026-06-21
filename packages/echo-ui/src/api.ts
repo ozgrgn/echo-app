@@ -278,6 +278,35 @@ export async function getMentions(
   return res.json();
 }
 
+// ─── Segments (audience breakdown: language + tripType) ─────────────────────
+
+export interface SegmentBucket {
+  /** Raw value ('en', 'FAMILY', …) or 'unknown'. */
+  key: string;
+  count: number;
+}
+
+export interface SegmentsResponse {
+  total: number;
+  languageKnown: number;
+  byLanguage: SegmentBucket[];
+  tripTypeKnown: number;
+  byTripType: SegmentBucket[];
+}
+
+export async function getSegments(
+  venueSlug: string,
+  token: string,
+  platform?: string
+): Promise<SegmentsResponse> {
+  const params = new URLSearchParams({ venueSlug, ...(platform ? { platform } : {}) });
+  const res = await fetch(`${getApiBaseUrl()}/segments?${params}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error(`getSegments failed: ${res.status}`);
+  return res.json();
+}
+
 // ─── Venue Settings ─────────────────────────────────────────────────────────
 
 export async function getVenueSettings(

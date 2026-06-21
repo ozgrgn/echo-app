@@ -220,6 +220,30 @@ export function responseSliceFor(key: string, overallRate: number): {
 	};
 }
 
+// ── Demo audience segments (language + tripType) — shape matches /v1/segments ──
+// Mirrors the real endpoint's response so the Genel lens renders the same way in
+// mock mode. Numbers are illustrative; live source: GET /v1/segments.
+export const DEMO_SEGMENTS = {
+	total: 2377,
+	languageKnown: 642,
+	byLanguage: [
+		{ key: 'unknown', count: 1735 },
+		{ key: 'en', count: 388 },
+		{ key: 'de', count: 121 },
+		{ key: 'tr', count: 73 },
+		{ key: 'ru', count: 40 },
+		{ key: 'pl', count: 20 }
+	],
+	tripTypeKnown: 461,
+	byTripType: [
+		{ key: 'unknown', count: 1916 },
+		{ key: 'FAMILY', count: 224 },
+		{ key: 'COUPLES', count: 132 },
+		{ key: 'FRIENDS', count: 71 },
+		{ key: 'SOLO', count: 34 }
+	]
+};
+
 // ── Rich demo HotelScore (blended + per-platform) ────────────────────────────
 // For presentations: a believable, fully-populated dataset. Built from echo-ui's
 // MOCK_HOTEL_SCORE (already rich: 14 categories, real Turkish excerpts) and
