@@ -12,11 +12,16 @@
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import CategoryBar from '$lib/components/CategoryBar.svelte';
 	import OpportunityList from '$lib/components/OpportunityList.svelte';
-	import { PLATFORM_COLOR } from '$lib/mock/os';
-	import { Activity, Rocket, ChartBar, ArrowLeft, MessageSquare, Swords } from '@lucide/svelte';
+	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
+	import { PLATFORM_COLOR, responseSliceFor } from '$lib/mock/os';
+	import { Activity, Rocket, ChartBar, ArrowLeft, MessageSquare, Swords, MessageCircleReply } from '@lucide/svelte';
 
 	let { data } = $props();
 	const ps = $derived(data.platformScore);
+
+	// Response analytics scoped to this platform — [MOCK→radar]. Overall rate seeds
+	// from the blended responseStats; the sentiment split is derived per platform.
+	const respSlice = $derived(responseSliceFor(data.platform, ps.responseStats?.rate ?? 0.7));
 
 	const PLATFORM_LABEL: Record<string, string> = {
 		tripadvisor: 'TripAdvisor',
@@ -181,8 +186,19 @@
 		</SectionCard>
 	</div>
 
-	<SectionCard title="Önce neyi düzelt?" icon={Rocket} hint="en yüksek kaldıraç">
+	<SectionCard title="Önce neyi düzelt?" icon={Rocket} hint="en yüksek kaldıraç" class="mb-3.5">
 		<OpportunityList items={opportunities} />
+	</SectionCard>
+
+	<!-- Response analytics scoped to this platform (single-platform → no byPlatform). -->
+	<SectionCard title="Yanıt Yönetimi · {label}" icon={MessageCircleReply} hint="duygu · pazar">
+		<ResponseAnalytics
+			overallRate={respSlice.overallRate}
+			medianHours={ps.responseStats?.medianResponseTimeHours ?? null}
+			bySentiment={respSlice.bySentiment}
+			competitorAvgRate={respSlice.competitorAvgRate}
+			overallLabel="{label} yanıt oranı"
+		/>
 	</SectionCard>
 {:else if activeTab === 'kategoriler'}
 	<!-- Kategoriler — full 14-category list, mention-sorted. -->

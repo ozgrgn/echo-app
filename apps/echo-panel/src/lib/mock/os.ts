@@ -163,6 +163,38 @@ export const MOCK_OS_RESPONSE: ResponseAnalytics = {
 	competitorAvgRate: 0.69
 };
 
+// Per-platform / per-department response slice — [MOCK→radar]. Derived
+// deterministically from a string key so each lens reads distinctly but stably
+// (no Math.random → same demo every render). Real source: radar response-rollup.
+function keyShift(key: string): number {
+	// Stable -0.12..+0.12 offset from the key's char codes.
+	let h = 0;
+	for (const ch of key) h = (h * 31 + ch.charCodeAt(0)) % 1000;
+	return (h / 1000) * 0.24 - 0.12;
+}
+const clamp01 = (n: number) => Math.max(0.05, Math.min(0.98, n));
+
+/** Sentiment-split response rates + overall, scoped to one platform/department. */
+export function responseSliceFor(key: string, overallRate: number): {
+	overallRate: number;
+	bySentiment: ResponseRateRow[];
+	competitorAvgRate: number;
+} {
+	const s = keyShift(key);
+	const neg = clamp01(0.43 + s);
+	const neu = clamp01(0.58 + s * 0.7);
+	const pos = clamp01(0.81 + s * 0.4);
+	return {
+		overallRate: clamp01(overallRate + s * 0.5),
+		bySentiment: [
+			{ key: 'negative', label: 'Olumsuz', rate: neg, responded: Math.round(neg * 200), total: 200 },
+			{ key: 'neutral', label: 'Nötr', rate: neu, responded: Math.round(neu * 250), total: 250 },
+			{ key: 'positive', label: 'Olumlu', rate: pos, responded: Math.round(pos * 822), total: 822 }
+		],
+		competitorAvgRate: MOCK_OS_RESPONSE.competitorAvgRate
+	};
+}
+
 // ── Rich demo HotelScore (blended + per-platform) ────────────────────────────
 // For presentations: a believable, fully-populated dataset. Built from echo-ui's
 // MOCK_HOTEL_SCORE (already rich: 14 categories, real Turkish excerpts) and

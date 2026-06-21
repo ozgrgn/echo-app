@@ -14,10 +14,16 @@
 	import TrendChart from '$lib/components/TrendChart.svelte';
 	import MentionList from '$lib/components/MentionList.svelte';
 	import OpportunityList from '$lib/components/OpportunityList.svelte';
-	import { Target, TrendingDown, TrendingUp, ListTree, CircleAlert, Rocket, ArrowLeft } from '@lucide/svelte';
+	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
+	import { responseSliceFor } from '$lib/mock/os';
+	import { Target, TrendingDown, TrendingUp, ListTree, CircleAlert, Rocket, ArrowLeft, MessageCircleReply } from '@lucide/svelte';
 
 	let { data } = $props();
 	const d = $derived(data.dept);
+
+	// Response analytics scoped to this department — [MOCK→radar]. Seeded from the
+	// department key so each team reads a stable, distinct slice.
+	const respSlice = $derived(responseSliceFor(d.key, 0.6));
 
 	// Back to the Departments list lens — replaces the global LensTabs row.
 	function backToList() {
@@ -101,7 +107,7 @@
 </div>
 
 <!-- Complaints + leverage -->
-<div class="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
+<div class="mb-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-2">
 	<SectionCard title="Skoru düşüren şikâyetler" icon={CircleAlert} hint="son 30 gün">
 		<MentionList items={d.issues} tone="issue" total={d.reviewCount} />
 	</SectionCard>
@@ -109,3 +115,14 @@
 		<OpportunityList items={opportunities} />
 	</SectionCard>
 </div>
+
+<!-- Response analytics scoped to this department (single scope → no byPlatform). -->
+<SectionCard title="Yanıt Yönetimi · {d.label}" icon={MessageCircleReply} hint="duygu · pazar">
+	<ResponseAnalytics
+		overallRate={respSlice.overallRate}
+		medianHours={null}
+		bySentiment={respSlice.bySentiment}
+		competitorAvgRate={respSlice.competitorAvgRate}
+		overallLabel="{d.label} yanıt oranı"
+	/>
+</SectionCard>
