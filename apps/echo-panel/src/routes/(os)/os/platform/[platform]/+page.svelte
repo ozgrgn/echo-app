@@ -13,8 +13,9 @@
 	import CategoryBar from '$lib/components/CategoryBar.svelte';
 	import OpportunityList from '$lib/components/OpportunityList.svelte';
 	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
-	import { PLATFORM_COLOR, responseSliceFor } from '$lib/mock/os';
-	import { Activity, Rocket, ChartBar, ArrowLeft, MessageSquare, Swords, MessageCircleReply } from '@lucide/svelte';
+	import TrendChart from '$lib/components/TrendChart.svelte';
+	import { PLATFORM_COLOR, responseSliceFor, platformTrendFor } from '$lib/mock/os';
+	import { Activity, Rocket, ChartBar, ArrowLeft, MessageSquare, Swords, MessageCircleReply, TrendingUp } from '@lucide/svelte';
 
 	let { data } = $props();
 	const ps = $derived(data.platformScore);
@@ -22,6 +23,9 @@
 	// Response analytics scoped to this platform — [MOCK→radar]. Overall rate seeds
 	// from the blended responseStats; the sentiment split is derived per platform.
 	const respSlice = $derived(responseSliceFor(data.platform, ps.responseStats?.rate ?? 0.7));
+
+	// GPI trend series for this platform — [MOCK→radar], lands on the real GPI.
+	const trend = $derived(platformTrendFor(data.platform, ps.gpi));
 
 	const PLATFORM_LABEL: Record<string, string> = {
 		tripadvisor: 'TripAdvisor',
@@ -163,6 +167,11 @@
 </div>
 
 {#if activeTab === 'genel'}
+	<!-- GPI trend for this platform — [MOCK→radar], lands on the real current GPI. -->
+	<SectionCard title="İtibar trendi · {label}" icon={TrendingUp} hint="GPI · son dönem" class="mb-3.5">
+		<TrendChart actual={trend.actual} ymin={trend.ymin} ymax={trend.ymax} color={color} height={200} />
+	</SectionCard>
+
 	<!-- Genel — distribution + categories + opportunity (the full snapshot). -->
 	<div class="mb-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-[1fr_1.2fr]">
 		<SectionCard title="Puan dağılımı" icon={ChartBar} hint="{ps.reviewCount} yorum">

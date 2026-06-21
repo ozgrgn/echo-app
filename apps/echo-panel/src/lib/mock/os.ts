@@ -174,6 +174,31 @@ function keyShift(key: string): number {
 }
 const clamp01 = (n: number) => Math.max(0.05, Math.min(0.98, n));
 
+// Per-platform GPI trend series — [MOCK→radar]. Backend serves a single period;
+// radar's DailySnapshot will own the real series. Derived deterministically: a
+// gently rising/falling path that LANDS on the platform's real current GPI, so
+// the chart's last point matches the headline. Seeded by key for stable variety.
+export function platformTrendFor(key: string, currentGpi: number, points = 8): {
+	actual: number[];
+	ymin: number;
+	ymax: number;
+} {
+	const s = keyShift(key); // -0.12..+0.12
+	const span = 6 + Math.abs(s) * 20; // how far back the series started
+	const start = currentGpi - span * (s >= 0 ? 1 : 0.4); // up-trend if s>=0
+	const series: number[] = [];
+	for (let i = 0; i < points; i++) {
+		const t = i / (points - 1);
+		// ease-in toward the current value, with a small key-seeded wobble.
+		const base = start + (currentGpi - start) * (t * t * (3 - 2 * t));
+		const wobble = Math.sin((i + key.length) * 1.3) * 0.6;
+		series.push(+(base + wobble).toFixed(1));
+	}
+	series[points - 1] = +currentGpi.toFixed(1); // land exactly on current
+	const lo = Math.min(...series), hi = Math.max(...series);
+	return { actual: series, ymin: Math.floor(lo - 4), ymax: Math.ceil(hi + 4) };
+}
+
 /** Sentiment-split response rates + overall, scoped to one platform/department. */
 export function responseSliceFor(key: string, overallRate: number): {
 	overallRate: number;
