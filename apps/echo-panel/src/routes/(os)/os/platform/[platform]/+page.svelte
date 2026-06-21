@@ -13,7 +13,7 @@
 	import CategoryBar from '$lib/components/CategoryBar.svelte';
 	import OpportunityList from '$lib/components/OpportunityList.svelte';
 	import { PLATFORM_COLOR } from '$lib/mock/os';
-	import { Activity, Rocket, ChartBar } from '@lucide/svelte';
+	import { Activity, Rocket, ChartBar, ArrowLeft, MessageSquare, Swords } from '@lucide/svelte';
 
 	let { data } = $props();
 	const ps = $derived(data.platformScore);
@@ -25,6 +25,12 @@
 		holidaycheck: 'HolidayCheck'
 	};
 	const label = $derived(PLATFORM_LABEL[data.platform] ?? data.platform);
+
+	// Back to the Genel lens — replaces the global LensTabs row on this page.
+	function backToGenel() {
+		osState.setLens({ kind: 'genel' });
+		goto('/os');
+	}
 
 	// Quick switcher — jump between platform universes without going back to Genel.
 	const ALL_PLATFORMS = ['tripadvisor', 'booking', 'google', 'holidaycheck'];
@@ -96,8 +102,18 @@
 
 </script>
 
-<!-- Platform switcher — jump between universes (lens menu above handles Genel). -->
+<!-- Back to Genel + platform switcher on one row (replaces the global LensTabs). -->
 <div class="mb-3.5 flex flex-wrap items-center gap-2">
+	<!-- Back button — sits first, same row as the switcher pills. -->
+	<button
+		onclick={backToGenel}
+		class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2"
+	>
+		<ArrowLeft size={15} strokeWidth={2} />
+		Geri
+	</button>
+	<!-- Thin divider between back and the platform pills. -->
+	<span class="mx-0.5 h-5 w-px bg-border"></span>
 	{#each ALL_PLATFORMS as p (p)}
 		{@const isActive = p === data.platform}
 		{@const color = PLATFORM_COLOR[p as keyof typeof PLATFORM_COLOR]}
@@ -141,30 +157,56 @@
 	{/each}
 </div>
 
-<!-- Distribution + Categories row -->
-<div class="mb-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-[1fr_1.2fr]">
-	<SectionCard title="Puan dağılımı" icon={ChartBar} hint="{ps.reviewCount} yorum">
-		<div class="flex flex-col gap-1.5">
-			{#each dist.rows as r (r.label)}
-				<div class="grid grid-cols-[74px_1fr_36px] items-center gap-2.5">
-					<span class="text-xs font-medium text-text-2">{r.label}</span>
-					<span class="h-2 overflow-hidden rounded-full bg-surface-2">
-						<span class="block h-full rounded-full" style="width:{(r.n / dist.max) * 100}%;background:{r.color}"></span>
-					</span>
-					<span class="text-right text-xs font-bold text-text-1">{r.n}</span>
-				</div>
-			{/each}
-		</div>
-	</SectionCard>
+{#if activeTab === 'genel'}
+	<!-- Genel — distribution + categories + opportunity (the full snapshot). -->
+	<div class="mb-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-[1fr_1.2fr]">
+		<SectionCard title="Puan dağılımı" icon={ChartBar} hint="{ps.reviewCount} yorum">
+			<div class="flex flex-col gap-1.5">
+				{#each dist.rows as r (r.label)}
+					<div class="grid grid-cols-[74px_1fr_36px] items-center gap-2.5">
+						<span class="text-xs font-medium text-text-2">{r.label}</span>
+						<span class="h-2 overflow-hidden rounded-full bg-surface-2">
+							<span class="block h-full rounded-full" style="width:{(r.n / dist.max) * 100}%;background:{r.color}"></span>
+						</span>
+						<span class="text-right text-xs font-bold text-text-1">{r.n}</span>
+					</div>
+				{/each}
+			</div>
+		</SectionCard>
 
-	<SectionCard title="Kategoriler · {label}" icon={Activity} hint="14 · ABSA">
+		<SectionCard title="Kategoriler · {label}" icon={Activity} hint="14 · ABSA">
+			{#each categories.slice(0, 7) as c (c.label)}
+				<CategoryBar label={c.label} score={c.score} trend={c.trend} />
+			{/each}
+		</SectionCard>
+	</div>
+
+	<SectionCard title="Önce neyi düzelt?" icon={Rocket} hint="en yüksek kaldıraç">
+		<OpportunityList items={opportunities} />
+	</SectionCard>
+{:else if activeTab === 'kategoriler'}
+	<!-- Kategoriler — full 14-category list, mention-sorted. -->
+	<SectionCard title="Tüm kategoriler · {label}" icon={Activity} hint="{categories.length} · ABSA">
 		{#each categories as c (c.label)}
 			<CategoryBar label={c.label} score={c.score} trend={c.trend} />
 		{/each}
 	</SectionCard>
-</div>
-
-<!-- Opportunity list -->
-<SectionCard title="Önce neyi düzelt?" icon={Rocket} hint="en yüksek kaldıraç">
-	<OpportunityList items={opportunities} />
-</SectionCard>
+{:else if activeTab === 'yorumlar'}
+	<!-- Yorumlar — per-platform review explorer. [MOCK→radar] until the review
+	     stream is wired into this lens. -->
+	<SectionCard title="Yorumlar · {label}" icon={MessageSquare} hint="yakında">
+		<p class="py-8 text-center text-[13px] text-text-3">
+			Bu platformun cümle düzeyli yorum gezgini
+			<span class="font-medium text-text-2">Phase 2'de</span> gelecek.
+		</p>
+	</SectionCard>
+{:else if activeTab === 'rakipler'}
+	<!-- Rakipler — per-platform competitor comparison. [MOCK→radar]. -->
+	<SectionCard title="Rakipler · {label}" icon={Swords} hint="yakında">
+		<p class="py-8 text-center text-[13px] text-text-3">
+			Bu platformda rakip kıyaslaması
+			<span class="font-medium text-text-2">Phase 2'de</span> radar verisiyle gelecek.<br />
+			Genel rakip görünümü için <a href="/os/competitors" class="font-medium text-brand hover:underline">Rakipler lensine</a> gidin.
+		</p>
+	</SectionCard>
+{/if}

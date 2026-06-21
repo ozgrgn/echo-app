@@ -9,6 +9,7 @@
 -->
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import { osState } from '$lib/stores/osState.svelte';
 	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 	import { MOCK_OS_COUNTERS } from '$lib/mock/os';
@@ -29,6 +30,14 @@
 
 	const activeKind = $derived(osState.lens.kind);
 	const isMock = $derived(osDataSource.isMock);
+
+	// These lenses carry their own back button + in-page switcher row, so the
+	// global LensTabs would stack a second button row. Hide it on them.
+	const hideLensTabs = $derived(
+		page.route.id === '/(os)/os/platform/[platform]' ||
+			page.route.id === '/(os)/os/departments' ||
+			page.route.id === '/(os)/os/department/[dept]'
+	);
 
 	// Toggle data source (mock demo ↔ live backend) and re-run the loaders.
 	async function toggleSource() {
@@ -125,8 +134,11 @@
 	<!-- ── Canvas (lens views render here) ───────────────────────────────── -->
 	<!-- Slightly cooler/darker than --color-bg so the white cards read as raised. -->
 	<main class="overflow-y-auto px-7 py-6" style="background:#eef0f4">
-		<!-- Global lens menu — fixed above every lens's own hero/content. -->
-		<LensTabs />
+		<!-- Global lens menu — fixed above every lens's own hero/content.
+		     Hidden on the platform detail page, which carries its own back nav. -->
+		{#if !hideLensTabs}
+			<LensTabs />
+		{/if}
 		{@render children()}
 	</main>
 

@@ -14,10 +14,16 @@
 	import TrendChart from '$lib/components/TrendChart.svelte';
 	import MentionList from '$lib/components/MentionList.svelte';
 	import OpportunityList from '$lib/components/OpportunityList.svelte';
-	import { Target, TrendingDown, TrendingUp, ListTree, CircleAlert, Rocket } from '@lucide/svelte';
+	import { Target, TrendingDown, TrendingUp, ListTree, CircleAlert, Rocket, ArrowLeft } from '@lucide/svelte';
 
 	let { data } = $props();
 	const d = $derived(data.dept);
+
+	// Back to the Departments list lens — replaces the global LensTabs row.
+	function backToList() {
+		osState.setLens({ kind: 'departments' });
+		goto('/os/departments');
+	}
 
 	// Trend chart window from the score series.
 	const ymin = $derived(Math.floor(Math.min(...d.scoreTrend, d.target) - 6));
@@ -37,8 +43,16 @@
 	}
 </script>
 
-<!-- Department switcher -->
+<!-- Back to Departments list + department switcher on one row. -->
 <div class="mb-3.5 flex flex-wrap items-center gap-2">
+	<button
+		onclick={backToList}
+		class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2"
+	>
+		<ArrowLeft size={15} strokeWidth={2} />
+		Geri
+	</button>
+	<span class="mx-0.5 h-5 w-px bg-border"></span>
 	{#each data.siblings as s (s.key)}
 		{@const active = s.key === d.key}
 		<button
