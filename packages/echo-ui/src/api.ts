@@ -307,6 +307,33 @@ export async function getSegments(
   return res.json();
 }
 
+// ─── Score history (GPI time-series) ────────────────────────────────────────
+
+export interface HistoryPoint {
+  period: string; // 'YYYY-MM'
+  scoredAt: string;
+  gpi: number;
+  reviewCount: number;
+}
+
+export async function getScoreHistory(
+  venueSlug: string,
+  token: string,
+  opts: { platform?: string; limit?: number } = {}
+): Promise<{ venueSlug: string; platform: string; points: HistoryPoint[] }> {
+  const params = new URLSearchParams({
+    ...(opts.platform ? { platform: opts.platform } : {}),
+    ...(opts.limit ? { limit: String(opts.limit) } : {})
+  });
+  const qs = params.toString();
+  const res = await fetch(
+    `${getApiBaseUrl()}/scores/${encodeURIComponent(venueSlug)}/history${qs ? `?${qs}` : ''}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) throw new Error(`getScoreHistory failed: ${res.status}`);
+  return res.json();
+}
+
 // ─── Venue Settings ─────────────────────────────────────────────────────────
 
 export async function getVenueSettings(

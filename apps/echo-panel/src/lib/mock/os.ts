@@ -244,6 +244,24 @@ export const DEMO_SEGMENTS = {
 	]
 };
 
+// ── Demo GPI history (time-series) — shape matches /v1/scores/:slug/history ────
+// Mock-mode stand-in so the Genel lens trend chart renders without a backend.
+// Live source: the real backfilled score_snapshots series.
+export const DEMO_HISTORY = [
+	{ period: '2025-07', scoredAt: '2025-07-15T03:00:00.000Z', gpi: 68.6, reviewCount: 1920 },
+	{ period: '2025-08', scoredAt: '2025-08-15T03:00:00.000Z', gpi: 68.2, reviewCount: 2062 },
+	{ period: '2025-09', scoredAt: '2025-09-15T03:00:00.000Z', gpi: 67.7, reviewCount: 2157 },
+	{ period: '2025-10', scoredAt: '2025-10-15T03:00:00.000Z', gpi: 66.7, reviewCount: 2208 },
+	{ period: '2025-11', scoredAt: '2025-11-15T03:00:00.000Z', gpi: 66.7, reviewCount: 2221 },
+	{ period: '2025-12', scoredAt: '2025-12-15T03:00:00.000Z', gpi: 66.7, reviewCount: 2223 },
+	{ period: '2026-01', scoredAt: '2026-01-15T03:00:00.000Z', gpi: 66.5, reviewCount: 2225 },
+	{ period: '2026-02', scoredAt: '2026-02-15T03:00:00.000Z', gpi: 66.4, reviewCount: 2231 },
+	{ period: '2026-03', scoredAt: '2026-03-15T03:00:00.000Z', gpi: 66.5, reviewCount: 2232 },
+	{ period: '2026-04', scoredAt: '2026-04-15T03:00:00.000Z', gpi: 67.9, reviewCount: 2312 },
+	{ period: '2026-05', scoredAt: '2026-05-15T03:00:00.000Z', gpi: 67.3, reviewCount: 2362 },
+	{ period: '2026-06', scoredAt: '2026-06-15T03:00:00.000Z', gpi: 67.1, reviewCount: 2466 }
+];
+
 // ── Rich demo HotelScore (blended + per-platform) ────────────────────────────
 // For presentations: a believable, fully-populated dataset. Built from echo-ui's
 // MOCK_HOTEL_SCORE (already rich: 14 categories, real Turkish excerpts) and

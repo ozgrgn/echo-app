@@ -1,5 +1,5 @@
 import type { PageLoad } from './$types';
-import { getHotelScore } from '@talkwo/echo-ui';
+import { getHotelScore, getScoreHistory } from '@talkwo/echo-ui';
 import { auth } from '$lib/stores/auth.svelte';
 import { osDataSource } from '$lib/stores/osDataSource.svelte';
 import { DEMO_HOTEL_SCORE, DEMO_PLATFORM_SCORES } from '$lib/mock/os';
@@ -19,7 +19,7 @@ export const load: PageLoad = async ({ params, url }) => {
 	// ── MOCK source ──
 	if (osDataSource.isMock) {
 		const platformScore = DEMO_PLATFORM_SCORES[platform] ?? DEMO_HOTEL_SCORE;
-		return { platform, platformScore, blended: DEMO_HOTEL_SCORE, period: platformScore.period };
+		return { platform, platformScore, blended: DEMO_HOTEL_SCORE, period: platformScore.period, history: null };
 	}
 
 	// ── LIVE source ──
@@ -31,10 +31,14 @@ export const load: PageLoad = async ({ params, url }) => {
 		? (paramPeriod as string)
 		: undefined;
 
-	const [platformScore, blended] = await Promise.all([
+	const [platformScore, blended, history] = await Promise.all([
 		getHotelScore(venueSlug, requestPeriod, token, platform),
-		getHotelScore(venueSlug, requestPeriod, token) // blended 'all' for context
+		getHotelScore(venueSlug, requestPeriod, token), // blended 'all' for context
+		// Real per-platform GPI series; best-effort so a miss doesn't break the lens.
+		getScoreHistory(venueSlug, token, { platform, limit: 24 })
+			.then((r) => r.points)
+			.catch(() => null)
 	]);
 
-	return { platform, platformScore, blended, period: platformScore.period };
+	return { platform, platformScore, blended, period: platformScore.period, history };
 };

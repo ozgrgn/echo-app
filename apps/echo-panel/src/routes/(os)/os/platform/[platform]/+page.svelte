@@ -28,8 +28,17 @@
 	// from the blended responseStats; the sentiment split is derived per platform.
 	const respSlice = $derived(responseSliceFor(data.platform, ps.responseStats?.rate ?? 0.7));
 
-	// GPI trend series for this platform — [MOCK→radar], lands on the real GPI.
-	const trend = $derived(platformTrendFor(data.platform, ps.gpi));
+	// GPI trend — REAL per-platform series from /v1/scores/:slug/history. Falls back
+	// to the synthetic generator only in mock mode (data.history null), so live never
+	// invents a past.
+	const trendActual = $derived(
+		data.history && data.history.length > 0
+			? data.history.map((p) => p.gpi)
+			: platformTrendFor(data.platform, ps.gpi).actual
+	);
+	const trendHasHistory = $derived((data.history?.length ?? 0) > 1);
+	const trendYmin = $derived(Math.floor(Math.min(...trendActual) - 4));
+	const trendYmax = $derived(Math.ceil(Math.max(...trendActual) + 4));
 
 	const PLATFORM_LABEL: Record<string, string> = {
 		tripadvisor: 'TripAdvisor',
@@ -251,9 +260,15 @@
 </div>
 
 {#if activeTab === 'genel'}
-	<!-- GPI trend for this platform — [MOCK→radar], lands on the real current GPI. -->
-	<SectionCard title="İtibar trendi · {label}" icon={TrendingUp} hint="GPI · son dönem" class="mb-3.5">
-		<TrendChart actual={trend.actual} ymin={trend.ymin} ymax={trend.ymax} color={color} height={200} />
+	<!-- GPI trend for this platform — REAL series from history (fallback in mock). -->
+	<SectionCard title="İtibar trendi · {label}" icon={TrendingUp} hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'güncel'} class="mb-3.5">
+		{#if trendHasHistory}
+			<TrendChart actual={trendActual} ymin={trendYmin} ymax={trendYmax} color={color} height={200} />
+		{:else}
+			<p class="py-10 text-center text-[13px] text-text-3">
+				Bu platform için yeterli geçmiş yok — güncel GPI <b class="text-text-1">{ps.gpi.toFixed(1)}</b>.
+			</p>
+		{/if}
 	</SectionCard>
 
 	<!-- Genel — distribution + categories + opportunity (the full snapshot). -->

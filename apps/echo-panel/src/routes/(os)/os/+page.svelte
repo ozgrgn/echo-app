@@ -20,8 +20,6 @@
 	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert, MessageCircleReply, PieChart } from '@lucide/svelte';
 
 	import {
-		MOCK_OS_KPIS,
-		MOCK_OS_GPI_TREND,
 		MOCK_OS_DEPTS,
 		MOCK_OS_RESPONSE,
 		type OsPlatform
@@ -29,6 +27,27 @@
 
 	let { data } = $props();
 	const hs = $derived(data.hotelScore);
+
+	// ── GPI trend — REAL series from /v1/scores/:slug/history (backfilled snapshots).
+	// Falls back to a single point (today's GPI) when history is missing/empty, so
+	// the chart never invents a past. Target line is the only [MOCK→echo] piece.
+	const GPI_TARGET = 75;
+	const historyGpi = $derived((data.history ?? []).map((p) => p.gpi));
+	const trendActual = $derived(historyGpi.length > 0 ? historyGpi : [hs.gpi]);
+	const trendYmin = $derived(Math.floor(Math.min(...trendActual, GPI_TARGET) - 4));
+	const trendYmax = $derived(Math.ceil(Math.max(...trendActual, GPI_TARGET) + 4));
+	const trendHasHistory = $derived(historyGpi.length > 1);
+
+	// Real KPI sparklines + deltas from history (GPI, review count). Last-vs-previous
+	// point = the delta. Series capped to the trailing 8 points for a compact spark.
+	const spark = (arr: number[]) => arr.slice(-8);
+	const lastDelta = (arr: number[]) =>
+		arr.length >= 2 ? +(arr[arr.length - 1] - arr[arr.length - 2]).toFixed(1) : 0;
+	const historyReviews = $derived((data.history ?? []).map((p) => p.reviewCount));
+	const gpiSpark = $derived(spark(historyGpi));
+	const gpiDelta = $derived(lastDelta(historyGpi));
+	const reviewSpark = $derived(spark(historyReviews));
+	const reviewDelta = $derived(lastDelta(historyReviews));
 
 	type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'brand';
 	function zoneTone(score: number): Tone {
@@ -151,27 +170,23 @@
 		value={hs.gpi.toFixed(1)}
 		tone={zoneTone(hs.gpi)}
 		emphasis="primary"
-		caption="hedef {MOCK_OS_GPI_TREND.target}"
-		delta={MOCK_OS_KPIS.gpi.delta}
+		caption="hedef {GPI_TARGET}"
+		delta={gpiDelta}
 		deltaPolarity="higher-better"
-		trend={MOCK_OS_KPIS.gpi.series}
+		trend={gpiSpark}
 	/>
 	<StatTile
 		label="RPI"
 		value={hs.rpi?.toFixed(1) ?? '—'}
 		caption="rakip endeksi"
-		delta={MOCK_OS_KPIS.rpi.delta}
-		deltaPolarity="higher-better"
-		trend={MOCK_OS_KPIS.rpi.series}
 	/>
 	<StatTile
 		label="Toplam Yorum"
 		value={hs.reviewCount.toLocaleString('tr-TR')}
-		caption="geçen dönem {hs.reviewCount - MOCK_OS_KPIS.reviewCount.delta}"
-		delta={MOCK_OS_KPIS.reviewCount.delta}
-		deltaPercentPrefix
+		caption={reviewDelta !== 0 ? `geçen dönem ${(hs.reviewCount - reviewDelta).toLocaleString('tr-TR')}` : 'bu dönem'}
+		delta={reviewDelta}
 		deltaPolarity="higher-better"
-		trend={MOCK_OS_KPIS.reviewCount.series}
+		trend={reviewSpark}
 	/>
 	<StatTile
 		label="Yanıt Oranı"
@@ -182,41 +197,43 @@
 		delta={hs.responseStats.rateTrend}
 		deltaUnit="pp"
 		deltaPolarity="higher-better"
-		trend={MOCK_OS_KPIS.responseRate.series}
 	/>
 	<StatTile
 		label="Rakip Farkı"
 		value={competitorGap !== null ? competitorGap.toFixed(1) : '—'}
 		tone={competitorGap !== null && competitorGap < 0 ? 'danger' : 'neutral'}
 		caption={competitorGap !== null && competitorGap < 0 ? 'rakip önde' : 'öndeyiz'}
-		delta={MOCK_OS_KPIS.competitorGap.delta}
-		deltaPolarity="higher-better"
-		trend={MOCK_OS_KPIS.competitorGap.series}
 	/>
 </div>
 
 <!-- ── Trend + Platforms/Categories row ──────────────────────────────────── -->
 <div class="mb-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-[1.55fr_1fr]">
-	<SectionCard title="İtibar trendi (GPI)" icon={TrendingUp}>
+	<SectionCard title="İtibar trendi (GPI)" icon={TrendingUp} hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'geçmiş birikiyor'}>
 		{#snippet action()}
-			<span class="inline-flex items-center gap-1.5 rounded-full bg-warning-light px-2.5 py-1 text-[11px] font-bold text-warning">
-				<TriangleAlert size={13} strokeWidth={2.5} />Hedefe gidişat: risk
-			</span>
+			{#if hs.gpi < GPI_TARGET}
+				<span class="inline-flex items-center gap-1.5 rounded-full bg-warning-light px-2.5 py-1 text-[11px] font-bold text-warning">
+					<TriangleAlert size={13} strokeWidth={2.5} />Hedefin altında
+				</span>
+			{/if}
 		{/snippet}
 		<div class="mb-3 flex flex-wrap gap-2">
-			<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-text-2"><i class="h-[3px] w-2.5 rounded-sm" style="background:var(--color-brand)"></i>Gerçekleşen</span>
-			<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-text-2"><i class="h-[3px] w-2.5 rounded-sm" style="background:var(--color-text-3)"></i>Hedef {MOCK_OS_GPI_TREND.target}</span>
-			<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-text-2"><i class="h-[3px] w-2.5 rounded-sm" style="background:var(--color-warning)"></i>Projeksiyon</span>
+			<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-text-2"><i class="h-[3px] w-2.5 rounded-sm" style="background:var(--color-brand)"></i>Gerçekleşen GPI</span>
+			<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-text-2"><i class="h-[3px] w-2.5 rounded-sm" style="background:var(--color-text-3)"></i>Hedef {GPI_TARGET}</span>
 		</div>
-		<TrendChart
-			actual={MOCK_OS_GPI_TREND.actual}
-			projection={MOCK_OS_GPI_TREND.projection}
-			target={MOCK_OS_GPI_TREND.target}
-			ymin={MOCK_OS_GPI_TREND.ymin}
-			ymax={MOCK_OS_GPI_TREND.ymax}
-			yticks={[60, 65, 70, 75, 80]}
-			height={230}
-		/>
+		{#if trendHasHistory}
+			<TrendChart
+				actual={trendActual}
+				target={GPI_TARGET}
+				ymin={trendYmin}
+				ymax={trendYmax}
+				height={230}
+			/>
+		{:else}
+			<p class="py-12 text-center text-[13px] text-text-3">
+				Trend için yeterli geçmiş yok — güncel GPI <b class="text-text-1">{hs.gpi.toFixed(1)}</b>.
+				Her dönem yeni snapshot biriktikçe çizgi oluşacak.
+			</p>
+		{/if}
 	</SectionCard>
 
 	<SectionCard title="Platformlar" icon={Globe} hint="tıkla → evren">
