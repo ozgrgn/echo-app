@@ -216,9 +216,6 @@
 		label="Toplam Yorum"
 		value={hs.reviewCount.toLocaleString('tr-TR')}
 		caption={reviewDelta !== 0 ? `bu dönem +${reviewDelta.toLocaleString('tr-TR')} yeni` : 'bu dönem'}
-		delta={reviewDelta}
-		deltaUnit="yorum"
-		deltaPolarity="higher-better"
 		trend={reviewSpark}
 	/>
 	<StatTile
@@ -240,34 +237,37 @@
 </div>
 
 <!-- ── Trend + Platforms/Categories row ──────────────────────────────────── -->
-<div class="mb-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-[1.55fr_1fr]">
-	<SectionCard title="İtibar trendi (GPI)" icon={TrendingUp} hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'geçmiş birikiyor'}>
-		{#snippet action()}
-			{#if hs.gpi < GPI_TARGET}
-				<span class="inline-flex items-center gap-1.5 rounded-full bg-warning-light px-2.5 py-1 text-[11px] font-bold text-warning">
-					<TriangleAlert size={13} strokeWidth={2.5} />Hedefin altında
-				</span>
+<div class="mb-3.5 grid grid-cols-1 items-start gap-3.5 lg:grid-cols-[1.55fr_1fr]">
+	<!-- Left column: reputation trend + platform comparison stacked. -->
+	<div class="flex flex-col gap-3.5">
+		<SectionCard title="İtibar trendi (GPI)" icon={TrendingUp} hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'geçmiş birikiyor'}>
+			{#snippet action()}
+				{#if hs.gpi < GPI_TARGET}
+					<span class="inline-flex items-center gap-1.5 rounded-full bg-warning-light px-2.5 py-1 text-[11px] font-bold text-warning">
+						<TriangleAlert size={13} strokeWidth={2.5} />Hedefin altında
+					</span>
+				{/if}
+			{/snippet}
+			<div class="mb-3 flex flex-wrap gap-2">
+				<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-text-2"><i class="h-[3px] w-2.5 rounded-sm" style="background:var(--color-brand)"></i>Gerçekleşen GPI</span>
+				<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-text-2"><i class="h-[3px] w-2.5 rounded-sm" style="background:var(--color-text-3)"></i>Hedef {GPI_TARGET}</span>
+			</div>
+			{#if trendHasHistory}
+				<TrendChart actual={trendActual} target={GPI_TARGET} ymin={trendYmin} ymax={trendYmax} height={210} />
+			{:else}
+				<p class="py-12 text-center text-[13px] text-text-3">
+					Trend için yeterli geçmiş yok — güncel GPI <b class="text-text-1">{hs.gpi.toFixed(1)}</b>.
+				</p>
 			{/if}
-		{/snippet}
-		<div class="mb-3 flex flex-wrap gap-2">
-			<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-text-2"><i class="h-[3px] w-2.5 rounded-sm" style="background:var(--color-brand)"></i>Gerçekleşen GPI</span>
-			<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-text-2"><i class="h-[3px] w-2.5 rounded-sm" style="background:var(--color-text-3)"></i>Hedef {GPI_TARGET}</span>
-		</div>
-		{#if trendHasHistory}
-			<TrendChart
-				actual={trendActual}
-				target={GPI_TARGET}
-				ymin={trendYmin}
-				ymax={trendYmax}
-				height={230}
-			/>
-		{:else}
-			<p class="py-12 text-center text-[13px] text-text-3">
-				Trend için yeterli geçmiş yok — güncel GPI <b class="text-text-1">{hs.gpi.toFixed(1)}</b>.
-				Her dönem yeni snapshot biriktikçe çizgi oluşacak.
-			</p>
+		</SectionCard>
+
+		<!-- Platform GPI comparison — our blended line emphasized over each platform. -->
+		{#if hasCompare}
+			<SectionCard title="Platform GPI karşılaştırması" icon={LineChart} hint="bizim çizgi kalın">
+				<MultiTrendChart series={compareSeries} height={210} />
+			</SectionCard>
 		{/if}
-	</SectionCard>
+	</div>
 
 	<SectionCard title="Platformlar" icon={Globe} hint="tıkla → evren">
 		<div class="-mx-1">
@@ -283,13 +283,6 @@
 		{/each}
 	</SectionCard>
 </div>
-
-<!-- ── Platform GPI comparison — our blended line emphasized over each platform ── -->
-{#if hasCompare}
-	<SectionCard title="Platform GPI karşılaştırması" icon={LineChart} hint="bizim çizgi kalın" class="mb-3.5">
-		<MultiTrendChart series={compareSeries} height={240} />
-	</SectionCard>
-{/if}
 
 <!-- ── Issues / Praises ──────────────────────────────────────────────────── -->
 <div class="mb-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-2">
