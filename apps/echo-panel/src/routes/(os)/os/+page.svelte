@@ -17,11 +17,13 @@
 	import DeptCard from '$lib/components/DeptCard.svelte';
 	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
 	import SegmentBreakdown from '$lib/components/SegmentBreakdown.svelte';
-	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert, MessageCircleReply, PieChart } from '@lucide/svelte';
+	import MultiTrendChart from '$lib/components/MultiTrendChart.svelte';
+	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert, MessageCircleReply, PieChart, LineChart } from '@lucide/svelte';
 
 	import {
 		MOCK_OS_DEPTS,
 		MOCK_OS_RESPONSE,
+		PLATFORM_COLOR,
 		type OsPlatform
 	} from '$lib/mock/os';
 
@@ -31,12 +33,31 @@
 	// ── GPI trend — REAL series from /v1/scores/:slug/history (backfilled snapshots).
 	// Falls back to a single point (today's GPI) when history is missing/empty, so
 	// the chart never invents a past. Target line is the only [MOCK→echo] piece.
-	const GPI_TARGET = 75;
+	const GPI_TARGET = 70;
 	const historyGpi = $derived((data.history ?? []).map((p) => p.gpi));
 	const trendActual = $derived(historyGpi.length > 0 ? historyGpi : [hs.gpi]);
 	const trendYmin = $derived(Math.floor(Math.min(...trendActual, GPI_TARGET) - 4));
 	const trendYmax = $derived(Math.ceil(Math.max(...trendActual, GPI_TARGET) + 4));
 	const trendHasHistory = $derived(historyGpi.length > 1);
+
+	// Platform comparison chart — our blended line emphasized over each platform.
+	const PLATFORM_LABELS: Record<string, string> = {
+		tripadvisor: 'TripAdvisor', booking: 'Booking', google: 'Google', holidaycheck: 'HolidayCheck'
+	};
+	const compareSeries = $derived([
+		...((data.platformHistories ?? []).map((ph) => ({
+			key: ph.platform,
+			label: PLATFORM_LABELS[ph.platform] ?? ph.platform,
+			color: PLATFORM_COLOR[ph.platform as keyof typeof PLATFORM_COLOR] ?? '#94a3b8',
+			values: ph.points.map((p) => p.gpi),
+			emphasis: false
+		}))),
+		// Our own blended line — emphasized, brand color, on top.
+		...(historyGpi.length > 1
+			? [{ key: 'all', label: 'Bizim (genel)', color: 'var(--color-brand)', values: historyGpi, emphasis: true }]
+			: [])
+	]);
+	const hasCompare = $derived(compareSeries.length > 1);
 
 	// Real KPI sparklines + deltas from history (GPI, review count). Last-vs-previous
 	// point = the delta. Series capped to the trailing 8 points for a compact spark.
@@ -86,9 +107,19 @@
 	// Period segmented control (weekly/monthly) — UI state in the shared store.
 	const period = $derived(osState.period);
 
-	// KPI values: [REAL] from HotelScore; deltas/series [MOCK→radar] from MOCK_OS_KPIS.
+	// KPI values: [REAL] from HotelScore; competitor metrics from data.competitors
+	// (currently the rich mock set — see MOCK_CONFIG.competitors).
 	const responseRatePct = $derived(Math.round(hs.responseStats.rate * 100));
-	const competitorGap = $derived(hs.rpi !== null ? +(hs.gpi - hs.rpi).toFixed(1) : null);
+	// Market average GPI across competitors → derive RPI + gap when present.
+	const competitorAvg = $derived(
+		data.competitors.length > 0
+			? data.competitors.reduce((s, c) => s + c.gpi, 0) / data.competitors.length
+			: null
+	);
+	const rpiValue = $derived(
+		hs.rpi ?? (competitorAvg ? +((hs.gpi / competitorAvg) * 100).toFixed(1) : null)
+	);
+	const competitorGap = $derived(competitorAvg !== null ? +(hs.gpi - competitorAvg).toFixed(1) : null);
 
 	// Category movement — [REAL] top categories by mention.
 	const topCategories = $derived(
@@ -177,14 +208,16 @@
 	/>
 	<StatTile
 		label="RPI"
-		value={hs.rpi?.toFixed(1) ?? '—'}
-		caption="rakip endeksi"
+		value={rpiValue?.toFixed(1) ?? '—'}
+		tone={rpiValue !== null ? (rpiValue >= 100 ? 'success' : 'warning') : 'neutral'}
+		caption={competitorAvg !== null ? `${data.competitors.length} rakip · ort ${competitorAvg.toFixed(1)}` : 'rakip endeksi'}
 	/>
 	<StatTile
 		label="Toplam Yorum"
 		value={hs.reviewCount.toLocaleString('tr-TR')}
-		caption={reviewDelta !== 0 ? `geçen dönem ${(hs.reviewCount - reviewDelta).toLocaleString('tr-TR')}` : 'bu dönem'}
+		caption={reviewDelta !== 0 ? `bu dönem +${reviewDelta.toLocaleString('tr-TR')} yeni` : 'bu dönem'}
 		delta={reviewDelta}
+		deltaUnit="yorum"
 		deltaPolarity="higher-better"
 		trend={reviewSpark}
 	/>
@@ -250,6 +283,13 @@
 		{/each}
 	</SectionCard>
 </div>
+
+<!-- ── Platform GPI comparison — our blended line emphasized over each platform ── -->
+{#if hasCompare}
+	<SectionCard title="Platform GPI karşılaştırması" icon={LineChart} hint="bizim çizgi kalın" class="mb-3.5">
+		<MultiTrendChart series={compareSeries} height={240} />
+	</SectionCard>
+{/if}
 
 <!-- ── Issues / Praises ──────────────────────────────────────────────────── -->
 <div class="mb-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-2">

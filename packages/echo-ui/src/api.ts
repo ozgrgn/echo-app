@@ -40,18 +40,20 @@ export interface MockConfig {
   reviews: boolean;
   venues: boolean;
   scores: boolean;
+  competitors: boolean;
   survey: boolean;
   feedback: boolean;
   tenant: boolean;
 }
 
 export const MOCK_CONFIG: MockConfig = {
-  reviews: false,  // REAL — Bronze layer shipped
-  venues: false,   // REAL — /v1/venues shipped
-  scores: false,   // REAL — Gold layer (M3) shipped
-  survey: false,   // LIVE — surfaces 404 until /v1/surveys/* lands (intentional)
-  feedback: false, // LIVE — surfaces 404 until /v1/feedback lands (intentional)
-  tenant: false    // LIVE — surfaces 404 until /v1/tenants/me lands (intentional)
+  reviews: false,     // REAL — Bronze layer shipped
+  venues: false,      // REAL — /v1/venues shipped
+  scores: false,      // REAL — Gold layer (M3) shipped
+  competitors: true,  // MOCK — no real competitor ingest yet (rich demo set)
+  survey: false,      // LIVE — surfaces 404 until /v1/surveys/* lands (intentional)
+  feedback: false,    // LIVE — surfaces 404 until /v1/feedback lands (intentional)
+  tenant: false       // LIVE — surfaces 404 until /v1/tenants/me lands (intentional)
 };
 
 /** @deprecated Use MOCK_CONFIG.<domain>. Kept as `true` only so any
@@ -174,7 +176,11 @@ export async function getCompetitorScores(
   period: string | undefined,
   token: string
 ): Promise<CompetitorScore[]> {
-  if (MOCK_CONFIG.scores) {
+  // Competitors are still MOCK (no real competitor ingest yet — decided 2026-06).
+  // We serve the rich demo set so the benchmark page + dashboard read full, and
+  // also fall back to it if the live endpoint returns an empty list. Flip to live
+  // by removing this block once competitor scoring lands.
+  if (MOCK_CONFIG.scores || MOCK_CONFIG.competitors) {
     const { MOCK_COMPETITORS } = await import('./mock/competitors.js');
     return MOCK_COMPETITORS;
   }
@@ -183,7 +189,12 @@ export async function getCompetitorScores(
     : `${getApiBaseUrl()}/scores/${venueSlug}/competitors`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`getCompetitorScores failed: ${res.status}`);
-  return res.json();
+  const live: CompetitorScore[] = await res.json();
+  if (live.length === 0) {
+    const { MOCK_COMPETITORS } = await import('./mock/competitors.js');
+    return MOCK_COMPETITORS;
+  }
+  return live;
 }
 
 export async function getPortfolioScore(

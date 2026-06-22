@@ -23,6 +23,11 @@ export const load: PageLoad = async ({ url }) => {
 			period: DEMO_HOTEL_SCORE.period,
 			segments: DEMO_SEGMENTS as SegmentsResponse,
 			history: DEMO_HISTORY as HistoryPoint[],
+			platformHistories: CHANNELS.map((p, i) => ({
+				platform: p as string,
+				// Shift each platform's demo series off the blended one so lines read distinctly.
+				points: (DEMO_HISTORY as HistoryPoint[]).map((h) => ({ ...h, gpi: +(h.gpi + (i - 1.5) * 2).toFixed(1) }))
+			})),
 		};
 	}
 
@@ -37,22 +42,31 @@ export const load: PageLoad = async ({ url }) => {
 		? (paramPeriod as string)
 		: undefined;
 
-	const [hotelScore, competitors, segments, history, ...channelResults] = await Promise.all([
-		getHotelScore(venueSlug, requestPeriod, token),
-		getCompetitorScores(venueSlug, requestPeriod, token),
-		// Segments + history are best-effort: a failure must not break the whole lens.
-		getSegments(venueSlug, token).catch(() => null),
-		getScoreHistory(venueSlug, token, { platform: 'all', limit: 24 })
-			.then((r) => r.points)
-			.catch(() => null),
-		...CHANNELS.map((p) =>
-			getHotelScore(venueSlug, requestPeriod, token, p)
-				.then((s) => ({ platform: p, score: s }))
-				.catch(() => null)
-		)
-	]);
+	const [hotelScore, competitors, segments, history, platformHistories, ...channelResults] =
+		await Promise.all([
+			getHotelScore(venueSlug, requestPeriod, token),
+			getCompetitorScores(venueSlug, requestPeriod, token),
+			// Segments + history are best-effort: a failure must not break the whole lens.
+			getSegments(venueSlug, token).catch(() => null),
+			getScoreHistory(venueSlug, token, { platform: 'all', limit: 24 })
+				.then((r) => r.points)
+				.catch(() => null),
+			// Per-platform GPI series for the comparison chart (each best-effort).
+			Promise.all(
+				CHANNELS.map((p) =>
+					getScoreHistory(venueSlug, token, { platform: p, limit: 24 })
+						.then((r) => ({ platform: p as string, points: r.points }))
+						.catch(() => null)
+				)
+			).then((rows) => rows.filter((r): r is NonNullable<typeof r> => r !== null && r.points.length > 1)),
+			...CHANNELS.map((p) =>
+				getHotelScore(venueSlug, requestPeriod, token, p)
+					.then((s) => ({ platform: p, score: s }))
+					.catch(() => null)
+			)
+		]);
 
 	const channels = channelResults.filter((c): c is NonNullable<typeof c> => c !== null);
 
-	return { hotelScore, competitors, channels, period: hotelScore.period, segments, history };
+	return { hotelScore, competitors, channels, period: hotelScore.period, segments, history, platformHistories };
 };
