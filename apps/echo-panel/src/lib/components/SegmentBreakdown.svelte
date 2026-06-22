@@ -25,7 +25,7 @@
 
 	// Known buckets only (drop 'unknown'), sorted desc, share over known total.
 	function known(buckets: SegmentBucket[], knownTotal: number, labels: Record<string, string>) {
-		return buckets
+		const rows = buckets
 			.filter((b) => b.key !== 'unknown')
 			.map((b) => ({
 				key: b.key,
@@ -34,6 +34,21 @@
 				pct: knownTotal > 0 ? Math.round((b.count / knownTotal) * 100) : 0
 			}))
 			.sort((a, b) => b.count - a.count);
+
+		// Long-tail collapse: keep the top entries, fold the rest into "Diğer" so the
+		// list stays readable instead of showing a dozen %0 rows (e.g. 21 languages).
+		const TOP = 6;
+		if (rows.length <= TOP + 1) return rows;
+		const head = rows.slice(0, TOP);
+		const tail = rows.slice(TOP);
+		const tailCount = tail.reduce((s, r) => s + r.count, 0);
+		head.push({
+			key: '__other__',
+			label: `Diğer (${tail.length})`,
+			count: tailCount,
+			pct: knownTotal > 0 ? Math.round((tailCount / knownTotal) * 100) : 0
+		});
+		return head;
 	}
 
 	const langs = $derived(data ? known(data.byLanguage, data.languageKnown, LANG_LABEL) : []);

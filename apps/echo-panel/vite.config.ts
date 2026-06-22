@@ -15,8 +15,8 @@ export default defineConfig({
 		// Dev-only CORS bypass: Vite's Node proxy forwards /v1/* server-to-server,
 		// so the browser never makes a cross-origin request and CORS doesn't apply.
 		// Set PUBLIC_ECHO_API_URL=/v1 in .env.local to route through here.
-		//   local backend  → target: 'http://localhost:3001'
-		//   Railway backend → target: 'https://backend-production-5c03.up.railway.app'
+		//   local backend (now points at Atlas `echo` DB) → target: 'http://localhost:3001'
+		//   production echo-api → target: 'https://echo-api-production-b3a5.up.railway.app'
 		proxy: {
 			'/v1': {
 				target: 'http://localhost:3001',

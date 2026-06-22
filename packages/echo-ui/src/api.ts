@@ -46,12 +46,12 @@ export interface MockConfig {
 }
 
 export const MOCK_CONFIG: MockConfig = {
-  reviews: false, // REAL — Bronze layer shipped
-  venues: false,  // REAL — /v1/venues shipped
-  scores: false,  // REAL — Gold layer (M3) shipped
-  survey: true,   // MOCK — ops-engine proxy pending
-  feedback: true, // MOCK — ops-engine proxy pending
-  tenant: true    // MOCK — subscription endpoint TBD
+  reviews: false,  // REAL — Bronze layer shipped
+  venues: false,   // REAL — /v1/venues shipped
+  scores: false,   // REAL — Gold layer (M3) shipped
+  survey: false,   // LIVE — surfaces 404 until /v1/surveys/* lands (intentional)
+  feedback: false, // LIVE — surfaces 404 until /v1/feedback lands (intentional)
+  tenant: false    // LIVE — surfaces 404 until /v1/tenants/me lands (intentional)
 };
 
 /** @deprecated Use MOCK_CONFIG.<domain>. Kept as `true` only so any

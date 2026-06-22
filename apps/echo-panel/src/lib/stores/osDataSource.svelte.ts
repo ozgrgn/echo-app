@@ -11,9 +11,11 @@ type Source = 'mock' | 'live';
 const KEY = 'echo.os.dataSource';
 
 function load(): Source {
-	if (typeof window === 'undefined') return 'mock';
+	// Default is now 'live' — the OS lenses read from the real backend. A user can
+	// still flip to 'mock' (rail Database toggle) for a backend-free demo.
+	if (typeof window === 'undefined') return 'live';
 	const v = localStorage.getItem(KEY);
-	return v === 'live' ? 'live' : 'mock';
+	return v === 'mock' ? 'mock' : 'live';
 }
 
 function createOsDataSource() {
