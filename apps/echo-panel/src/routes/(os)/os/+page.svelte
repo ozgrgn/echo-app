@@ -58,6 +58,8 @@
 			: [])
 	]);
 	const hasCompare = $derived(compareSeries.length > 1);
+	// Period labels (x-axis) from the blended history — the longest, canonical axis.
+	const comparePeriods = $derived((data.history ?? []).map((p) => p.period));
 
 	// Real KPI sparklines + deltas from history (GPI, review count). Last-vs-previous
 	// point = the delta. Series capped to the trailing 8 points for a compact spark.
@@ -122,10 +124,18 @@
 	const competitorGap = $derived(competitorAvg !== null ? +(hs.gpi - competitorAvg).toFixed(1) : null);
 
 	// Category movement — [REAL] top categories by mention.
+	// Category movement — declining categories first (most actionable), then by
+	// mention volume. Shows more rows so the column matches the left stack's height.
 	const topCategories = $derived(
 		[...hs.categoryScores]
-			.sort((a, b) => b.mentionCount - a.mentionCount)
-			.slice(0, 6)
+			.sort((a, b) => {
+				// Declining (trend < 0) bubble to the top, ranked by how sharp the drop is.
+				const aDown = a.trend < 0, bDown = b.trend < 0;
+				if (aDown !== bDown) return aDown ? -1 : 1;
+				if (aDown && bDown) return a.trend - b.trend; // steeper drop first
+				return b.mentionCount - a.mentionCount;
+			})
+			.slice(0, 10)
 			.map((cs) => ({ label: CATEGORIES[cs.category].label, score: cs.headlineScore, trend: cs.trend }))
 	);
 
@@ -263,8 +273,8 @@
 
 		<!-- Platform GPI comparison — our blended line emphasized over each platform. -->
 		{#if hasCompare}
-			<SectionCard title="Platform GPI karşılaştırması" icon={LineChart} hint="bizim çizgi kalın">
-				<MultiTrendChart series={compareSeries} height={210} />
+			<SectionCard title="Platform GPI karşılaştırması" icon={LineChart}>
+				<MultiTrendChart series={compareSeries} periods={comparePeriods} height={230} />
 			</SectionCard>
 		{/if}
 	</div>
