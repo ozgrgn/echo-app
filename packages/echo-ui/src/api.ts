@@ -146,6 +146,85 @@ export async function listVenues(token: string): Promise<Venue[]> {
   return data.items ?? data;
 }
 
+/**
+ * Superadmin: list ALL venues including competitors (?include=competitors). The
+ * /admin surface needs both; normal listVenues default-hides competitors. Always live.
+ */
+export async function listAllVenues(token: string): Promise<Venue[]> {
+  const res = await fetch(`${getApiBaseUrl()}/venues?limit=200&include=competitors`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  return data.items ?? data;
+}
+
+// ─── Superadmin: platform selection + refs + watch CRUD (panel /admin) ────────
+
+export interface PlatformRefs {
+  tripadvisor?: { locationId: number; url: string };
+  google?: { placeId?: string; url?: string };
+  holidaycheck?: { url: string };
+  check24?: { url: string };
+  booking?: { url: string };
+}
+
+async function adminWrite(path: string, method: string, body: unknown, token: string): Promise<void> {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+  if (!res.ok) {
+    const problem = await res.json().catch(() => ({ detail: `${method} ${path} failed` }));
+    throw new Error(problem.detail || `${method} ${path} failed: ${res.status}`);
+  }
+}
+
+/** Set an owned venue's platform selection (+ optional refs). */
+export function patchVenuePlatforms(
+  venueId: string,
+  patch: { watchedPlatforms?: string[]; platformRefs?: PlatformRefs },
+  token: string,
+): Promise<void> {
+  return adminWrite(`/admin/venues/${encodeURIComponent(venueId)}/platforms`, 'PATCH', patch, token);
+}
+
+/** Set any venue's scraper credentials (used for competitors). */
+export function patchVenueRefs(venueId: string, refs: PlatformRefs, token: string): Promise<void> {
+  return adminWrite(`/admin/venues/${encodeURIComponent(venueId)}/refs`, 'PATCH', refs, token);
+}
+
+export interface WatchRecord {
+  ownerVenueId: string;
+  targetVenueId: string;
+  relation: 'competitor' | 'self';
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** List watches (optionally for one owner). */
+export async function listWatches(token: string, ownerVenueId?: string): Promise<WatchRecord[]> {
+  const q = ownerVenueId ? `?ownerVenueId=${encodeURIComponent(ownerVenueId)}` : '';
+  const res = await fetch(`${getApiBaseUrl()}/admin/watches${q}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  return data.watches ?? [];
+}
+
+/** Create a watch (owner → target). */
+export function createWatch(ownerVenueId: string, targetVenueId: string, token: string): Promise<void> {
+  return adminWrite('/admin/watches', 'POST', { ownerVenueId, targetVenueId }, token);
+}
+
+/** Delete a watch. */
+export function deleteWatch(ownerVenueId: string, targetVenueId: string, token: string): Promise<void> {
+  return adminWrite(
+    `/admin/watches/${encodeURIComponent(ownerVenueId)}/${encodeURIComponent(targetVenueId)}`,
+    'DELETE', undefined, token,
+  );
+}
+
 // ─── Hotel scores ───────────────────────────────────────────────────────────
 
 export async function getHotelScore(

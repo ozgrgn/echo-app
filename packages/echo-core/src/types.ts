@@ -33,7 +33,8 @@ export const PLATFORM_REGISTRY: Record<string, PlatformMeta> = {
   tripadvisor:  { key: 'tripadvisor',  label: 'TripAdvisor',  icon: '🦉', status: 'shipped' },
   google:       { key: 'google',       label: 'Google',       icon: '🔍', status: 'shipped' },
   holidaycheck: { key: 'holidaycheck', label: 'HolidayCheck', icon: '🇩🇪', status: 'shipped' },
-  check24:      { key: 'check24',      label: 'Check24',      icon: '✅', status: 'planned' }
+  check24:      { key: 'check24',      label: 'Check24',      icon: '✅', status: 'planned' },
+  booking:      { key: 'booking',      label: 'Booking.com',  icon: '🛏️', status: 'planned' }
 };
 
 export type DataSource = 'review' | 'survey' | 'gr_feedback';
@@ -270,6 +271,17 @@ export interface Venue {
   };
   tz?: string;             // IANA timezone, e.g. 'Europe/Istanbul'
   isOwned: boolean;        // true = tenant owns; false = competitor
+  kind?: 'owned' | 'competitor';  // explicit registry kind (isOwned is derived from this)
+  /** Owned venue's selected platforms (propagate to its competitors). */
+  watchedPlatforms?: string[];
+  /** Per-platform scraper credentials (URL/locationId) for this venue. */
+  platformRefs?: {
+    tripadvisor?: { locationId: number; url: string };
+    google?: { placeId?: string; url?: string };
+    holidaycheck?: { url: string };
+    check24?: { url: string };
+    booking?: { url: string };
+  };
   source: 'manual' | 'auto';
   status: 'active' | 'removed';
   createdAt: string;

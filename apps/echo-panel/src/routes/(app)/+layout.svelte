@@ -64,7 +64,9 @@
 			label: 'Geribildirim',
 			requires: () => ctx?.mode === 'hoops'
 		},
-		{ href: '/settings', icon: '⚙️', label: 'Ayarlar' }
+		{ href: '/settings', icon: '⚙️', label: 'Ayarlar' },
+		// Superadmin venue/competitor/platform management (Talkwo team). TODO: gate by role.
+		{ href: '/admin', icon: '🛠️', label: 'Yönetim' }
 	];
 
 	const navItems = $derived(allNav.filter((i) => !i.requires || i.requires()));
