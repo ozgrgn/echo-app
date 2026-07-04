@@ -15,7 +15,16 @@
 	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
 	import TrendChart from '$lib/components/TrendChart.svelte';
 	import MentionExplorer from '$lib/components/MentionExplorer.svelte';
-	import { getMentions, type MentionRow } from '@talkwo/echo-ui';
+	import ResponseInbox from '$lib/components/ResponseInbox.svelte';
+	import StatTile from '$lib/components/StatTile.svelte';
+	import {
+		getMentions,
+		getResponseStats,
+		getResponseQueue,
+		type MentionRow,
+		type ResponseStats,
+		type ResponseQueueItem
+	} from '@talkwo/echo-ui';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 	import { PLATFORM_COLOR, responseSliceFor, platformTrendFor } from '$lib/mock/os';
@@ -63,7 +72,7 @@
 	}
 
 	let activeTab = $state('genel');
-	const tabs = ['Genel', 'Kategoriler', 'Yorumlar', 'Rakipler'];
+	const tabs = ['Genel', 'Kategoriler', 'Yorumlar', 'Yanıtlar', 'Rakipler'];
 	const color = $derived(PLATFORM_COLOR[data.platform as keyof typeof PLATFORM_COLOR] ?? '#64748b');
 
 	// ── Semantic mentions (Yorumlar tab) — REAL data, lazily fetched ─────────
@@ -108,6 +117,115 @@
 
 	function setMentionFilter(f: 'all' | 'negative' | 'positive') {
 		mentionFilter = f;
+	}
+
+	// ── Response management (Yanıtlar tab + Genel analytics) — REAL data ─────
+	let respStats = $state<ResponseStats | null>(null);
+	let queueItems = $state<ResponseQueueItem[]>([]);
+	let queueLoading = $state(false);
+
+	async function loadResponseStats() {
+		if (osDataSource.isMock) {
+			respStats = null; // Genel analytics falls back to the mock slice
+			return;
+		}
+		const { token, venueSlug } = auth;
+		if (!token || !venueSlug) return;
+		try {
+			respStats = await getResponseStats(venueSlug, token, data.platform);
+		} catch {
+			respStats = null;
+		}
+	}
+	// Stats feed BOTH the Yanıtlar KPI strip and the Genel ResponseAnalytics card,
+	// so they load on platform change, not on tab change.
+	$effect(() => {
+		void data.platform;
+		loadResponseStats();
+	});
+
+	async function loadQueue() {
+		if (osDataSource.isMock) {
+			queueItems = mockQueue();
+			return;
+		}
+		const { token, venueSlug } = auth;
+		if (!token || !venueSlug) return;
+		queueLoading = true;
+		try {
+			const res = await getResponseQueue(venueSlug, token, {
+				platform: data.platform,
+				limit: 100
+			});
+			queueItems = res.items;
+		} catch {
+			queueItems = [];
+		} finally {
+			queueLoading = false;
+		}
+	}
+	$effect(() => {
+		if (activeTab === 'yanıtlar') {
+			void data.platform;
+			loadQueue();
+		}
+	});
+
+	// Genel tab analytics: real stats when live; the mock slice only in demo mode.
+	// competitorAvgRate has no real source yet — stays [MOCK→radar] in both paths.
+	const SENT_LABEL = { negative: 'Olumsuz', neutral: 'Nötr', positive: 'Olumlu' } as const;
+	const respAnalytics = $derived(
+		respStats
+			? {
+					overallRate: respStats.rate,
+					medianHours: respStats.medianResponseTimeHours,
+					bySentiment: respStats.bySentiment.map((s) => ({
+						key: s.key,
+						label: SENT_LABEL[s.key],
+						rate: s.rate,
+						responded: s.responded,
+						total: s.total
+					})),
+					competitorAvgRate: respSlice.competitorAvgRate
+				}
+			: {
+					overallRate: respSlice.overallRate,
+					medianHours: ps.responseStats?.medianResponseTimeHours ?? null,
+					bySentiment: respSlice.bySentiment,
+					competitorAvgRate: respSlice.competitorAvgRate
+				}
+	);
+
+	// Median hours reads better as days past 48h.
+	function formatHours(h: number): string {
+		return h >= 48 ? `${Math.round(h / 24)} gün` : `${h} sa`;
+	}
+
+	// Mock fallback: fabricate queue rows from the platform's real topIssues so
+	// the inbox isn't empty in demos. [MOCK→radar] only in demo mode.
+	function mockQueue(): ResponseQueueItem[] {
+		const rows: ResponseQueueItem[] = [];
+		let i = 0;
+		for (const cs of ps.categoryScores) {
+			for (const it of cs.topIssues ?? []) {
+				i += 1;
+				rows.push({
+					id: `mock-resp-${i}`,
+					platform: data.platform,
+					publishedDate: '',
+					rating: (i % 3) + 1,
+					rating5: (i % 3) + 1,
+					title: '',
+					text: it.sampleExcerpt,
+					lang: 'tr',
+					author: 'Misafir',
+					url: null,
+					ageDays: i * 4,
+					priority: Math.max(5, 92 - i * 13)
+				});
+			}
+		}
+		return rows.slice(0, 8);
 	}
 
 	// Mock fallback: build MentionRow[] from the platform score's real excerpts.
@@ -298,13 +416,14 @@
 		<OpportunityList items={opportunities} />
 	</SectionCard>
 
-	<!-- Response analytics scoped to this platform (single-platform → no byPlatform). -->
+	<!-- Response analytics scoped to this platform — REAL via /v1/responses/stats
+	     when live (mock slice only in demo mode; market rate stays [MOCK→radar]). -->
 	<SectionCard title="Yanıt Yönetimi · {label}" icon={MessageCircleReply} hint="duygu · pazar">
 		<ResponseAnalytics
-			overallRate={respSlice.overallRate}
-			medianHours={ps.responseStats?.medianResponseTimeHours ?? null}
-			bySentiment={respSlice.bySentiment}
-			competitorAvgRate={respSlice.competitorAvgRate}
+			overallRate={respAnalytics.overallRate}
+			medianHours={respAnalytics.medianHours}
+			bySentiment={respAnalytics.bySentiment}
+			competitorAvgRate={respAnalytics.competitorAvgRate}
 			overallLabel="{label} yanıt oranı"
 		/>
 	</SectionCard>
@@ -324,6 +443,43 @@
 			onfilter={setMentionFilter}
 			loading={mentionsLoading}
 		/>
+	</SectionCard>
+{:else if activeTab === 'yanıtlar'}
+	<!-- Yanıtlar — response triage inbox (REAL via /v1/responses/*). Display +
+	     triage only; composing replies is a later phase. -->
+	{#if respStats}
+		<div class="mb-3.5 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+			<StatTile
+				label="Yanıt oranı"
+				value="%{Math.round(respStats.rate * 100)}"
+				tone={respStats.rate >= 0.7 ? 'success' : 'warning'}
+				caption="{respStats.withResponse}/{respStats.total} yorum"
+			/>
+			<StatTile
+				label="Medyan yanıt süresi"
+				value={respStats.medianResponseTimeHours != null
+					? formatHours(respStats.medianResponseTimeHours)
+					: '—'}
+				caption={respStats.medianResponseTimeHours != null
+					? `${respStats.responseTimeKnownCount} tarihli yanıttan`
+					: 'kaynak yanıt tarihi vermiyor'}
+			/>
+			<StatTile
+				label="Yanıtsız"
+				value={String(respStats.unanswered.total)}
+				tone={respStats.unanswered.total > 0 ? 'warning' : 'success'}
+				caption="yanıt bekleyen yorum"
+			/>
+			<StatTile
+				label="Yanıtsız negatif"
+				value={String(respStats.unanswered.negative)}
+				tone={respStats.unanswered.negative > 0 ? 'danger' : 'success'}
+				caption="önce bunlar"
+			/>
+		</div>
+	{/if}
+	<SectionCard title="Yanıt bekleyenler · {label}" icon={MessageCircleReply} hint="en yanan üstte">
+		<ResponseInbox items={queueItems} loading={queueLoading} />
 	</SectionCard>
 {:else if activeTab === 'rakipler'}
 	<!-- Rakipler — per-platform competitor comparison. [MOCK→radar]. -->

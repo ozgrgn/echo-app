@@ -1,6 +1,6 @@
 import type { PageLoad } from './$types';
-import { getHotelScore, getCompetitorScores, getSegments, getScoreHistory } from '@talkwo/echo-ui';
-import type { SegmentsResponse, HistoryPoint } from '@talkwo/echo-ui';
+import { getHotelScore, getCompetitorScores, getSegments, getScoreHistory, getImpact } from '@talkwo/echo-ui';
+import type { SegmentsResponse, HistoryPoint, ImpactResponse } from '@talkwo/echo-ui';
 import { auth } from '$lib/stores/auth.svelte';
 import { osDataSource } from '$lib/stores/osDataSource.svelte';
 import { DEMO_HOTEL_SCORE, DEMO_PLATFORM_SCORES, DEMO_COMPETITORS, DEMO_SEGMENTS, DEMO_HISTORY } from '$lib/mock/os';
@@ -12,6 +12,30 @@ import { error } from '@sveltejs/kit';
 export const ssr = false;
 
 const CHANNELS = ['tripadvisor', 'booking', 'google', 'holidaycheck'] as const;
+
+// Demo impact for mock mode: derive a plausible leverage list from the demo
+// hotel's category scores (lowest score × mention weight → highest lift). Real
+// mode uses the backend's counterfactual GPI math (getImpact).
+function demoImpact(): ImpactResponse {
+	const target = 85;
+	const cats = (DEMO_HOTEL_SCORE.categoryScores ?? [])
+		.filter((c) => c.aspectScore != null)
+		.map((c) => {
+			const score = c.aspectScore as number;
+			// Rough leverage proxy so the demo list ranks sensibly (real math is backend).
+			const lift = Math.max(0, ((target - score) / 100) * Math.log10(c.mentionCount + 1) * 3);
+			return {
+				category: c.category,
+				label: c.category,
+				aspectScore: Math.round(score * 10) / 10,
+				mentionCount: c.mentionCount,
+				liftToTarget: Math.round(lift * 10) / 10,
+				dragFromTop: Math.round((score - target) * 10) / 10
+			};
+		})
+		.sort((a, b) => b.liftToTarget - a.liftToTarget);
+	return { gpi: DEMO_HOTEL_SCORE.gpi, target, categories: cats, underMeasured: [] };
+}
 
 export const load: PageLoad = async ({ url }) => {
 	// ── MOCK source: rich demo data, no auth/backend needed ──────────────────
@@ -28,6 +52,7 @@ export const load: PageLoad = async ({ url }) => {
 				// Shift each platform's demo series off the blended one so lines read distinctly.
 				points: (DEMO_HISTORY as HistoryPoint[]).map((h) => ({ ...h, gpi: +(h.gpi + (i - 1.5) * 2).toFixed(1) }))
 			})),
+			impact: demoImpact(),
 		};
 	}
 
@@ -68,5 +93,11 @@ export const load: PageLoad = async ({ url }) => {
 
 	const channels = channelResults.filter((c): c is NonNullable<typeof c> => c !== null);
 
-	return { hotelScore, competitors, channels, period: hotelScore.period, segments, history, platformHistories };
+	// Impact ("neyi düzeltirsem GPI artar?") — best-effort; a failure must not
+	// break the whole lens (the widget just hides when null).
+	const impact = await getImpact(venueSlug, token, requestPeriod ? { period: requestPeriod } : {}).catch(
+		() => null
+	);
+
+	return { hotelScore, competitors, channels, period: hotelScore.period, segments, history, platformHistories, impact };
 };

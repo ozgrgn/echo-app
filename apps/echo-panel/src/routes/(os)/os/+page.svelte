@@ -18,7 +18,8 @@
 	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
 	import SegmentBreakdown from '$lib/components/SegmentBreakdown.svelte';
 	import MultiTrendChart from '$lib/components/MultiTrendChart.svelte';
-	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert, MessageCircleReply, PieChart, LineChart } from '@lucide/svelte';
+	import ImpactList from '$lib/components/ImpactList.svelte';
+	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert, MessageCircleReply, PieChart, LineChart, Rocket } from '@lucide/svelte';
 
 	import {
 		MOCK_OS_DEPTS,
@@ -303,6 +304,11 @@
 		<MentionList items={allPraises} tone="praise" total={hs.reviewCount} />
 	</SectionCard>
 </div>
+
+<!-- ── Impact analysis: "neyi düzeltirsem GPI artar?" (REAL leverage) ─────── -->
+<SectionCard title="Neyi düzeltirsem GPI artar?" icon={Rocket} hint="gerçek kaldıraç · hedef 85" class="mb-3.5">
+	<ImpactList impact={data.impact ?? null} />
+</SectionCard>
 
 <!-- ── Management response analytics ──────────────────────────────────────── -->
 <SectionCard title="Yanıt Yönetimi" icon={MessageCircleReply} hint="platform · duygu · pazar" class="mb-3.5">

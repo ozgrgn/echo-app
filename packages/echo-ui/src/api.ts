@@ -368,6 +368,197 @@ export async function getMentions(
   return res.json();
 }
 
+// ─── Response management (OS "Yanıtlar" tab) ─────────────────────────────────
+// Real analytics + prioritized unanswered inbox from /v1/responses/*.
+// Sentiment buckets are rating5-based (see echo-backend reviews/responses.ts).
+
+export interface ResponseRateSlice {
+  key: 'negative' | 'neutral' | 'positive';
+  total: number;
+  responded: number;
+  rate: number;
+}
+
+export interface PlatformResponseSlice {
+  platform: string;
+  total: number;
+  responded: number;
+  rate: number;
+  medianResponseTimeHours: number | null;
+}
+
+export interface ResponseStats {
+  total: number;
+  withResponse: number;
+  rate: number;
+  medianResponseTimeHours: number | null;
+  /** Replies with BOTH dates (Google replies carry no respondedAt → excluded). */
+  responseTimeKnownCount: number;
+  unanswered: { total: number; negative: number };
+  bySentiment: ResponseRateSlice[];
+  /** Present only on venue-wide requests (no platform filter). */
+  byPlatform?: PlatformResponseSlice[];
+}
+
+export interface ResponseQueueItem {
+  id: string;
+  platform: string;
+  publishedDate: string;
+  rating: number | null;
+  rating5: number | null;
+  title: string;
+  text: string;
+  lang: string;
+  author: string;
+  url: string | null;
+  ageDays: number;
+  /** 0–100 triage score: negativity × freshness × has-text ("en yanan üstte"). */
+  priority: number;
+}
+
+export async function getResponseStats(
+  venueSlug: string,
+  token: string,
+  platform?: string
+): Promise<ResponseStats> {
+  const params = new URLSearchParams({ venueSlug, ...(platform ? { platform } : {}) });
+  const res = await fetch(`${getApiBaseUrl()}/responses/stats?${params}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error(`getResponseStats failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getResponseQueue(
+  venueSlug: string,
+  token: string,
+  opts: { platform?: string; limit?: number } = {}
+): Promise<{ items: ResponseQueueItem[] }> {
+  const params = new URLSearchParams({
+    venueSlug,
+    ...(opts.platform ? { platform: opts.platform } : {}),
+    ...(opts.limit ? { limit: String(opts.limit) } : {})
+  });
+  const res = await fetch(`${getApiBaseUrl()}/responses/queue?${params}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error(`getResponseQueue failed: ${res.status}`);
+  return res.json();
+}
+
+// ─── Department rollup (OS "Departmanlar" lens) ──────────────────────────────
+// REAL data: categories grouped by taxonomy primaryOwner. Replaces MOCK_OS_DEPTS.
+
+export interface DepartmentScore {
+  /** URL-safe slug of the owner label, e.g. 'f-b-muduru'. */
+  key: string;
+  /** Owner label, e.g. 'F&B Müdürü'. */
+  label: string;
+  categories: string[];
+  /** Mention-weighted mean of member scores; null when no mentions. */
+  score: number | null;
+  trend: number;
+  mentionCount: number;
+  reviewCount: number;
+}
+
+export interface DepartmentCategoryBreakdown {
+  category: string;
+  label: string;
+  headlineScore: number;
+  mentionCount: number;
+  trend: number;
+}
+
+export interface DepartmentTrendPoint {
+  period: string;
+  score: number | null;
+}
+
+export interface DepartmentDetail extends DepartmentScore {
+  breakdown: DepartmentCategoryBreakdown[];
+  topIssues: { category: string; subcategory: string; count: number; sampleExcerpt: string }[];
+  topPraises: { category: string; subcategory: string; count: number; sampleExcerpt: string }[];
+  /** REAL per-period series; ≤1 point until enough history accrues. */
+  trend_series: DepartmentTrendPoint[];
+}
+
+export async function getDepartments(
+  venueSlug: string,
+  token: string,
+  opts: { platform?: string; period?: string } = {}
+): Promise<{ departments: DepartmentScore[] }> {
+  const params = new URLSearchParams({
+    ...(opts.platform ? { platform: opts.platform } : {}),
+    ...(opts.period ? { period: opts.period } : {})
+  });
+  const qs = params.toString();
+  const res = await fetch(`${getApiBaseUrl()}/departments/${encodeURIComponent(venueSlug)}${qs ? `?${qs}` : ''}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error(`getDepartments failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getDepartmentDetail(
+  venueSlug: string,
+  deptKey: string,
+  token: string,
+  opts: { platform?: string; period?: string } = {}
+): Promise<DepartmentDetail> {
+  const params = new URLSearchParams({
+    ...(opts.platform ? { platform: opts.platform } : {}),
+    ...(opts.period ? { period: opts.period } : {})
+  });
+  const qs = params.toString();
+  const res = await fetch(
+    `${getApiBaseUrl()}/departments/${encodeURIComponent(venueSlug)}/${encodeURIComponent(deptKey)}${qs ? `?${qs}` : ''}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) throw new Error(`getDepartmentDetail failed: ${res.status}`);
+  return res.json();
+}
+
+// ─── Impact analysis (OS "neyi düzeltirsem GPI artar?") ──────────────────────
+// REAL leverage: per-category GPI lift computed with the backend scoring function.
+
+export interface CategoryImpact {
+  category: string;
+  label: string;
+  aspectScore: number | null;
+  mentionCount: number;
+  /** GPI points gained if this category rose to target, all else equal. */
+  liftToTarget: number;
+  /** Signed points below target (negative = currently dragging GPI down). */
+  dragFromTop: number;
+}
+
+export interface ImpactResponse {
+  gpi: number;
+  target: number;
+  categories: CategoryImpact[];
+  underMeasured: { category: string; label: string; mentionCount: number }[];
+}
+
+export async function getImpact(
+  venueSlug: string,
+  token: string,
+  opts: { platform?: string; period?: string; target?: number } = {}
+): Promise<ImpactResponse> {
+  const params = new URLSearchParams({
+    ...(opts.platform ? { platform: opts.platform } : {}),
+    ...(opts.period ? { period: opts.period } : {}),
+    ...(opts.target ? { target: String(opts.target) } : {})
+  });
+  const qs = params.toString();
+  const res = await fetch(
+    `${getApiBaseUrl()}/insights/impact/${encodeURIComponent(venueSlug)}${qs ? `?${qs}` : ''}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) throw new Error(`getImpact failed: ${res.status}`);
+  return res.json();
+}
+
 // ─── Segments (audience breakdown: language + tripType) ─────────────────────
 
 export interface SegmentBucket {
