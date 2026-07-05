@@ -5,17 +5,24 @@
 	import { setEchoContext } from '$lib/context/echo.svelte';
 	import { setApiBaseUrl } from '@talkwo/echo-ui';
 	import { env } from '$env/dynamic/public';
+	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 
-	let { children } = $props();
+	let { children, data } = $props();
 
-	// ── API base URL setup ──
-	// Point echo-core's API client at the configured backend. Falls back
-	// to the package default (production Railway URL) if the env var is unset.
-	// Runs once at module init — not reactive.
-	if (env.PUBLIC_ECHO_API_URL) {
+	// A valid cookie session (from +layout.server.ts) counts as logged in even
+	// before the in-memory store is populated — otherwise an SSR page load or a
+	// reload would bounce a cookie-authenticated user to /login.
+	let hasServerSession = $derived(!!data?.session);
+
+	// ── API base URL setup (CLIENT ONLY) ──
+	// Point echo-ui's CLIENT fetch at the configured backend. Guard with `browser`:
+	// on the server, setApiBaseUrl mutates a shared module global across all SSR
+	// requests (cross-request contamination) — server code passes baseUrl per call
+	// via makeServerApi instead, and must never touch this global.
+	if (browser && env.PUBLIC_ECHO_API_URL) {
 		setApiBaseUrl(env.PUBLIC_ECHO_API_URL);
 	}
 
@@ -28,7 +35,7 @@
 		// /os in MOCK mode needs no backend/auth — let it through even without a
 		// session (so a presentation survives a full page reload / direct URL).
 		const isMockOs = path.startsWith('/os') && osDataSource.isMock;
-		if (!auth.isLoggedIn && !isPublic && !isMockOs) {
+		if (!auth.isLoggedIn && !hasServerSession && !isPublic && !isMockOs) {
 			goto('/login');
 		}
 	});
