@@ -10,19 +10,28 @@
 <script lang="ts">
 	import { PLATFORM_REGISTRY, type Venue } from '@talkwo/echo-core';
 	import {
-		patchVenuePlatforms,
-		patchVenueRefs,
-		createWatch,
-		deleteWatch,
 		type PlatformRefs,
 		type WatchRecord
 	} from '@talkwo/echo-ui';
-	import { auth } from '$lib/stores/auth.svelte';
 	import { invalidateAll } from '$app/navigation';
 
 	let { data } = $props();
 
-	const token = $derived(auth.token ?? '');
+	// Same-origin proxy for superadmin writes — the server route reads the JWT
+	// from the HttpOnly session cookie, so the browser never handles the token.
+	async function postAdmin(body: Record<string, unknown>) {
+		const res = await fetch('/api/admin', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+		if (!res.ok) {
+			const p = await res.json().catch(() => ({}));
+			throw new Error(p.detail || p.message || 'İşlem başarısız');
+		}
+		return res.json();
+	}
+
 	const venues = $derived(data.venues as Venue[]);
 	let watches = $state<WatchRecord[]>(data.watches as WatchRecord[]);
 
@@ -67,7 +76,7 @@
 		if (!selectedId) return;
 		saving = true;
 		try {
-			await patchVenuePlatforms(selectedId, { watchedPlatforms: [...sel].sort() }, token);
+			await postAdmin({ action: 'patchPlatforms', venueId: selectedId, patch: { watchedPlatforms: [...sel].sort() } });
 			flash('Platform seçimi kaydedildi');
 			await invalidateAll();
 		} catch (e) {
@@ -89,7 +98,7 @@
 		if (!refsEditing) return;
 		saving = true;
 		try {
-			await patchVenueRefs(refsEditing, refsDraft, token);
+			await postAdmin({ action: 'patchRefs', venueId: refsEditing, refs: refsDraft });
 			flash('Platform bilgileri kaydedildi');
 			refsEditing = null;
 			await invalidateAll();
@@ -106,7 +115,7 @@
 		if (!selectedId || !attachId) return;
 		saving = true;
 		try {
-			await createWatch(selectedId, attachId, token);
+			await postAdmin({ action: 'createWatch', ownerVenueId: selectedId, targetVenueId: attachId });
 			watches = [
 				...watches,
 				{
@@ -129,7 +138,7 @@
 		if (!selectedId) return;
 		saving = true;
 		try {
-			await deleteWatch(selectedId, targetId, token);
+			await postAdmin({ action: 'deleteWatch', ownerVenueId: selectedId, targetVenueId: targetId });
 			watches = watches.filter((w) => !(w.ownerVenueId === selectedId && w.targetVenueId === targetId));
 			flash('Rakip çıkarıldı');
 		} catch (e) {

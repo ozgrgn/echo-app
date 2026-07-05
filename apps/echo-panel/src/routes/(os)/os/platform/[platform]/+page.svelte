@@ -19,8 +19,6 @@
 	import StatTile from '$lib/components/StatTile.svelte';
 	import {
 		getMentions,
-		getResponseStats,
-		getResponseQueue,
 		type MentionRow,
 		type ResponseStats,
 		type ResponseQueueItem
@@ -129,10 +127,11 @@
 			respStats = null; // Genel analytics falls back to the mock slice
 			return;
 		}
-		const { token, venueSlug } = auth;
-		if (!token || !venueSlug) return;
 		try {
-			respStats = await getResponseStats(venueSlug, token, data.platform);
+			const r = await fetch(
+				`/api/os/data?resource=responseStats&platform=${encodeURIComponent(data.platform)}`
+			);
+			respStats = r.ok ? await r.json() : null;
 		} catch {
 			respStats = null;
 		}
@@ -149,15 +148,12 @@
 			queueItems = mockQueue();
 			return;
 		}
-		const { token, venueSlug } = auth;
-		if (!token || !venueSlug) return;
 		queueLoading = true;
 		try {
-			const res = await getResponseQueue(venueSlug, token, {
-				platform: data.platform,
-				limit: 100
-			});
-			queueItems = res.items;
+			const r = await fetch(
+				`/api/os/data?resource=responseQueue&platform=${encodeURIComponent(data.platform)}&limit=100`
+			);
+			queueItems = r.ok ? (await r.json()).items : [];
 		} catch {
 			queueItems = [];
 		} finally {

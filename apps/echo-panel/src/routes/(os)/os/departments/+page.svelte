@@ -8,13 +8,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { osState } from '$lib/stores/osState.svelte';
-	import { auth } from '$lib/stores/auth.svelte';
 	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import DeptCard from '$lib/components/DeptCard.svelte';
 	import { Users, TrendingDown, TrendingUp, ArrowLeft } from '@lucide/svelte';
-	import { getDepartments, type DepartmentScore } from '@talkwo/echo-ui';
+	import { type DepartmentScore } from '@talkwo/echo-ui';
 	import { MOCK_OS_DEPTS } from '$lib/mock/os';
 	import { DEPARTMENTS } from '$lib/mock/departments';
 	import type { OsDept } from '$lib/mock/os';
@@ -35,12 +34,11 @@
 			realDepts = null;
 			return;
 		}
-		const { token, venueSlug } = auth;
-		if (!token || !venueSlug) return;
 		loading = true;
 		errored = false;
 		try {
-			const res = await getDepartments(venueSlug, token);
+			const r = await fetch('/api/os/data?resource=departments');
+			const res = r.ok ? await r.json() : { departments: [] };
 			realDepts = res.departments;
 		} catch {
 			errored = true;

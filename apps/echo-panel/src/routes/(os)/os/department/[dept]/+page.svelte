@@ -27,10 +27,7 @@
 	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
 	import { responseSliceFor } from '$lib/mock/os';
 	import {
-		getDepartmentDetail,
-		getDepartments,
 		getMentions,
-		getResponseStats,
 		type DepartmentDetail,
 		type DepartmentScore,
 		type MentionRow,
@@ -74,17 +71,16 @@
 			detail = null;
 			return;
 		}
-		const { token, venueSlug } = auth;
-		if (!token || !venueSlug) return;
 		loading = true;
 		errored = false;
 		try {
-			const [d, list] = await Promise.all([
-				getDepartmentDetail(venueSlug, deptKey, token),
-				getDepartments(venueSlug, token)
+			const [dr, lr] = await Promise.all([
+				fetch(`/api/os/data?resource=departmentDetail&deptKey=${encodeURIComponent(deptKey)}`),
+				fetch('/api/os/data?resource=departments')
 			]);
-			detail = d;
-			siblings = list.departments;
+			if (!dr.ok) throw new Error('departmentDetail failed');
+			detail = await dr.json();
+			siblings = lr.ok ? (await lr.json()).departments : [];
 		} catch {
 			errored = true;
 			detail = null;
@@ -193,12 +189,11 @@
 			respStats = null;
 			return;
 		}
-		const { token, venueSlug } = auth;
-		if (!token || !venueSlug) return;
 		try {
 			// Venue-wide response stats (per-department response split is not modeled
 			// yet — market comparison stays [MOCK→radar]).
-			respStats = await getResponseStats(venueSlug, token);
+			const r = await fetch('/api/os/data?resource=responseStats');
+			respStats = r.ok ? await r.json() : null;
 		} catch {
 			respStats = null;
 		}

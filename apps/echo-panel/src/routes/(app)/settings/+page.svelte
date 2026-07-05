@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { Tabs } from 'bits-ui';
 	import { PLATFORM_REGISTRY, type HoopsNotifSettings } from '@talkwo/echo-core';
-	import { patchVenueSettings } from '@talkwo/echo-ui';
-	import { auth } from '$lib/stores/auth.svelte';
 
 	let { data } = $props();
 
@@ -111,12 +109,17 @@
 	let hoopsSaveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
 	let hoopsSaveError = $state('');
 	async function saveHoopsNotifs() {
-		const { token, venueSlug } = auth;
-		if (!token || !venueSlug) return;
+		const venueSlug = data.ownVenue?.slug;
+		if (!venueSlug) return;
 		hoopsSaveStatus = 'saving';
 		hoopsSaveError = '';
 		try {
-			await patchVenueSettings(venueSlug, { hoopsNotifications: hoopsNotifs }, token);
+			const res = await fetch('/api/venue-settings', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ venueSlug, patch: { hoopsNotifications: hoopsNotifs } })
+			});
+			if (!res.ok) throw new Error('Ayarlar kaydedilemedi');
 			hoopsSaveStatus = 'saved';
 			setTimeout(() => (hoopsSaveStatus = 'idle'), 2000);
 		} catch (err) {
