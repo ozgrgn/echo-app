@@ -39,6 +39,8 @@ import {
 	getPortfolioScore,
 	getVenueSettings,
 	patchVenueSettings,
+	listAllVenues,
+	listWatches,
 	type FetchOpts,
 	type ReviewFilters,
 	type MentionFilters
@@ -119,7 +121,11 @@ export function makeServerApi(event: RequestEvent) {
 			opts: { platform?: string; period?: string } = {}
 		) => withRetry((t) => getDepartmentDetail(venueSlug, deptKey, t, opts, fo())),
 		getResponseQueue: (venueSlug: string, opts: { platform?: string; limit?: number } = {}) =>
-			withRetry((t) => getResponseQueue(venueSlug, t, opts, fo()))
+			withRetry((t) => getResponseQueue(venueSlug, t, opts, fo())),
+
+		// ── admin (superadmin surface) ──
+		listAllVenues: () => withRetry((t) => listAllVenues(t, fo())),
+		listWatches: (ownerVenueId?: string) => withRetry((t) => listWatches(t, ownerVenueId, fo()))
 	};
 }
 

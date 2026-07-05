@@ -1,8 +1,6 @@
-import { getHotelScore, getCompetitorScores } from '@talkwo/echo-ui';
-import { auth } from '$lib/stores/auth.svelte';
+import type { PageServerLoad } from './$types';
 import { error } from '@sveltejs/kit';
-
-export const ssr = false;
+import { makeServerApi } from '$lib/server/echoApi';
 
 // Phase 1 mock: competitor → display region label.
 // Phase 2: this comes from the backend venue metadata.
@@ -14,25 +12,26 @@ const COMPETITOR_REGIONS: Record<string, string> = {
 	'voyage-sorgun':                    'Sorgun',
 };
 
-export async function load() {
-	const { token, venueSlug, venueName } = auth;
-	if (!token || !venueSlug) throw error(401, 'Not authenticated');
+export const load: PageServerLoad = async (event) => {
+	const session = event.locals.session;
+	if (!session) throw error(401, 'Not authenticated');
+	const api = makeServerApi(event);
 
 	const period = '2025-05';
 	const [hotelScore, competitors] = await Promise.all([
-		getHotelScore(venueSlug, period, token),
-		getCompetitorScores(venueSlug, period, token)
+		api.getHotelScore(session.venueSlug, period),
+		api.getCompetitorScores(session.venueSlug, period)
 	]);
 
 	const ownRegion =
-		venueSlug === 'lago-hotel-sorgun' ? 'Sorgun' :
-		venueSlug === 'lago-hotel-belek'  ? 'Belek'  : undefined;
+		session.venueSlug === 'lago-hotel-sorgun' ? 'Sorgun' :
+		session.venueSlug === 'lago-hotel-belek'  ? 'Belek'  : undefined;
 
 	return {
 		hotelScore,
 		competitors,
-		venueName: venueName ?? venueSlug,
+		venueName: session.venueName ?? session.venueSlug,
 		ownRegion,
 		competitorRegions: COMPETITOR_REGIONS
 	};
-}
+};

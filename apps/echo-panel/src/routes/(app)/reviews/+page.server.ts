@@ -1,13 +1,12 @@
-import { getReviews } from '@talkwo/echo-ui';
-import { auth } from '$lib/stores/auth.svelte';
+import type { PageServerLoad } from './$types';
 import { error } from '@sveltejs/kit';
-import type { PageLoad } from './$types';
+import { makeServerApi } from '$lib/server/echoApi';
 
-export const ssr = false;
-
-export const load: PageLoad = async ({ url }) => {
-	const { token, venueSlug } = auth;
-	if (!token || !venueSlug) throw error(401, 'Not authenticated');
+export const load: PageServerLoad = async (event) => {
+	const { url } = event;
+	const session = event.locals.session;
+	if (!session) throw error(401, 'Not authenticated');
+	const api = makeServerApi(event);
 
 	// ?response=without is set by the Dashboard "Yanıtsız Yorum" KPI link.
 	// Passing it to the backend ensures we get 200 matching reviews (not 200
@@ -18,11 +17,10 @@ export const load: PageLoad = async ({ url }) => {
 	const response =
 		responseParam === 'with' || responseParam === 'without' ? responseParam : undefined;
 
-	const { items, nextCursor } = await getReviews(
-		venueSlug,
-		{ limit: 200, ...(response ? { response } : {}) },
-		token
-	);
+	const { items, nextCursor } = await api.getReviews(session.venueSlug, {
+		limit: 200,
+		...(response ? { response } : {})
+	});
 
 	// Derive available languages from the loaded set.
 	const availableLanguages = [...new Set(items.map((r) => r.lang))].sort();
