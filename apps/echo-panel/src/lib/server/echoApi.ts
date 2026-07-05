@@ -103,7 +103,7 @@ export function makeServerApi(event: RequestEvent) {
 		getVenueSettings: (venueSlug: string) => withRetry((t) => getVenueSettings(venueSlug, t, fo())),
 		getReviews: (venueSlug: string, filters: ReviewFilters) =>
 			withRetry((t) => getReviews(venueSlug, filters, t, fo())),
-		getMentions: (venueSlug: string, filters: MentionFilters) =>
+		getMentions: (venueSlug: string, filters: MentionFilters = {}) =>
 			withRetry((t) => getMentions(venueSlug, filters, t, fo())),
 		patchVenueSettings: (venueSlug: string, patch: Parameters<typeof patchVenueSettings>[1]) =>
 			withRetry((t) => patchVenueSettings(venueSlug, patch, t, fo())),

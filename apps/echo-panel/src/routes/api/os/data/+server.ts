@@ -40,6 +40,19 @@ export const GET: RequestHandler = async (event) => {
 				return json(await api.getResponseStats(venueSlug, platform));
 			case 'responseQueue':
 				return json(await api.getResponseQueue(venueSlug, { platform, limit }));
+			case 'mentions': {
+				const polarity = url.searchParams.get('polarity') as 'negative' | 'positive' | null;
+				const category = url.searchParams.get('category') ?? undefined;
+				const subcategory = url.searchParams.get('subcategory') ?? undefined;
+				return json(
+					await api.getMentions(venueSlug, {
+						limit,
+						...(polarity ? { polarity } : {}),
+						...(category ? { category } : {}),
+						...(subcategory ? { subcategory } : {})
+					})
+				);
+			}
 			default:
 				throw error(400, `Unknown resource: ${resource}`);
 		}

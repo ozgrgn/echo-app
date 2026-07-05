@@ -18,12 +18,10 @@
 	import ResponseInbox from '$lib/components/ResponseInbox.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import {
-		getMentions,
 		type MentionRow,
 		type ResponseStats,
 		type ResponseQueueItem
 	} from '@talkwo/echo-ui';
-	import { auth } from '$lib/stores/auth.svelte';
 	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 	import { PLATFORM_COLOR, responseSliceFor, platformTrendFor } from '$lib/mock/os';
 	import { Activity, Rocket, ChartBar, ArrowLeft, MessageSquare, Swords, MessageCircleReply, TrendingUp } from '@lucide/svelte';
@@ -85,17 +83,14 @@
 			mentions = mockMentions(mentionFilter);
 			return;
 		}
-		const { token, venueSlug } = auth;
-		if (!token || !venueSlug) return;
 		mentionsLoading = true;
 		try {
-			const res = await getMentions(
-				venueSlug,
-				{ limit: 60, ...(mentionFilter !== 'all' ? { polarity: mentionFilter } : {}) },
-				token
-			);
+			const params = new URLSearchParams({ resource: 'mentions', limit: '60' });
+			if (mentionFilter !== 'all') params.set('polarity', mentionFilter);
+			const r = await fetch(`/api/os/data?${params}`);
+			const res = r.ok ? await r.json() : { items: [] };
 			// Backend is venue-wide; narrow to this platform client-side.
-			mentions = res.items.filter((m) => m.platform === data.platform);
+			mentions = res.items.filter((m: { platform: string }) => m.platform === data.platform);
 		} catch {
 			mentions = [];
 		} finally {

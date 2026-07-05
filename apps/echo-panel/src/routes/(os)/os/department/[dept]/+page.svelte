@@ -15,7 +15,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { osState } from '$lib/stores/osState.svelte';
-	import { auth } from '$lib/stores/auth.svelte';
 	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 
 	import SectionCard from '$lib/components/SectionCard.svelte';
@@ -27,7 +26,6 @@
 	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
 	import { responseSliceFor } from '$lib/mock/os';
 	import {
-		getMentions,
 		type DepartmentDetail,
 		type DepartmentScore,
 		type MentionRow,
@@ -147,20 +145,17 @@
 			mentions = [];
 			return;
 		}
-		const { token, venueSlug } = auth;
-		if (!token || !venueSlug) return;
 		mentionsLoading = true;
 		try {
 			// One fetch per category (mentions API filters by a single category),
 			// then merge. Kept small (limit 40 each) — this dept has ≤5 categories.
 			const results = await Promise.all(
-				cats.map((category) =>
-					getMentions(
-						venueSlug,
-						{ category, limit: 40, ...(mentionFilter !== 'all' ? { polarity: mentionFilter } : {}) },
-						token
-					)
-				)
+				cats.map(async (category) => {
+					const params = new URLSearchParams({ resource: 'mentions', category, limit: '40' });
+					if (mentionFilter !== 'all') params.set('polarity', mentionFilter);
+					const r = await fetch(`/api/os/data?${params}`);
+					return r.ok ? await r.json() : { items: [] };
+				})
 			);
 			mentions = results
 				.flatMap((r) => r.items)

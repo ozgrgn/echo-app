@@ -6,10 +6,12 @@
 -->
 <script lang="ts">
 	import { Sparkles, Ellipsis, Plus, ArrowUp, GitCompare } from '@lucide/svelte';
-	import { auth } from '$lib/stores/auth.svelte';
 	import { osState } from '$lib/stores/osState.svelte';
 	import { MOCK_THREADS, MOCK_BRIEF, MOCK_STREAM, type ThreadStatus } from '$lib/mock/assistant';
 	import TalkwoMark from './TalkwoMark.svelte';
+
+	// Active venue name for the scope header (from the SSR session, via the OS layout).
+	let { venueName = 'Lago Hotel Sorgun' }: { venueName?: string } = $props();
 
 	// Scope label tracks the active lens (the assistant's identity shifts per lens).
 	const scopeLabel = $derived(
@@ -47,7 +49,7 @@
 				Talkwo OS
 				<span class="rounded-full bg-talkwo/10 px-2 py-0.5 text-[10px] font-bold text-talkwo">{scopeLabel}</span>
 			</div>
-			<div class="truncate text-[11px] text-text-3">{auth.venueName ?? 'Lago Hotel Sorgun'} · tüm kaynaklar</div>
+			<div class="truncate text-[11px] text-text-3">{venueName} · tüm kaynaklar</div>
 		</div>
 		<button class="rounded-md p-1.5 text-text-3 hover:bg-surface-2" title="Menü">
 			<Ellipsis size={16} />

@@ -18,7 +18,7 @@
 	import TalkwoMark from '$lib/components/TalkwoMark.svelte';
 	import LensTabs from '$lib/components/LensTabs.svelte';
 
-	let { children } = $props();
+	let { children, data } = $props();
 
 	// Rail nav — top maps to lenses. Lucide icons (single-color, currentColor).
 	const rail = [
@@ -144,6 +144,6 @@
 
 	<!-- ── Assistant (skeleton shell — A1 wires the radar brain) ─────────── -->
 	<aside class="overflow-hidden border-l border-border bg-surface-1 shadow-[-16px_0_40px_-24px_rgba(15,23,42,0.18)]">
-		<AssistantPanel />
+		<AssistantPanel venueName={data?.session?.venueName ?? 'Lago Hotel Sorgun'} />
 	</aside>
 </div>
