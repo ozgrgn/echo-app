@@ -73,8 +73,14 @@
 
 	let collapsed = $state(false);
 
-	function logout() {
-		auth.logout();
+	async function logout() {
+		auth.logout(); // clear in-memory store (CSR pages)
+		// Also clear the HttpOnly session cookies (SSR pages). Non-fatal if it fails.
+		try {
+			await fetch('/logout', { method: 'POST' });
+		} catch {
+			/* cookie clear best-effort */
+		}
 		goto('/login');
 	}
 </script>

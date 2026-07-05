@@ -20,6 +20,29 @@ import { login, listVenues, fetchTenant, getMySubscription } from '@talkwo/echo-
 	let pendingCreds: { tenantKey: string; clientSecret: string } | null = null;
 	let pendingToken: { accessToken: string; expiresIn: number } | null = null;
 
+	// Transitional bridge: after a client-side login, also write the HttpOnly
+	// session cookies server-side so SSR pages (which read cookies, not the
+	// in-memory store) are authenticated too. Removed in Phase C when the login
+	// itself moves fully server-side.
+	async function writeSessionCookie(
+		creds: { tenantKey: string; clientSecret: string },
+		token: string,
+		expiresIn: number,
+		venueSlug: string,
+		venueName: string
+	) {
+		try {
+			await fetch('/login/session', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ ...creds, token, expiresIn, venueSlug, venueName })
+			});
+		} catch {
+			// Non-fatal during migration: the in-memory store still authenticates
+			// CSR pages; only SSR pages would miss the cookie until next login.
+		}
+	}
+
 	async function submitCredentials(e: SubmitEvent) {
 		e.preventDefault();
 		loading = true;
@@ -44,6 +67,7 @@ import { login, listVenues, fetchTenant, getMySubscription } from '@talkwo/echo-
 				// Single-venue tenant — skip picker
 				const venue = owned[0];
 				auth.login(creds, accessToken, expiresIn, venue.slug, venue.name, getMySubscription());
+				await writeSessionCookie(creds, accessToken, expiresIn, venue.slug, venue.name);
 				await goto('/dashboard');
 				return;
 			}
@@ -71,6 +95,13 @@ import { login, listVenues, fetchTenant, getMySubscription } from '@talkwo/echo-
 			venue.slug,
 			venue.name,
 			getMySubscription()
+		);
+		await writeSessionCookie(
+			pendingCreds,
+			pendingToken.accessToken,
+			pendingToken.expiresIn,
+			venue.slug,
+			venue.name
 		);
 		await goto('/dashboard');
 	}
