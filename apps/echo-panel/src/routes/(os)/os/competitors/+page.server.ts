@@ -1,18 +1,12 @@
-import type { PageLoad } from './$types';
-import { getHotelScore, getCompetitorScores } from '@talkwo/echo-ui';
-import { auth } from '$lib/stores/auth.svelte';
-import { osDataSource } from '$lib/stores/osDataSource.svelte';
+import type { PageServerLoad } from './$types';
 import { DEMO_HOTEL_SCORE, DEMO_COMPETITORS } from '$lib/mock/os';
 import { error } from '@sveltejs/kit';
+import { makeServerApi } from '$lib/server/echoApi';
 
-// Competitors lens. Same data shape as the (app)/benchmark page, but rendered in
-// the OS lens style. Source toggles at runtime (osDataSource):
-//   • 'mock' → rich demo dataset.
-//   • 'live' → blended hotel score + competitor scores from the real backend.
-export const ssr = false;
+// Competitors lens (SSR). Same data shape as (app)/benchmark, in OS lens style.
+// Source decided by the layout server load (echo_os_source cookie).
 
-// Phase 1 mock: competitor slug → display region label.
-// Phase 2: this comes from backend venue metadata. [MOCK→radar]
+// Phase 1 mock: competitor slug → display region label. Phase 2: backend metadata. [MOCK→radar]
 const COMPETITOR_REGIONS: Record<string, string> = {
 	'crystal-sunset-luxury-resort-spa': 'Side',
 	'rixos-premium-belek': 'Belek',
@@ -27,9 +21,11 @@ function ownRegionFor(slug: string): string | undefined {
 	return undefined;
 }
 
-export const load: PageLoad = async () => {
+export const load: PageServerLoad = async (event) => {
+	const { dataSource } = await event.parent();
+
 	// ── MOCK source ──────────────────────────────────────────────────────────
-	if (osDataSource.isMock) {
+	if (dataSource === 'mock') {
 		return {
 			hotelScore: DEMO_HOTEL_SCORE,
 			competitors: DEMO_COMPETITORS,
@@ -40,19 +36,20 @@ export const load: PageLoad = async () => {
 	}
 
 	// ── LIVE source ──────────────────────────────────────────────────────────
-	const { token, venueSlug, venueName } = auth;
-	if (!token || !venueSlug) throw error(401, 'Not authenticated');
+	const session = event.locals.session;
+	if (!session) throw error(401, 'Not authenticated');
+	const api = makeServerApi(event);
 
 	const [hotelScore, competitors] = await Promise.all([
-		getHotelScore(venueSlug, undefined, token),
-		getCompetitorScores(venueSlug, undefined, token)
+		api.getHotelScore(session.venueSlug, undefined),
+		api.getCompetitorScores(session.venueSlug, undefined)
 	]);
 
 	return {
 		hotelScore,
 		competitors,
-		venueName: venueName ?? venueSlug,
-		ownRegion: ownRegionFor(venueSlug),
+		venueName: session.venueName ?? session.venueSlug,
+		ownRegion: ownRegionFor(session.venueSlug),
 		competitorRegions: COMPETITOR_REGIONS
 	};
 };
