@@ -63,7 +63,7 @@ export const USE_MOCK = true;
 // Default: production Railway service per AGENT_USAGE.md.
 // Override at app startup via setApiBaseUrl() — typically called once from
 // apps/echo-panel/src/lib/api/client.ts with import.meta.env.PUBLIC_ECHO_API_URL.
-let _baseUrl = 'https://backend-production-5c03.up.railway.app/v1';
+let _baseUrl = 'https://echo-api-production-b3a5.up.railway.app/v1';
 
 export function getApiBaseUrl(): string {
   return _baseUrl;
@@ -72,6 +72,17 @@ export function getApiBaseUrl(): string {
 export function setApiBaseUrl(url: string): void {
   // Strip trailing slash for consistency — endpoints always start with /
   _baseUrl = url.replace(/\/$/, '');
+}
+
+/** Optional per-call overrides for SSR: server passes an internal baseUrl and
+ *  the request-scoped fetch; client callers pass nothing and get the globals. */
+export interface FetchOpts {
+  baseUrl?: string;
+  fetch?: typeof fetch;
+}
+
+function resolveFetch(opts?: FetchOpts): { base: string; f: typeof fetch } {
+  return { base: opts?.baseUrl ?? getApiBaseUrl(), f: opts?.fetch ?? fetch };
 }
 
 export interface AuthCredentials {
@@ -87,9 +98,10 @@ export interface AuthTokenResponse {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
-export async function login(creds: AuthCredentials): Promise<AuthTokenResponse> {
+export async function login(creds: AuthCredentials, opts?: FetchOpts): Promise<AuthTokenResponse> {
+  const { base, f } = resolveFetch(opts);
   // Always real — mock data domains still need a valid JWT for the real backend.
-  const res = await fetch(`${getApiBaseUrl()}/auth/token`, {
+  const res = await f(`${base}/auth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(creds)
@@ -105,13 +117,14 @@ export async function login(creds: AuthCredentials): Promise<AuthTokenResponse> 
 
 let _cachedTenant: Tenant | null = null;
 
-export async function fetchTenant(token: string): Promise<Tenant> {
+export async function fetchTenant(token: string, opts?: FetchOpts): Promise<Tenant> {
   if (USE_MOCK) {
     const { MOCK_TENANT } = await import('./mock/tenant.js');
     _cachedTenant = MOCK_TENANT;
     return MOCK_TENANT;
   }
-  const res = await fetch(`${getApiBaseUrl()}/tenants/me`, {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/tenants/me`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   const data: Tenant = await res.json();
@@ -134,12 +147,13 @@ export function clearTenantCache() {
 
 // ─── Venues ─────────────────────────────────────────────────────────────────
 
-export async function listVenues(token: string): Promise<Venue[]> {
+export async function listVenues(token: string, opts?: FetchOpts): Promise<Venue[]> {
   if (USE_MOCK) {
     const { MOCK_VENUES } = await import('./mock/venues.js');
     return MOCK_VENUES;
   }
-  const res = await fetch(`${getApiBaseUrl()}/venues?limit=50`, {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/venues?limit=50`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   const data = await res.json();
@@ -150,8 +164,9 @@ export async function listVenues(token: string): Promise<Venue[]> {
  * Superadmin: list ALL venues including competitors (?include=competitors). The
  * /admin surface needs both; normal listVenues default-hides competitors. Always live.
  */
-export async function listAllVenues(token: string): Promise<Venue[]> {
-  const res = await fetch(`${getApiBaseUrl()}/venues?limit=200&include=competitors`, {
+export async function listAllVenues(token: string, opts?: FetchOpts): Promise<Venue[]> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/venues?limit=200&include=competitors`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await res.json();
@@ -168,8 +183,9 @@ export interface PlatformRefs {
   booking?: { url: string };
 }
 
-async function adminWrite(path: string, method: string, body: unknown, token: string): Promise<void> {
-  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+async function adminWrite(path: string, method: string, body: unknown, token: string, opts?: FetchOpts): Promise<void> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}${path}`, {
     method,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -185,13 +201,14 @@ export function patchVenuePlatforms(
   venueId: string,
   patch: { watchedPlatforms?: string[]; platformRefs?: PlatformRefs },
   token: string,
+  opts?: FetchOpts,
 ): Promise<void> {
-  return adminWrite(`/admin/venues/${encodeURIComponent(venueId)}/platforms`, 'PATCH', patch, token);
+  return adminWrite(`/admin/venues/${encodeURIComponent(venueId)}/platforms`, 'PATCH', patch, token, opts);
 }
 
 /** Set any venue's scraper credentials (used for competitors). */
-export function patchVenueRefs(venueId: string, refs: PlatformRefs, token: string): Promise<void> {
-  return adminWrite(`/admin/venues/${encodeURIComponent(venueId)}/refs`, 'PATCH', refs, token);
+export function patchVenueRefs(venueId: string, refs: PlatformRefs, token: string, opts?: FetchOpts): Promise<void> {
+  return adminWrite(`/admin/venues/${encodeURIComponent(venueId)}/refs`, 'PATCH', refs, token, opts);
 }
 
 export interface WatchRecord {
@@ -203,9 +220,10 @@ export interface WatchRecord {
 }
 
 /** List watches (optionally for one owner). */
-export async function listWatches(token: string, ownerVenueId?: string): Promise<WatchRecord[]> {
+export async function listWatches(token: string, ownerVenueId?: string, opts?: FetchOpts): Promise<WatchRecord[]> {
+  const { base, f } = resolveFetch(opts);
   const q = ownerVenueId ? `?ownerVenueId=${encodeURIComponent(ownerVenueId)}` : '';
-  const res = await fetch(`${getApiBaseUrl()}/admin/watches${q}`, {
+  const res = await f(`${base}/admin/watches${q}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await res.json();
@@ -213,15 +231,15 @@ export async function listWatches(token: string, ownerVenueId?: string): Promise
 }
 
 /** Create a watch (owner → target). */
-export function createWatch(ownerVenueId: string, targetVenueId: string, token: string): Promise<void> {
-  return adminWrite('/admin/watches', 'POST', { ownerVenueId, targetVenueId }, token);
+export function createWatch(ownerVenueId: string, targetVenueId: string, token: string, opts?: FetchOpts): Promise<void> {
+  return adminWrite('/admin/watches', 'POST', { ownerVenueId, targetVenueId }, token, opts);
 }
 
 /** Delete a watch. */
-export function deleteWatch(ownerVenueId: string, targetVenueId: string, token: string): Promise<void> {
+export function deleteWatch(ownerVenueId: string, targetVenueId: string, token: string, opts?: FetchOpts): Promise<void> {
   return adminWrite(
     `/admin/watches/${encodeURIComponent(ownerVenueId)}/${encodeURIComponent(targetVenueId)}`,
-    'DELETE', undefined, token,
+    'DELETE', undefined, token, opts,
   );
 }
 
@@ -233,19 +251,21 @@ export async function getHotelScore(
   token: string,
   /** Per-channel snapshot, e.g. 'tripadvisor'. Omit (or 'all') for the blended
    *  cross-platform score. Backend reads ?platform= (scores/read.ts). */
-  platform?: string
+  platform?: string,
+  opts?: FetchOpts
 ): Promise<HotelScore> {
   if (MOCK_CONFIG.scores) {
     const { MOCK_HOTEL_SCORE } = await import('./mock/hotel-score.js');
     return MOCK_HOTEL_SCORE;
   }
+  const { base, f } = resolveFetch(opts);
   // No period → backend returns the latest snapshot for this venue.
   const params = new URLSearchParams();
   if (period) params.set('period', period);
   if (platform && platform !== 'all') params.set('platform', platform);
   const qs = params.toString();
-  const url = `${getApiBaseUrl()}/scores/${venueSlug}${qs ? `?${qs}` : ''}`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const url = `${base}/scores/${venueSlug}${qs ? `?${qs}` : ''}`;
+  const res = await f(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`getHotelScore failed: ${res.status}`);
   return res.json();
 }
@@ -253,7 +273,8 @@ export async function getHotelScore(
 export async function getCompetitorScores(
   venueSlug: string,
   period: string | undefined,
-  token: string
+  token: string,
+  opts?: FetchOpts
 ): Promise<CompetitorScore[]> {
   // Competitors are still MOCK (no real competitor ingest yet — decided 2026-06).
   // We serve the rich demo set so the benchmark page + dashboard read full, and
@@ -263,10 +284,11 @@ export async function getCompetitorScores(
     const { MOCK_COMPETITORS } = await import('./mock/competitors.js');
     return MOCK_COMPETITORS;
   }
+  const { base, f } = resolveFetch(opts);
   const url = period
-    ? `${getApiBaseUrl()}/scores/${venueSlug}/competitors?period=${encodeURIComponent(period)}`
-    : `${getApiBaseUrl()}/scores/${venueSlug}/competitors`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    ? `${base}/scores/${venueSlug}/competitors?period=${encodeURIComponent(period)}`
+    : `${base}/scores/${venueSlug}/competitors`;
+  const res = await f(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`getCompetitorScores failed: ${res.status}`);
   const live: CompetitorScore[] = await res.json();
   if (live.length === 0) {
@@ -278,13 +300,15 @@ export async function getCompetitorScores(
 
 export async function getPortfolioScore(
   period: string,
-  token: string
+  token: string,
+  opts?: FetchOpts
 ): Promise<PortfolioScore> {
   if (MOCK_CONFIG.scores) {
     const { MOCK_PORTFOLIO } = await import('./mock/portfolio.js');
     return MOCK_PORTFOLIO;
   }
-  const res = await fetch(`${getApiBaseUrl()}/scores/portfolio?scope=tenant&period=${period}`, {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/scores/portfolio?scope=tenant&period=${period}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!res.ok) throw new Error(`getPortfolioScore failed: ${res.status}`);
@@ -307,19 +331,21 @@ export interface ReviewFilters {
 export async function getReviews(
   venueSlug: string,
   filters: ReviewFilters,
-  token: string
+  token: string,
+  opts?: FetchOpts
 ): Promise<{ items: Review[]; nextCursor: string | null }> {
   if (MOCK_CONFIG.reviews) {
     const { MOCK_REVIEWS } = await import('./mock/reviews.js');
     return { items: MOCK_REVIEWS, nextCursor: null };
   }
+  const { base, f } = resolveFetch(opts);
   const params = new URLSearchParams({
     venueSlug,
     ...Object.fromEntries(
       Object.entries(filters).filter(([, v]) => v !== undefined && v !== null && v !== '')
     )
   } as Record<string, string>);
-  const res = await fetch(`${getApiBaseUrl()}/reviews?${params}`, {
+  const res = await f(`${base}/reviews?${params}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!res.ok) throw new Error(`getReviews failed: ${res.status}`);
@@ -353,15 +379,17 @@ export interface MentionFilters {
 export async function getMentions(
   venueSlug: string,
   filters: MentionFilters,
-  token: string
+  token: string,
+  opts?: FetchOpts
 ): Promise<{ items: MentionRow[] }> {
+  const { base, f } = resolveFetch(opts);
   const params = new URLSearchParams({
     venueSlug,
     ...Object.fromEntries(
       Object.entries(filters).filter(([, v]) => v !== undefined && v !== null && v !== '')
     )
   } as Record<string, string>);
-  const res = await fetch(`${getApiBaseUrl()}/mentions?${params}`, {
+  const res = await f(`${base}/mentions?${params}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!res.ok) throw new Error(`getMentions failed: ${res.status}`);
@@ -419,10 +447,12 @@ export interface ResponseQueueItem {
 export async function getResponseStats(
   venueSlug: string,
   token: string,
-  platform?: string
+  platform?: string,
+  opts?: FetchOpts
 ): Promise<ResponseStats> {
+  const { base, f } = resolveFetch(opts);
   const params = new URLSearchParams({ venueSlug, ...(platform ? { platform } : {}) });
-  const res = await fetch(`${getApiBaseUrl()}/responses/stats?${params}`, {
+  const res = await f(`${base}/responses/stats?${params}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!res.ok) throw new Error(`getResponseStats failed: ${res.status}`);
@@ -432,14 +462,16 @@ export async function getResponseStats(
 export async function getResponseQueue(
   venueSlug: string,
   token: string,
-  opts: { platform?: string; limit?: number } = {}
+  opts: { platform?: string; limit?: number } = {},
+  fetchOpts?: FetchOpts
 ): Promise<{ items: ResponseQueueItem[] }> {
+  const { base, f } = resolveFetch(fetchOpts);
   const params = new URLSearchParams({
     venueSlug,
     ...(opts.platform ? { platform: opts.platform } : {}),
     ...(opts.limit ? { limit: String(opts.limit) } : {})
   });
-  const res = await fetch(`${getApiBaseUrl()}/responses/queue?${params}`, {
+  const res = await f(`${base}/responses/queue?${params}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!res.ok) throw new Error(`getResponseQueue failed: ${res.status}`);
@@ -486,14 +518,16 @@ export interface DepartmentDetail extends DepartmentScore {
 export async function getDepartments(
   venueSlug: string,
   token: string,
-  opts: { platform?: string; period?: string } = {}
+  opts: { platform?: string; period?: string } = {},
+  fetchOpts?: FetchOpts
 ): Promise<{ departments: DepartmentScore[] }> {
+  const { base, f } = resolveFetch(fetchOpts);
   const params = new URLSearchParams({
     ...(opts.platform ? { platform: opts.platform } : {}),
     ...(opts.period ? { period: opts.period } : {})
   });
   const qs = params.toString();
-  const res = await fetch(`${getApiBaseUrl()}/departments/${encodeURIComponent(venueSlug)}${qs ? `?${qs}` : ''}`, {
+  const res = await f(`${base}/departments/${encodeURIComponent(venueSlug)}${qs ? `?${qs}` : ''}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!res.ok) throw new Error(`getDepartments failed: ${res.status}`);
@@ -504,15 +538,17 @@ export async function getDepartmentDetail(
   venueSlug: string,
   deptKey: string,
   token: string,
-  opts: { platform?: string; period?: string } = {}
+  opts: { platform?: string; period?: string } = {},
+  fetchOpts?: FetchOpts
 ): Promise<DepartmentDetail> {
+  const { base, f } = resolveFetch(fetchOpts);
   const params = new URLSearchParams({
     ...(opts.platform ? { platform: opts.platform } : {}),
     ...(opts.period ? { period: opts.period } : {})
   });
   const qs = params.toString();
-  const res = await fetch(
-    `${getApiBaseUrl()}/departments/${encodeURIComponent(venueSlug)}/${encodeURIComponent(deptKey)}${qs ? `?${qs}` : ''}`,
+  const res = await f(
+    `${base}/departments/${encodeURIComponent(venueSlug)}/${encodeURIComponent(deptKey)}${qs ? `?${qs}` : ''}`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!res.ok) throw new Error(`getDepartmentDetail failed: ${res.status}`);
@@ -543,16 +579,18 @@ export interface ImpactResponse {
 export async function getImpact(
   venueSlug: string,
   token: string,
-  opts: { platform?: string; period?: string; target?: number } = {}
+  opts: { platform?: string; period?: string; target?: number } = {},
+  fetchOpts?: FetchOpts
 ): Promise<ImpactResponse> {
+  const { base, f } = resolveFetch(fetchOpts);
   const params = new URLSearchParams({
     ...(opts.platform ? { platform: opts.platform } : {}),
     ...(opts.period ? { period: opts.period } : {}),
     ...(opts.target ? { target: String(opts.target) } : {})
   });
   const qs = params.toString();
-  const res = await fetch(
-    `${getApiBaseUrl()}/insights/impact/${encodeURIComponent(venueSlug)}${qs ? `?${qs}` : ''}`,
+  const res = await f(
+    `${base}/insights/impact/${encodeURIComponent(venueSlug)}${qs ? `?${qs}` : ''}`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!res.ok) throw new Error(`getImpact failed: ${res.status}`);
@@ -578,10 +616,12 @@ export interface SegmentsResponse {
 export async function getSegments(
   venueSlug: string,
   token: string,
-  platform?: string
+  platform?: string,
+  opts?: FetchOpts
 ): Promise<SegmentsResponse> {
+  const { base, f } = resolveFetch(opts);
   const params = new URLSearchParams({ venueSlug, ...(platform ? { platform } : {}) });
-  const res = await fetch(`${getApiBaseUrl()}/segments?${params}`, {
+  const res = await f(`${base}/segments?${params}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!res.ok) throw new Error(`getSegments failed: ${res.status}`);
@@ -600,15 +640,17 @@ export interface HistoryPoint {
 export async function getScoreHistory(
   venueSlug: string,
   token: string,
-  opts: { platform?: string; limit?: number } = {}
+  opts: { platform?: string; limit?: number } = {},
+  fetchOpts?: FetchOpts
 ): Promise<{ venueSlug: string; platform: string; points: HistoryPoint[] }> {
+  const { base, f } = resolveFetch(fetchOpts);
   const params = new URLSearchParams({
     ...(opts.platform ? { platform: opts.platform } : {}),
     ...(opts.limit ? { limit: String(opts.limit) } : {})
   });
   const qs = params.toString();
-  const res = await fetch(
-    `${getApiBaseUrl()}/scores/${encodeURIComponent(venueSlug)}/history${qs ? `?${qs}` : ''}`,
+  const res = await f(
+    `${base}/scores/${encodeURIComponent(venueSlug)}/history${qs ? `?${qs}` : ''}`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!res.ok) throw new Error(`getScoreHistory failed: ${res.status}`);
@@ -620,8 +662,10 @@ export async function getScoreHistory(
 export async function getVenueSettings(
   venueSlug: string,
   token: string,
+  opts?: FetchOpts,
 ): Promise<EchoVenueSettings> {
-  const res = await fetch(`${getApiBaseUrl()}/venues/${encodeURIComponent(venueSlug)}/settings`, {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/venues/${encodeURIComponent(venueSlug)}/settings`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(`getVenueSettings failed: ${res.status}`);
@@ -633,8 +677,10 @@ export async function patchVenueSettings(
   venueSlug: string,
   patch: { hoopsNotifications?: HoopsNotifSettings },
   token: string,
+  opts?: FetchOpts,
 ): Promise<void> {
-  const res = await fetch(`${getApiBaseUrl()}/venues/${encodeURIComponent(venueSlug)}/settings`, {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/venues/${encodeURIComponent(venueSlug)}/settings`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
@@ -649,13 +695,15 @@ export async function patchVenueSettings(
 
 export async function getSurveyResponses(
   venueSlug: string,
-  token: string
+  token: string,
+  opts?: FetchOpts
 ): Promise<SurveyResponse[]> {
   if (USE_MOCK) {
     const { MOCK_SURVEY_RESPONSES } = await import('./mock/survey.js');
     return MOCK_SURVEY_RESPONSES;
   }
-  const res = await fetch(`${getApiBaseUrl()}/surveys/${venueSlug}/responses`, {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/surveys/${venueSlug}/responses`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   return res.json();
@@ -663,13 +711,15 @@ export async function getSurveyResponses(
 
 export async function getSurveyTemplates(
   venueSlug: string,
-  token: string
+  token: string,
+  opts?: FetchOpts
 ): Promise<SurveyTemplate[]> {
   if (USE_MOCK) {
     const { MOCK_SURVEY_TEMPLATES } = await import('./mock/survey-templates.js');
     return MOCK_SURVEY_TEMPLATES;
   }
-  const res = await fetch(`${getApiBaseUrl()}/surveys/${venueSlug}/templates`, {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/surveys/${venueSlug}/templates`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   return res.json();
@@ -677,12 +727,13 @@ export async function getSurveyTemplates(
 
 // ─── GR Feedback (Hoops-Integrated mode only) ───────────────────────────────
 
-export async function getFeedback(venueSlug: string, token: string): Promise<GRFeedback[]> {
+export async function getFeedback(venueSlug: string, token: string, opts?: FetchOpts): Promise<GRFeedback[]> {
   if (USE_MOCK) {
     const { MOCK_FEEDBACK } = await import('./mock/feedback.js');
     return MOCK_FEEDBACK;
   }
-  const res = await fetch(`${getApiBaseUrl()}/feedback?venueSlug=${venueSlug}`, {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/feedback?venueSlug=${venueSlug}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   return res.json();
