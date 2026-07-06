@@ -57,7 +57,13 @@
 		isOwn: boolean;
 		region?: string;
 		sameRegion: boolean;
+		isMock: boolean;
 	};
+
+	// Slugs backed by demo data, not real scores — badged "demo" in the list.
+	const mockSlugSet = $derived(new Set(data.mockSlugs ?? []));
+	// Any demo data on the page at all → show the explanatory banner.
+	const hasMock = $derived((data.pageIsMock ?? false) || mockSlugSet.size > 0);
 
 	const allRows = $derived.by<Row[]>(() => {
 		const rows: Row[] = [
@@ -68,7 +74,9 @@
 				reviewCount: data.hotelScore.reviewCount,
 				isOwn: true,
 				region: data.ownRegion,
-				sameRegion: true
+				sameRegion: true,
+				// Own venue is real in live mode; only demo when the whole page is mock.
+				isMock: data.pageIsMock ?? false
 			},
 			...data.competitors.map((c) => {
 				const region = data.competitorRegions[c.venueSlug];
@@ -79,7 +87,8 @@
 					reviewCount: c.reviewCount,
 					isOwn: false,
 					region,
-					sameRegion: !!data.ownRegion && region === data.ownRegion
+					sameRegion: !!data.ownRegion && region === data.ownRegion,
+					isMock: mockSlugSet.has(c.venueSlug)
 				};
 			})
 		];
@@ -143,6 +152,24 @@
 	</div>
 </div>
 
+{#if hasMock}
+	<!-- Demo-data notice: some/all rows are placeholders, not real scores. Prevents
+	     users from mistaking demo rivals for live competitors. -->
+	<div
+		class="mb-3.5 flex items-center gap-2 rounded-[11px] border border-warning/30 bg-warning-light/50 px-3.5 py-2.5 text-[12.5px] text-text-1"
+		role="status"
+	>
+		<span class="text-warning">⚠</span>
+		<span>
+			{#if data.pageIsMock}
+				Bu sayfa <strong>örnek (demo) veri</strong> gösteriyor. Gerçek skorlar için veri kaynağını canlıya alın.
+			{:else}
+				<strong>demo</strong> etiketli rakipler örnek veridir — henüz gerçek skoru olmayan rakipler için yer tutucu gösteriliyor.
+			{/if}
+		</span>
+	</div>
+{/if}
+
 <!-- ── KPI strip ─────────────────────────────────────────────────────────── -->
 <div class="mb-3.5 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
 	<StatTile
@@ -182,6 +209,12 @@
 						<span class="shrink-0 font-bold text-warning" title="Sizin oteliniz">▶</span>
 					{/if}
 					<span class="truncate text-[13px] font-semibold text-text-1" title={row.venueName}>{row.venueName}</span>
+					{#if row.isMock}
+						<span
+							class="shrink-0 rounded bg-warning-light px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning"
+							title="Örnek (demo) veri — gerçek skor değil"
+						>demo</span>
+					{/if}
 					{#if row.sameRegion && !row.isOwn}
 						<span class="shrink-0 rounded bg-brand-light px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand" title="Aynı bölge: {row.region}">Aynı bölge</span>
 					{:else if row.region && !row.isOwn}
