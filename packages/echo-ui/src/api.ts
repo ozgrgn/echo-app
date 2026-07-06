@@ -50,7 +50,7 @@ export const MOCK_CONFIG: MockConfig = {
   reviews: false,     // REAL — Bronze layer shipped
   venues: false,      // REAL — /v1/venues shipped
   scores: false,      // REAL — Gold layer (M3) shipped
-  competitors: true,  // MOCK — no real competitor ingest yet (rich demo set)
+  competitors: false, // REAL — competitor scoring shipped (2026-07: Lago 5 rivals + RPI)
   survey: false,      // LIVE — surfaces 404 until /v1/surveys/* lands (intentional)
   feedback: false,    // LIVE — surfaces 404 until /v1/feedback lands (intentional)
   tenant: false       // LIVE — surfaces 404 until /v1/tenants/me lands (intentional)
@@ -276,11 +276,10 @@ export async function getCompetitorScores(
   token: string,
   opts?: FetchOpts
 ): Promise<CompetitorScore[]> {
-  // Competitors are still MOCK (no real competitor ingest yet — decided 2026-06).
-  // We serve the rich demo set so the benchmark page + dashboard read full, and
-  // also fall back to it if the live endpoint returns an empty list. Flip to live
-  // by removing this block once competitor scoring lands.
-  if (MOCK_CONFIG.scores || MOCK_CONFIG.competitors) {
+  // Competitors are REAL now (2026-07: Lago's rivals scored + RPI). We still fall
+  // back to the demo set if the live endpoint returns an empty list (e.g. a tenant
+  // with no competitors yet), so a bare page never looks broken.
+  if (MOCK_CONFIG.competitors) {
     const { MOCK_COMPETITORS } = await import('./mock/competitors.js');
     return MOCK_COMPETITORS;
   }
