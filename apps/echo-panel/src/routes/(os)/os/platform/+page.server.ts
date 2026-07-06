@@ -3,6 +3,7 @@ import type { HistoryPoint } from '@talkwo/echo-ui';
 import { DEMO_HOTEL_SCORE, DEMO_PLATFORM_SCORES, DEMO_HISTORY } from '$lib/mock/os';
 import { error } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
+import { parseOsWindow, windowParam } from '$lib/config/window';
 
 // Platform OVERVIEW lens (SSR) — the /os/platform index. Compares all channels
 // side by side: blended context + per-channel HotelScore + per-channel history.
@@ -48,8 +49,13 @@ export const load: PageServerLoad = async (event) => {
 	const paramPeriod = url.searchParams.get('period');
 	const requestPeriod = /^\d{4}-\d{2}$/.test(paramPeriod ?? '') ? (paramPeriod as string) : undefined;
 
+	// Window narrows the point-in-time scores (blended + per-channel); the history
+	// series stays full-range (it's the time axis, not a scored-now figure).
+	const window = parseOsWindow(url.searchParams.get('window'));
+	const w = windowParam(window);
+
 	const [blended, blendedHistory, platformHistories, ...channelResults] = await Promise.all([
-		api.getHotelScore(venueSlug, requestPeriod),
+		api.getHotelScore(venueSlug, requestPeriod, undefined, w),
 		// Blended 'all' history — the longest, canonical x-axis for the compare chart.
 		api
 			.getScoreHistory(venueSlug, { platform: 'all', limit: 24 })
@@ -68,7 +74,7 @@ export const load: PageServerLoad = async (event) => {
 		// Per-channel snapshot — a channel with no snapshot yet drops out of the grid.
 		...CHANNELS.map((p) =>
 			api
-				.getHotelScore(venueSlug, requestPeriod, p)
+				.getHotelScore(venueSlug, requestPeriod, p, w)
 				.then((s) => ({ platform: p as string, score: s }))
 				.catch(() => null)
 		)
@@ -76,5 +82,5 @@ export const load: PageServerLoad = async (event) => {
 
 	const channels = channelResults.filter((c): c is NonNullable<typeof c> => c !== null);
 
-	return { blended, period: blended.period, channels, platformHistories, blendedHistory };
+	return { blended, period: blended.period, channels, platformHistories, blendedHistory, window };
 };

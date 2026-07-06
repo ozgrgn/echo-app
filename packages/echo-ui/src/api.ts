@@ -522,13 +522,14 @@ export interface DepartmentDetail extends DepartmentScore {
 export async function getDepartments(
   venueSlug: string,
   token: string,
-  opts: { platform?: string; period?: string } = {},
+  opts: { platform?: string; period?: string; window?: string } = {},
   fetchOpts?: FetchOpts
 ): Promise<{ departments: DepartmentScore[] }> {
   const { base, f } = resolveFetch(fetchOpts);
   const params = new URLSearchParams({
     ...(opts.platform ? { platform: opts.platform } : {}),
-    ...(opts.period ? { period: opts.period } : {})
+    ...(opts.period ? { period: opts.period } : {}),
+    ...(opts.window ? { window: opts.window } : {})
   });
   const qs = params.toString();
   const res = await f(`${base}/departments/${encodeURIComponent(venueSlug)}${qs ? `?${qs}` : ''}`, {
@@ -542,13 +543,14 @@ export async function getDepartmentDetail(
   venueSlug: string,
   deptKey: string,
   token: string,
-  opts: { platform?: string; period?: string } = {},
+  opts: { platform?: string; period?: string; window?: string } = {},
   fetchOpts?: FetchOpts
 ): Promise<DepartmentDetail> {
   const { base, f } = resolveFetch(fetchOpts);
   const params = new URLSearchParams({
     ...(opts.platform ? { platform: opts.platform } : {}),
-    ...(opts.period ? { period: opts.period } : {})
+    ...(opts.period ? { period: opts.period } : {}),
+    ...(opts.window ? { window: opts.window } : {})
   });
   const qs = params.toString();
   const res = await f(
@@ -583,14 +585,15 @@ export interface ImpactResponse {
 export async function getImpact(
   venueSlug: string,
   token: string,
-  opts: { platform?: string; period?: string; target?: number } = {},
+  opts: { platform?: string; period?: string; target?: number; window?: string } = {},
   fetchOpts?: FetchOpts
 ): Promise<ImpactResponse> {
   const { base, f } = resolveFetch(fetchOpts);
   const params = new URLSearchParams({
     ...(opts.platform ? { platform: opts.platform } : {}),
     ...(opts.period ? { period: opts.period } : {}),
-    ...(opts.target ? { target: String(opts.target) } : {})
+    ...(opts.target ? { target: String(opts.target) } : {}),
+    ...(opts.window ? { window: opts.window } : {})
   });
   const qs = params.toString();
   const res = await f(
@@ -627,10 +630,15 @@ export async function getSegments(
   venueSlug: string,
   token: string,
   platform?: string,
+  window?: string,
   opts?: FetchOpts
 ): Promise<SegmentsResponse> {
   const { base, f } = resolveFetch(opts);
-  const params = new URLSearchParams({ venueSlug, ...(platform ? { platform } : {}) });
+  const params = new URLSearchParams({
+    venueSlug,
+    ...(platform ? { platform } : {}),
+    ...(window ? { window } : {})
+  });
   const res = await f(`${base}/segments?${params}`, {
     headers: { Authorization: `Bearer ${token}` }
   });

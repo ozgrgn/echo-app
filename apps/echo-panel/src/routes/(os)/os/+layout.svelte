@@ -15,6 +15,7 @@
 	import { MOCK_OS_COUNTERS } from '$lib/mock/os';
 	import { Target, Bell, Settings, Database } from '@lucide/svelte';
 	import { OS_NAV, type OsNavItem } from '$lib/config/osNav';
+	import { OS_WINDOW_TABS, parseOsWindow } from '$lib/config/window';
 	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
 	import TalkwoMark from '$lib/components/TalkwoMark.svelte';
 	import LensTabs from '$lib/components/LensTabs.svelte';
@@ -47,6 +48,21 @@
 		osState.setLens({ kind: item.lens });
 		goto(item.href);
 	}
+
+	// Global time-window — URL-driven (`?window=`), so every lens's SSR load reads
+	// the same horizon and it survives refresh/share. Active window comes from the
+	// URL, not client state (SSR must see it).
+	const activeWindow = $derived(parseOsWindow(page.url.searchParams.get('window')));
+	function selectWindow(key: string) {
+		if (key === activeWindow) return;
+		// Preserve the current path + other params; swap only `window` (drop it for
+		// the 24mo default to keep URLs clean). invalidateAll re-runs every load so
+		// a query-only change on the same route doesn't get skipped.
+		const url = new URL(page.url);
+		if (key === '24mo') url.searchParams.delete('window');
+		else url.searchParams.set('window', key);
+		goto(url.pathname + url.search, { keepFocus: true, noScroll: true, invalidateAll: true });
+	}
 </script>
 
 <div class="grid h-screen overflow-hidden" style="grid-template-columns: 58px 1fr 384px;">
@@ -67,6 +83,23 @@
 				<Icon size={19} strokeWidth={2} />
 			</button>
 		{/each}
+
+		<!-- Global time-window selector — vertical, centered. Sets ?window= on the URL
+		     so every lens reflects the same horizon (2 Yıl = full history, default). -->
+		<div class="mt-3 flex flex-col items-center gap-1 border-t border-border pt-3">
+			{#each OS_WINDOW_TABS as t (t.key)}
+				<button
+					onclick={() => selectWindow(t.key)}
+					title="Zaman aralığı: {t.label}"
+					class="grid h-8 w-9 place-items-center rounded-lg text-[11px] font-bold transition-colors
+						{activeWindow === t.key
+						? 'bg-brand/12 text-brand'
+						: 'text-text-3 hover:bg-surface-2 hover:text-text-1'}"
+				>
+					{t.short}
+				</button>
+			{/each}
+		</div>
 
 		<div class="flex-1"></div>
 

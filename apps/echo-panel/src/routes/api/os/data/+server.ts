@@ -24,17 +24,19 @@ export const GET: RequestHandler = async (event) => {
 	const venueSlug = url.searchParams.get('venueSlug') ?? locals.session.venueSlug;
 	const platform = url.searchParams.get('platform') ?? undefined;
 	const period = url.searchParams.get('period') ?? undefined;
+	// Time-window horizon, forwarded to the windowed scored endpoints (absent = 24mo).
+	const window = url.searchParams.get('window') ?? undefined;
 	const limitRaw = url.searchParams.get('limit');
 	const limit = limitRaw ? Number(limitRaw) : undefined;
 
 	try {
 		switch (resource) {
 			case 'departments':
-				return json(await api.getDepartments(venueSlug, { platform, period }));
+				return json(await api.getDepartments(venueSlug, { platform, period, window }));
 			case 'departmentDetail': {
 				const deptKey = url.searchParams.get('deptKey');
 				if (!deptKey) throw error(400, 'deptKey required');
-				return json(await api.getDepartmentDetail(venueSlug, deptKey, { platform, period }));
+				return json(await api.getDepartmentDetail(venueSlug, deptKey, { platform, period, window }));
 			}
 			case 'responseStats':
 				return json(await api.getResponseStats(venueSlug, platform));

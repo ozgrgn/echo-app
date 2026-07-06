@@ -3,6 +3,7 @@ import type { SegmentsResponse, HistoryPoint, ImpactResponse } from '@talkwo/ech
 import { DEMO_HOTEL_SCORE, DEMO_PLATFORM_SCORES, DEMO_COMPETITORS, DEMO_SEGMENTS, DEMO_HISTORY } from '$lib/mock/os';
 import { error } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
+import { parseOsWindow, windowParam } from '$lib/config/window';
 
 // SSR server load. Source is decided by the layout server load (echo_os_source
 // cookie): 'mock' → rich demo dataset (no auth); 'live' → real backend over the
@@ -61,12 +62,19 @@ export const load: PageServerLoad = async (event) => {
 	const paramPeriod = url.searchParams.get('period');
 	const requestPeriod = /^\d{4}-\d{2}$/.test(paramPeriod ?? '') ? (paramPeriod as string) : undefined;
 
+	// Global time-window: a lookback horizon applied to the POINT-IN-TIME figures
+	// (own score, competitors, segments, impact, per-platform scores). The trend
+	// SERIES (history) is deliberately NOT windowed — it's the time axis itself, so
+	// narrowing the window must not erase past periods from the chart.
+	const window = parseOsWindow(url.searchParams.get('window'));
+	const w = windowParam(window);
+
 	const [hotelScore, competitors, segments, history, platformHistories, ...channelResults] =
 		await Promise.all([
-			api.getHotelScore(venueSlug, requestPeriod),
-			api.getCompetitorScores(venueSlug, requestPeriod),
+			api.getHotelScore(venueSlug, requestPeriod, undefined, w),
+			api.getCompetitorScores(venueSlug, requestPeriod, w),
 			// Best-effort: a failure must not break the whole lens.
-			api.getSegments(venueSlug).catch(() => null),
+			api.getSegments(venueSlug, undefined, w).catch(() => null),
 			api
 				.getScoreHistory(venueSlug, { platform: 'all', limit: 24 })
 				.then((r) => r.points)
@@ -81,7 +89,7 @@ export const load: PageServerLoad = async (event) => {
 			).then((rows) => rows.filter((r): r is NonNullable<typeof r> => r !== null && r.points.length > 1)),
 			...CHANNELS.map((p) =>
 				api
-					.getHotelScore(venueSlug, requestPeriod, p)
+					.getHotelScore(venueSlug, requestPeriod, p, w)
 					.then((s) => ({ platform: p, score: s }))
 					.catch(() => null)
 			)
@@ -90,8 +98,8 @@ export const load: PageServerLoad = async (event) => {
 	const channels = channelResults.filter((c): c is NonNullable<typeof c> => c !== null);
 
 	const impact = await api
-		.getImpact(venueSlug, requestPeriod ? { period: requestPeriod } : {})
+		.getImpact(venueSlug, { ...(requestPeriod ? { period: requestPeriod } : {}), ...(w ? { window: w } : {}) })
 		.catch(() => null);
 
-	return { hotelScore, competitors, channels, period: hotelScore.period, segments, history, platformHistories, impact };
+	return { hotelScore, competitors, channels, period: hotelScore.period, segments, history, platformHistories, impact, window };
 };

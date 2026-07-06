@@ -7,8 +7,10 @@
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { osState } from '$lib/stores/osState.svelte';
 	import { osDataSource } from '$lib/stores/osDataSource.svelte';
+	import { windowParam, parseOsWindow } from '$lib/config/window';
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import DeptCard from '$lib/components/DeptCard.svelte';
@@ -29,7 +31,7 @@
 	let loading = $state(false);
 	let errored = $state(false);
 
-	async function load() {
+	async function load(window: string | undefined) {
 		if (osDataSource.isMock) {
 			realDepts = null;
 			return;
@@ -37,7 +39,8 @@
 		loading = true;
 		errored = false;
 		try {
-			const r = await fetch('/api/os/data?resource=departments');
+			const qs = new URLSearchParams({ resource: 'departments', ...(window ? { window } : {}) });
+			const r = await fetch(`/api/os/data?${qs}`);
 			const res = r.ok ? await r.json() : { departments: [] };
 			realDepts = res.departments;
 		} catch {
@@ -47,8 +50,10 @@
 			loading = false;
 		}
 	}
+	// Re-fetch when the global window changes (reading page.url inside the effect
+	// subscribes it to the rail selector's ?window= updates).
 	$effect(() => {
-		load();
+		load(windowParam(parseOsWindow(page.url.searchParams.get('window'))));
 	});
 
 	// Adapt a real DepartmentScore into the OsDept shape DeptCard/switcher expect.

@@ -95,8 +95,8 @@ export function makeServerApi(event: RequestEvent) {
 			withRetry((t) => getHotelScore(venueSlug, period, t, platform, window, fo())),
 		getCompetitorScores: (venueSlug: string, period: string | undefined, window?: string) =>
 			withRetry((t) => getCompetitorScores(venueSlug, period, t, window, fo())),
-		getSegments: (venueSlug: string, platform?: string) =>
-			withRetry((t) => getSegments(venueSlug, t, platform, fo())),
+		getSegments: (venueSlug: string, platform?: string, window?: string) =>
+			withRetry((t) => getSegments(venueSlug, t, platform, window, fo())),
 		getResponseStats: (venueSlug: string, platform?: string) =>
 			withRetry((t) => getResponseStats(venueSlug, t, platform, fo())),
 		getPortfolioScore: (period: string) => withRetry((t) => getPortfolioScore(period, t, fo())),
@@ -111,14 +111,14 @@ export function makeServerApi(event: RequestEvent) {
 		// ── domain-opts shape: (..., token, domainOpts, FetchOpts) ──
 		getScoreHistory: (venueSlug: string, opts: { platform?: string; limit?: number } = {}) =>
 			withRetry((t) => getScoreHistory(venueSlug, t, opts, fo())),
-		getImpact: (venueSlug: string, opts: { platform?: string; period?: string; target?: number } = {}) =>
+		getImpact: (venueSlug: string, opts: { platform?: string; period?: string; target?: number; window?: string } = {}) =>
 			withRetry((t) => getImpact(venueSlug, t, opts, fo())),
-		getDepartments: (venueSlug: string, opts: { platform?: string; period?: string } = {}) =>
+		getDepartments: (venueSlug: string, opts: { platform?: string; period?: string; window?: string } = {}) =>
 			withRetry((t) => getDepartments(venueSlug, t, opts, fo())),
 		getDepartmentDetail: (
 			venueSlug: string,
 			deptKey: string,
-			opts: { platform?: string; period?: string } = {}
+			opts: { platform?: string; period?: string; window?: string } = {}
 		) => withRetry((t) => getDepartmentDetail(venueSlug, deptKey, t, opts, fo())),
 		getResponseQueue: (venueSlug: string, opts: { platform?: string; limit?: number } = {}) =>
 			withRetry((t) => getResponseQueue(venueSlug, t, opts, fo())),

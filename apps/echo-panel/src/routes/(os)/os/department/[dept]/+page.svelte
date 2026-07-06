@@ -14,6 +14,8 @@
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { windowParam, parseOsWindow } from '$lib/config/window';
 	import { osState } from '$lib/stores/osState.svelte';
 	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 
@@ -64,7 +66,7 @@
 	let loading = $state(false);
 	let errored = $state(false);
 
-	async function loadDetail() {
+	async function loadDetail(window: string | undefined) {
 		if (osDataSource.isMock) {
 			detail = null;
 			return;
@@ -72,9 +74,10 @@
 		loading = true;
 		errored = false;
 		try {
+			const wq = window ? `&window=${window}` : '';
 			const [dr, lr] = await Promise.all([
-				fetch(`/api/os/data?resource=departmentDetail&deptKey=${encodeURIComponent(deptKey)}`),
-				fetch('/api/os/data?resource=departments')
+				fetch(`/api/os/data?resource=departmentDetail&deptKey=${encodeURIComponent(deptKey)}${wq}`),
+				fetch(`/api/os/data?resource=departments${wq}`)
 			]);
 			if (!dr.ok) throw new Error('departmentDetail failed');
 			detail = await dr.json();
@@ -86,9 +89,11 @@
 			loading = false;
 		}
 	}
+	// Re-fetch on deptKey OR global window change (reading both inside the effect
+	// subscribes it to route param + rail selector's ?window=).
 	$effect(() => {
 		void deptKey;
-		loadDetail();
+		loadDetail(windowParam(parseOsWindow(page.url.searchParams.get('window'))));
 	});
 
 	const score = $derived(detail?.score ?? 0);
