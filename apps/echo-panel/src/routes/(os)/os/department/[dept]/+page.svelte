@@ -31,7 +31,7 @@
 		type MentionRow,
 		type ResponseStats
 	} from '@talkwo/echo-ui';
-	import { getSubcategoryLabel } from '@talkwo/echo-core';
+	import { CATEGORIES, getSubcategoryLabel, type CategoryKey } from '@talkwo/echo-core';
 	import {
 		Target, TrendingDown, TrendingUp, ListTree, CircleAlert, Rocket,
 		ArrowLeft, MessageCircleReply, MessageSquare
@@ -111,7 +111,9 @@
 	// Complaints → MentionList shape (category/subcategory display labels).
 	const issues = $derived(
 		(detail?.topIssues ?? []).map((it) => ({
-			category: it.category,
+			// Display label, not the raw enum ("FOOD") — MentionList's pill expects a label.
+			// `category` is typed as string by echo-ui but is always a taxonomy key.
+			category: CATEGORIES[it.category as CategoryKey]?.label ?? it.category,
 			subcategory: getSubcategoryLabel(it.subcategory, 'tr'),
 			excerpt: it.sampleExcerpt,
 			count: it.count
