@@ -21,17 +21,31 @@ function ownRegionFor(slug: string): string | undefined {
 	return undefined;
 }
 
+// Time-window selector: ?window=3mo shortens the scoring horizon so a recovering
+// venue's current standing is visible (backend scores each window separately).
+// Absent/invalid → '24mo' (full-history default, matches pre-window behaviour).
+const WINDOWS = ['24mo', '12mo', '6mo', '3mo'] as const;
+type Window = (typeof WINDOWS)[number];
+function parseWindow(raw: string | null): Window {
+	return WINDOWS.includes(raw as Window) ? (raw as Window) : '24mo';
+}
+
 export const load: PageServerLoad = async (event) => {
 	const { dataSource } = await event.parent();
+	const window = parseWindow(event.url.searchParams.get('window'));
 
 	// ── MOCK source ──────────────────────────────────────────────────────────
+	// Demo data is a single fixed snapshot — the window tabs still render and are
+	// selectable, but every window returns the same mock numbers (no per-window
+	// mock set). Live source is where the tabs actually change the figures.
 	if (dataSource === 'mock') {
 		return {
 			hotelScore: DEMO_HOTEL_SCORE,
 			competitors: DEMO_COMPETITORS,
 			venueName: DEMO_HOTEL_SCORE.venueName,
 			ownRegion: ownRegionFor(DEMO_HOTEL_SCORE.venueSlug),
-			competitorRegions: COMPETITOR_REGIONS
+			competitorRegions: COMPETITOR_REGIONS,
+			window
 		};
 	}
 
@@ -41,8 +55,8 @@ export const load: PageServerLoad = async (event) => {
 	const api = makeServerApi(event);
 
 	const [hotelScore, competitors] = await Promise.all([
-		api.getHotelScore(session.venueSlug, undefined),
-		api.getCompetitorScores(session.venueSlug, undefined)
+		api.getHotelScore(session.venueSlug, undefined, undefined, window),
+		api.getCompetitorScores(session.venueSlug, undefined, window)
 	]);
 
 	return {
@@ -50,6 +64,7 @@ export const load: PageServerLoad = async (event) => {
 		competitors,
 		venueName: session.venueName ?? session.venueSlug,
 		ownRegion: ownRegionFor(session.venueSlug),
-		competitorRegions: COMPETITOR_REGIONS
+		competitorRegions: COMPETITOR_REGIONS,
+		window
 	};
 };

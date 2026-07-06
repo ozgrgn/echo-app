@@ -91,10 +91,10 @@ export function makeServerApi(event: RequestEvent) {
 
 	return {
 		// ── simple shape: (..., token, FetchOpts) ──
-		getHotelScore: (venueSlug: string, period: string | undefined, platform?: string) =>
-			withRetry((t) => getHotelScore(venueSlug, period, t, platform, fo())),
-		getCompetitorScores: (venueSlug: string, period: string | undefined) =>
-			withRetry((t) => getCompetitorScores(venueSlug, period, t, fo())),
+		getHotelScore: (venueSlug: string, period: string | undefined, platform?: string, window?: string) =>
+			withRetry((t) => getHotelScore(venueSlug, period, t, platform, window, fo())),
+		getCompetitorScores: (venueSlug: string, period: string | undefined, window?: string) =>
+			withRetry((t) => getCompetitorScores(venueSlug, period, t, window, fo())),
 		getSegments: (venueSlug: string, platform?: string) =>
 			withRetry((t) => getSegments(venueSlug, t, platform, fo())),
 		getResponseStats: (venueSlug: string, platform?: string) =>

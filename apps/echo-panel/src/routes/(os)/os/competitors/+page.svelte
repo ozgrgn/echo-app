@@ -7,11 +7,34 @@
 -->
 <script lang="ts">
 	import { CATEGORIES, gpiZone, type CategoryKey } from '@talkwo/echo-core';
+	import { goto } from '$app/navigation';
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import { Swords, BarChart3, Grid3x3 } from '@lucide/svelte';
 
 	let { data } = $props();
+
+	// ── Time-window tabs — 24mo (full history) down to 3mo (current standing) ──
+	// Selecting a window pushes ?window= into the URL; the SSR load re-runs and
+	// re-fetches own + competitor scores for that horizon. keepFocus avoids a
+	// scroll jump. The default (24mo) drops the param to keep URLs clean.
+	const WINDOW_TABS = [
+		{ key: '24mo', label: '2 Yıl' },
+		{ key: '12mo', label: '1 Yıl' },
+		{ key: '6mo', label: '6 Ay' },
+		{ key: '3mo', label: '3 Ay' }
+	] as const;
+	function selectWindow(key: string) {
+		if (key === data.window) return;
+		// invalidateAll forces the server load to re-run for the new ?window=. Without it,
+		// SvelteKit may treat a query-only change on the same route as "no dependency
+		// changed" and skip the load — the URL updates but the data doesn't.
+		goto(key === '24mo' ? '?' : `?window=${key}`, {
+			keepFocus: true,
+			noScroll: true,
+			invalidateAll: true
+		});
+	}
 
 	// ── Market average + CQI (derived live, not mocked) ──────────────────────
 	const competitorAvg = $derived(
@@ -98,6 +121,27 @@
 		return z === 'green' ? 'bg-success' : z === 'yellow' ? 'bg-warning' : 'bg-danger';
 	}
 </script>
+
+<!-- ── Header: title + time-window tabs ──────────────────────────────────── -->
+<div class="mb-3.5 flex flex-wrap items-center justify-between gap-3">
+	<div class="flex items-center gap-2">
+		<Swords class="size-[18px] text-text-2" />
+		<h1 class="text-[15px] font-bold">Rakipler</h1>
+	</div>
+	<!-- Segmented window control (2 Yıl … 3 Ay). Shorter windows reveal a recovering
+	     venue's current standing; 2 Yıl is the full-history default. -->
+	<div class="inline-flex rounded-[11px] bg-surface-2 p-1">
+		{#each WINDOW_TABS as t (t.key)}
+			<button
+				onclick={() => selectWindow(t.key)}
+				class="rounded-lg px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors
+					{data.window === t.key ? 'bg-surface-1 shadow-card' : 'text-text-2 hover:text-text-1'}"
+			>
+				{t.label}
+			</button>
+		{/each}
+	</div>
+</div>
 
 <!-- ── KPI strip ─────────────────────────────────────────────────────────── -->
 <div class="mb-3.5 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
