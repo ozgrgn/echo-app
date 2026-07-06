@@ -92,7 +92,10 @@
 
 	// ── Helpers ──
 	function stars(rating: number): string {
-		return '★'.repeat(Math.round(rating)) + '☆'.repeat(5 - Math.round(rating));
+		// Clamp to 0..5 — some platforms send out-of-range or missing ratings
+		// (e.g. HolidayCheck's 1-6 scale, or null), which would make repeat() negative.
+		const filled = Math.max(0, Math.min(5, Math.round(rating || 0)));
+		return '★'.repeat(filled) + '☆'.repeat(5 - filled);
 	}
 	function fmtDate(iso: string): string {
 		return new Date(iso).toLocaleDateString('tr-TR', {

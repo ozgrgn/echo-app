@@ -56,10 +56,6 @@ export const MOCK_CONFIG: MockConfig = {
   tenant: false       // LIVE — surfaces 404 until /v1/tenants/me lands (intentional)
 };
 
-/** @deprecated Use MOCK_CONFIG.<domain>. Kept as `true` only so any
- *  not-yet-migrated reference still resolves; will be removed. */
-export const USE_MOCK = true;
-
 // Default: production Railway service per AGENT_USAGE.md.
 // Override at app startup via setApiBaseUrl() — typically called once from
 // apps/echo-panel/src/lib/api/client.ts with import.meta.env.PUBLIC_ECHO_API_URL.
@@ -118,7 +114,7 @@ export async function login(creds: AuthCredentials, opts?: FetchOpts): Promise<A
 let _cachedTenant: Tenant | null = null;
 
 export async function fetchTenant(token: string, opts?: FetchOpts): Promise<Tenant> {
-  if (USE_MOCK) {
+  if (MOCK_CONFIG.tenant) {
     const { MOCK_TENANT } = await import('./mock/tenant.js');
     _cachedTenant = MOCK_TENANT;
     return MOCK_TENANT;
@@ -148,7 +144,7 @@ export function clearTenantCache() {
 // ─── Venues ─────────────────────────────────────────────────────────────────
 
 export async function listVenues(token: string, opts?: FetchOpts): Promise<Venue[]> {
-  if (USE_MOCK) {
+  if (MOCK_CONFIG.venues) {
     const { MOCK_VENUES } = await import('./mock/venues.js');
     return MOCK_VENUES;
   }
@@ -697,7 +693,7 @@ export async function getSurveyResponses(
   token: string,
   opts?: FetchOpts
 ): Promise<SurveyResponse[]> {
-  if (USE_MOCK) {
+  if (MOCK_CONFIG.survey) {
     const { MOCK_SURVEY_RESPONSES } = await import('./mock/survey.js');
     return MOCK_SURVEY_RESPONSES;
   }
@@ -713,7 +709,7 @@ export async function getSurveyTemplates(
   token: string,
   opts?: FetchOpts
 ): Promise<SurveyTemplate[]> {
-  if (USE_MOCK) {
+  if (MOCK_CONFIG.survey) {
     const { MOCK_SURVEY_TEMPLATES } = await import('./mock/survey-templates.js');
     return MOCK_SURVEY_TEMPLATES;
   }
@@ -727,7 +723,7 @@ export async function getSurveyTemplates(
 // ─── GR Feedback (Hoops-Integrated mode only) ───────────────────────────────
 
 export async function getFeedback(venueSlug: string, token: string, opts?: FetchOpts): Promise<GRFeedback[]> {
-  if (USE_MOCK) {
+  if (MOCK_CONFIG.feedback) {
     const { MOCK_FEEDBACK } = await import('./mock/feedback.js');
     return MOCK_FEEDBACK;
   }
