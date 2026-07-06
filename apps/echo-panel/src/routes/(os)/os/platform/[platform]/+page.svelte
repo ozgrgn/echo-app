@@ -17,6 +17,7 @@
 	import MentionExplorer from '$lib/components/MentionExplorer.svelte';
 	import ResponseInbox from '$lib/components/ResponseInbox.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
+	import SubTabs from '$lib/components/SubTabs.svelte';
 	import {
 		type MentionRow,
 		type ResponseStats,
@@ -53,10 +54,11 @@
 	};
 	const label = $derived(PLATFORM_LABEL[data.platform] ?? data.platform);
 
-	// Back to the Genel lens — replaces the global LensTabs row on this page.
-	function backToGenel() {
-		osState.setLens({ kind: 'genel' });
-		goto('/os');
+	// Back to the platform OVERVIEW (index) — the channel-comparison super-dashboard.
+	// Keeps the platform lens active; the overview is the parent of a single channel.
+	function backToOverview() {
+		osState.setLens({ kind: 'platform' });
+		goto('/os/platform');
 	}
 
 	// Quick switcher — jump between platform universes without going back to Genel.
@@ -317,7 +319,7 @@
 <div class="mb-3.5 flex flex-wrap items-center gap-2">
 	<!-- Back button — sits first, same row as the switcher pills. -->
 	<button
-		onclick={backToGenel}
+		onclick={backToOverview}
 		class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2"
 	>
 		<ArrowLeft size={15} strokeWidth={2} />
@@ -354,18 +356,8 @@
 />
 
 <!-- Sub-tabs — active tab uses the platform brand color (prototype .ut.on). -->
-<div class="mb-3.5 inline-flex rounded-[11px] bg-surface-2 p-1">
-	{#each tabs as t (t)}
-		{@const key = t.toLowerCase()}
-		<button
-			onclick={() => (activeTab = key)}
-			class="rounded-lg px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors
-				{activeTab === key ? 'bg-surface-1 shadow-card' : 'text-text-2'}"
-			style={activeTab === key ? `color:${color}` : ''}
-		>
-			{t}
-		</button>
-	{/each}
+<div class="mb-3.5">
+	<SubTabs {tabs} bind:active={activeTab} {color} />
 </div>
 
 {#if activeTab === 'genel'}

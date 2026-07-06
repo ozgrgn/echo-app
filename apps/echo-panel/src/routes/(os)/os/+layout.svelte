@@ -9,25 +9,20 @@
 -->
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { page } from '$app/state';
+	import { page, navigating } from '$app/state';
 	import { osState } from '$lib/stores/osState.svelte';
 	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 	import { MOCK_OS_COUNTERS } from '$lib/mock/os';
-	import { LayoutGrid, Globe, Swords, Users, Target, Bell, Settings, Database } from '@lucide/svelte';
+	import { Target, Bell, Settings, Database } from '@lucide/svelte';
+	import { OS_NAV, type OsNavItem } from '$lib/config/osNav';
 	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
 	import TalkwoMark from '$lib/components/TalkwoMark.svelte';
 	import LensTabs from '$lib/components/LensTabs.svelte';
 
 	let { children, data } = $props();
 
-	// Rail nav — top maps to lenses. Lucide icons (single-color, currentColor).
-	const rail = [
-		{ icon: LayoutGrid, label: 'Genel', lens: 'genel' as const },
-		{ icon: Globe, label: 'Platformlar', lens: 'platform' as const },
-		{ icon: Swords, label: 'Rakipler', lens: 'competitors' as const },
-		{ icon: Users, label: 'Departmanlar', lens: 'departments' as const }
-	];
-
+	// Rail nav renders from the shared OS_NAV config (single source of truth,
+	// mirrored by the in-canvas LensTabs). Lucide icons (single-color, currentColor).
 	const activeKind = $derived(osState.lens.kind);
 	const isMock = $derived(osDataSource.isMock);
 
@@ -45,22 +40,12 @@
 		await invalidateAll();
 	}
 
-	function go(lens: (typeof rail)[number]['lens']) {
-		// Genel/competitors/departments route directly; platform needs a pick →
-		// default to tripadvisor for now (lens selection deepens in later phases).
-		if (lens === 'genel') {
-			osState.setLens({ kind: 'genel' });
-			goto('/os');
-		} else if (lens === 'platform') {
-			osState.setLens({ kind: 'platform', platform: 'tripadvisor' });
-			goto('/os/platform/tripadvisor');
-		} else if (lens === 'competitors') {
-			osState.setLens({ kind: 'competitors' });
-			goto('/os/competitors');
-		} else if (lens === 'departments') {
-			osState.setLens({ kind: 'departments' });
-			goto('/os/departments');
-		}
+	// Data-driven nav: activate the lens, then navigate to its canonical route.
+	// Platform lands on the overview index (/os/platform) — a specific channel is
+	// picked from there, so no channel hardcode here anymore.
+	function go(item: OsNavItem) {
+		osState.setLens({ kind: item.lens });
+		goto(item.href);
 	}
 </script>
 
@@ -69,10 +54,10 @@
 	<nav class="flex flex-col items-center gap-1 border-r border-border bg-surface-1 py-3.5">
 		<TalkwoMark size={24} class="mb-3" />
 
-		{#each rail as item (item.lens)}
+		{#each OS_NAV as item (item.lens)}
 			{@const Icon = item.icon}
 			<button
-				onclick={() => go(item.lens)}
+				onclick={() => go(item)}
 				title={item.label}
 				class="grid h-10 w-10 place-items-center rounded-xl transition-colors
 					{activeKind === item.lens
@@ -133,7 +118,17 @@
 
 	<!-- ── Canvas (lens views render here) ───────────────────────────────── -->
 	<!-- Slightly cooler/darker than --color-bg so the white cards read as raised. -->
-	<main class="overflow-y-auto px-7 py-6" style="background:#eef0f4">
+	<main class="relative overflow-y-auto px-7 py-6" style="background:#eef0f4">
+		<!-- Navigation feedback: an indeterminate top bar while a lens load resolves.
+		     SvelteKit holds the old page until `load` settles; this is the only cue
+		     that a click registered. Rendered only during navigation, so no flicker
+		     on instant transitions. -->
+		{#if navigating.to}
+			<div class="pointer-events-none absolute inset-x-0 top-0 z-20 h-0.5 overflow-hidden bg-brand/15">
+				<div class="nav-progress h-full w-1/3 bg-brand"></div>
+			</div>
+		{/if}
+
 		<!-- Global lens menu — fixed above every lens's own hero/content.
 		     Hidden on the platform detail page, which carries its own back nav. -->
 		{#if !hideLensTabs}
@@ -147,3 +142,18 @@
 		<AssistantPanel venueName={data?.session?.venueName ?? 'Lago Hotel Sorgun'} />
 	</aside>
 </div>
+
+<style>
+	/* Indeterminate progress: a short segment sweeps left→right while loading. */
+	.nav-progress {
+		animation: nav-sweep 0.9s ease-in-out infinite;
+	}
+	@keyframes nav-sweep {
+		0% {
+			transform: translateX(-100%);
+		}
+		100% {
+			transform: translateX(400%);
+		}
+	}
+</style>
