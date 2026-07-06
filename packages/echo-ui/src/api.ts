@@ -675,6 +675,43 @@ export async function getScoreHistory(
   return res.json();
 }
 
+/** One DAILY GPI point (asOfDate 'YYYY-MM-DD'), from GET /scores/:slug/daily.
+ *  Unlike HistoryPoint (monthly `period`), this is the day-resolution series used
+ *  to render a short window (e.g. 3mo/6mo) at daily granularity. */
+export interface DailyHistoryPoint {
+  asOfDate: string; // 'YYYY-MM-DD'
+  scoredAt: string;
+  gpi: number;
+  reviewCount: number;
+}
+
+/**
+ * Daily GPI series for a venue. `from`/`to` are inclusive ISO 'YYYY-MM-DD' bounds
+ * — pass `from` to fetch just the selected window at day resolution. Absent bounds
+ * return the full daily history (capped by the backend's limit).
+ */
+export async function getDailyHistory(
+  venueSlug: string,
+  token: string,
+  opts: { platform?: string; from?: string; to?: string; limit?: number } = {},
+  fetchOpts?: FetchOpts
+): Promise<{ venueSlug: string; platform: string; points: DailyHistoryPoint[] }> {
+  const { base, f } = resolveFetch(fetchOpts);
+  const params = new URLSearchParams({
+    ...(opts.platform ? { platform: opts.platform } : {}),
+    ...(opts.from ? { from: opts.from } : {}),
+    ...(opts.to ? { to: opts.to } : {}),
+    ...(opts.limit ? { limit: String(opts.limit) } : {})
+  });
+  const qs = params.toString();
+  const res = await f(
+    `${base}/scores/${encodeURIComponent(venueSlug)}/daily${qs ? `?${qs}` : ''}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) throw new Error(`getDailyHistory failed: ${res.status}`);
+  return res.json();
+}
+
 // ─── Venue Settings ─────────────────────────────────────────────────────────
 
 export async function getVenueSettings(

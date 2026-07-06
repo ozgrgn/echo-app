@@ -14,11 +14,14 @@
 	}
 	interface Props {
 		series: Series[];
-		/** Period labels for the x-axis (aligned to the longest series). */
+		/** Period labels for the x-axis (aligned to the longest series). Monthly
+		 *  'YYYY-MM' or, when `daily`, daily 'YYYY-MM-DD'. */
 		periods?: string[];
+		/** Periods are daily → tick labels read 'DD/MM' not 'MM/YY'. */
+		daily?: boolean;
 		height?: number;
 	}
-	let { series, periods = [], height = 230 }: Props = $props();
+	let { series, periods = [], daily = false, height = 230 }: Props = $props();
 
 	const W = 760;
 	const H = $derived(height);
@@ -58,14 +61,14 @@
 	}
 
 	const yticks = $derived([ymax, Math.round((ymin + ymax) / 2), ymin]);
-	// x labels: show ~5 evenly spaced period ticks (short 'MM/YY' form).
+	// x labels: ~5 evenly spaced period ticks. Monthly → 'MM/YY'; daily → 'DD/MM'.
 	const xticks = $derived.by(() => {
 		if (periods.length === 0) return [];
 		const step = Math.max(1, Math.ceil(periods.length / 5));
 		const out: { i: number; label: string }[] = [];
 		for (let i = 0; i < periods.length; i += step) {
-			const [y, m] = periods[i].split('-');
-			out.push({ i, label: `${m}/${y.slice(2)}` });
+			const [y, m, d] = periods[i].split('-');
+			out.push({ i, label: daily ? `${d}/${m}` : `${m}/${y.slice(2)}` });
 		}
 		return out;
 	});

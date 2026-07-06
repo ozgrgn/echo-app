@@ -28,6 +28,7 @@ import {
 	getHotelScore,
 	getCompetitorScores,
 	getScoreHistory,
+	getDailyHistory,
 	getSegments,
 	getImpact,
 	getDepartments,
@@ -111,6 +112,10 @@ export function makeServerApi(event: RequestEvent) {
 		// ── domain-opts shape: (..., token, domainOpts, FetchOpts) ──
 		getScoreHistory: (venueSlug: string, opts: { platform?: string; limit?: number } = {}) =>
 			withRetry((t) => getScoreHistory(venueSlug, t, opts, fo())),
+		getDailyHistory: (
+			venueSlug: string,
+			opts: { platform?: string; from?: string; to?: string; limit?: number } = {}
+		) => withRetry((t) => getDailyHistory(venueSlug, t, opts, fo())),
 		getImpact: (venueSlug: string, opts: { platform?: string; period?: string; target?: number; window?: string } = {}) =>
 			withRetry((t) => getImpact(venueSlug, t, opts, fo())),
 		getDepartments: (venueSlug: string, opts: { platform?: string; period?: string; window?: string } = {}) =>

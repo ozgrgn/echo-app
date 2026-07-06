@@ -20,8 +20,11 @@
 		 * Period labels for the x-axis, aligned to `actual` (oldest→newest, one per
 		 * actual point). Optional — omit to keep the axis label-free (back-compat).
 		 * Projection slots carry no period, so ticks only span the actual region.
+		 * Monthly form 'YYYY-MM' or, when `daily`, daily form 'YYYY-MM-DD'.
 		 */
 		periods?: string[];
+		/** Periods are daily ('YYYY-MM-DD') → tick labels read 'DD/MM' not 'MM/YY'. */
+		daily?: boolean;
 	}
 
 	let {
@@ -34,7 +37,8 @@
 		yticks,
 		color = 'var(--color-brand)',
 		height = 260,
-		periods = []
+		periods = [],
+		daily = false
 	}: Props = $props();
 
 	const W = 740;
@@ -63,8 +67,9 @@
 	);
 	const lastPt = $derived(actualPts[actualPts.length - 1]);
 
-	// x labels: ~5 evenly spaced 'MM/YY' period ticks over the actual region only
-	// (projection slots have no period). Always include the newest period.
+	// x labels: ~5 evenly spaced period ticks over the actual region only (projection
+	// slots have no period). Always include the newest period. Monthly → 'MM/YY';
+	// daily → 'DD/MM' (a short window's day-resolution axis).
 	const xticks = $derived.by(() => {
 		if (periods.length === 0) return [];
 		const last = periods.length - 1;
@@ -73,8 +78,8 @@
 		for (let i = 0; i < periods.length; i += step) idxs.push(i);
 		if (idxs[idxs.length - 1] !== last) idxs.push(last);
 		return idxs.map((i) => {
-			const [y, m] = periods[i].split('-');
-			return { x: X(i), label: `${m}/${y.slice(2)}` };
+			const [y, m, d] = periods[i].split('-');
+			return { x: X(i), label: daily ? `${d}/${m}` : `${m}/${y.slice(2)}` };
 		});
 	});
 </script>

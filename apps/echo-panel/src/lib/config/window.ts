@@ -36,3 +36,20 @@ export function parseOsWindow(raw: string | null | undefined): OsWindow {
 export function windowParam(w: OsWindow): string | undefined {
 	return w === DEFAULT_OS_WINDOW ? undefined : w;
 }
+
+/** Whole-month lookback per window (mirrors the backend's WINDOW_MONTHS). */
+const WINDOW_MONTHS: Record<OsWindow, number> = { '24mo': 24, '12mo': 12, '6mo': 6, '3mo': 3 };
+
+/**
+ * How a trend chart should render for a window:
+ *   - wide windows (24mo/12mo) → MONTHLY series (/history), clean long view.
+ *   - narrow windows (6mo/3mo) → DAILY series (/daily) from the window lower bound,
+ *     so a short horizon reads at day resolution instead of 3–6 sparse month points.
+ * `from` is an ISO 'YYYY-MM-DD' lower bound for the daily fetch (undefined for monthly).
+ */
+export function windowChartMode(w: OsWindow, now: Date): { daily: boolean; from?: string } {
+	if (w === '24mo' || w === '12mo') return { daily: false };
+	const d = new Date(now);
+	d.setUTCMonth(d.getUTCMonth() - WINDOW_MONTHS[w]);
+	return { daily: true, from: d.toISOString().slice(0, 10) };
+}

@@ -43,6 +43,8 @@
 			: platformTrendFor(data.platform, ps.gpi).actual
 	);
 	const trendHasHistory = $derived((data.history?.length ?? 0) > 1);
+	// Period labels for the x-axis (present only from real history, monthly or daily).
+	const trendPeriods = $derived((data.history ?? []).map((p) => p.period));
 	const trendYmin = $derived(Math.floor(Math.min(...trendActual) - 4));
 	const trendYmax = $derived(Math.ceil(Math.max(...trendActual) + 4));
 
@@ -364,7 +366,7 @@
 	<!-- GPI trend for this platform — REAL series from history (fallback in mock). -->
 	<SectionCard title="İtibar trendi · {label}" icon={TrendingUp} hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'güncel'} class="mb-3.5">
 		{#if trendHasHistory}
-			<TrendChart actual={trendActual} ymin={trendYmin} ymax={trendYmax} color={color} height={200} />
+			<TrendChart actual={trendActual} periods={trendPeriods} daily={data.chartDaily} ymin={trendYmin} ymax={trendYmax} color={color} height={200} />
 		{:else}
 			<p class="py-10 text-center text-[13px] text-text-3">
 				Bu platform için yeterli geçmiş yok — güncel GPI <b class="text-text-1">{ps.gpi.toFixed(1)}</b>.

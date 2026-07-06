@@ -258,7 +258,7 @@
 				<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-text-2"><i class="h-[3px] w-2.5 rounded-sm" style="background:var(--color-text-3)"></i>Hedef {GPI_TARGET}</span>
 			</div>
 			{#if trendHasHistory}
-				<TrendChart actual={trendActual} periods={comparePeriods} target={GPI_TARGET} ymin={trendYmin} ymax={trendYmax} height={210} />
+				<TrendChart actual={trendActual} periods={comparePeriods} daily={data.chartDaily} target={GPI_TARGET} ymin={trendYmin} ymax={trendYmax} height={210} />
 			{:else}
 				<p class="py-12 text-center text-[13px] text-text-3">
 					Trend için yeterli geçmiş yok — güncel GPI <b class="text-text-1">{hs.gpi.toFixed(1)}</b>.
@@ -269,7 +269,7 @@
 		<!-- Platform GPI comparison — our blended line emphasized over each platform. -->
 		{#if hasCompare}
 			<SectionCard title="Platform GPI karşılaştırması" icon={LineChart}>
-				<MultiTrendChart series={compareSeries} periods={comparePeriods} height={230} />
+				<MultiTrendChart series={compareSeries} periods={comparePeriods} daily={data.chartDaily} height={230} />
 			</SectionCard>
 		{/if}
 	</div>

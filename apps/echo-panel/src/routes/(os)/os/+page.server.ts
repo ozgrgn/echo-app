@@ -3,7 +3,7 @@ import type { SegmentsResponse, HistoryPoint, ImpactResponse } from '@talkwo/ech
 import { DEMO_HOTEL_SCORE, DEMO_PLATFORM_SCORES, DEMO_COMPETITORS, DEMO_SEGMENTS, DEMO_HISTORY } from '$lib/mock/os';
 import { error } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
-import { parseOsWindow, windowParam } from '$lib/config/window';
+import { parseOsWindow, windowParam, windowChartMode } from '$lib/config/window';
 
 // SSR server load. Source is decided by the layout server load (echo_os_source
 // cookie): 'mock' → rich demo dataset (no auth); 'live' → real backend over the
@@ -63,11 +63,26 @@ export const load: PageServerLoad = async (event) => {
 	const requestPeriod = /^\d{4}-\d{2}$/.test(paramPeriod ?? '') ? (paramPeriod as string) : undefined;
 
 	// Global time-window: a lookback horizon applied to the POINT-IN-TIME figures
-	// (own score, competitors, segments, impact, per-platform scores). The trend
-	// SERIES (history) is deliberately NOT windowed — it's the time axis itself, so
-	// narrowing the window must not erase past periods from the chart.
+	// (own score, competitors, segments, impact, per-platform scores) AND to the
+	// trend chart's range/resolution — wide windows show the monthly series, narrow
+	// ones (6mo/3mo) switch to the DAILY series clipped to the window so the chart
+	// zooms in at day resolution instead of showing 3–6 sparse month points.
 	const window = parseOsWindow(url.searchParams.get('window'));
 	const w = windowParam(window);
+	const chart = windowChartMode(window, new Date());
+
+	// A trend fetch for one platform, monthly or daily per the window's chart mode.
+	// Both normalize to { period, gpi }[] (daily uses asOfDate as the period).
+	const fetchHistory = (platform: string) =>
+		chart.daily
+			? api
+					.getDailyHistory(venueSlug, { platform, from: chart.from, limit: 400 })
+					.then((r) => r.points.map((p) => ({ period: p.asOfDate, scoredAt: p.scoredAt, gpi: p.gpi, reviewCount: p.reviewCount })))
+					.catch(() => null)
+			: api
+					.getScoreHistory(venueSlug, { platform, limit: 24 })
+					.then((r) => r.points)
+					.catch(() => null);
 
 	const [hotelScore, competitors, segments, history, platformHistories, ...channelResults] =
 		await Promise.all([
@@ -75,16 +90,10 @@ export const load: PageServerLoad = async (event) => {
 			api.getCompetitorScores(venueSlug, requestPeriod, w),
 			// Best-effort: a failure must not break the whole lens.
 			api.getSegments(venueSlug, undefined, w).catch(() => null),
-			api
-				.getScoreHistory(venueSlug, { platform: 'all', limit: 24 })
-				.then((r) => r.points)
-				.catch(() => null),
+			fetchHistory('all'),
 			Promise.all(
 				CHANNELS.map((p) =>
-					api
-						.getScoreHistory(venueSlug, { platform: p, limit: 24 })
-						.then((r) => ({ platform: p as string, points: r.points }))
-						.catch(() => null)
+					fetchHistory(p).then((points) => (points ? { platform: p as string, points } : null))
 				)
 			).then((rows) => rows.filter((r): r is NonNullable<typeof r> => r !== null && r.points.length > 1)),
 			...CHANNELS.map((p) =>
@@ -101,5 +110,5 @@ export const load: PageServerLoad = async (event) => {
 		.getImpact(venueSlug, { ...(requestPeriod ? { period: requestPeriod } : {}), ...(w ? { window: w } : {}) })
 		.catch(() => null);
 
-	return { hotelScore, competitors, channels, period: hotelScore.period, segments, history, platformHistories, impact, window };
+	return { hotelScore, competitors, channels, period: hotelScore.period, segments, history, platformHistories, impact, window, chartDaily: chart.daily };
 };

@@ -130,7 +130,7 @@
 <!-- Shared GPI trend across channels. -->
 <SectionCard title="İtibar trendi · tüm kanallar" icon={TrendingUp} hint="son 24 dönem" class="mb-3.5">
 	{#if hasCompare}
-		<MultiTrendChart series={compareSeries} periods={comparePeriods} height={240} />
+		<MultiTrendChart series={compareSeries} periods={comparePeriods} daily={data.chartDaily} height={240} />
 	{:else}
 		<p class="py-10 text-center text-[13px] text-text-3">
 			Karşılaştırma için henüz yeterli kanal geçmişi yok — kanallar analiz edildikçe dolar.
