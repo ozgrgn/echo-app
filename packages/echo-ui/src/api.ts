@@ -248,6 +248,9 @@ export async function getHotelScore(
   /** Per-channel snapshot, e.g. 'tripadvisor'. Omit (or 'all') for the blended
    *  cross-platform score. Backend reads ?platform= (scores/read.ts). */
   platform?: string,
+  /** Time window: '24mo' (default, full history) | '12mo' | '6mo' | '3mo'. Omit or
+   *  '24mo' → full-history score. Backend reads ?window= (scores/read.ts). */
+  window?: string,
   opts?: FetchOpts
 ): Promise<HotelScore> {
   if (MOCK_CONFIG.scores) {
@@ -259,6 +262,7 @@ export async function getHotelScore(
   const params = new URLSearchParams();
   if (period) params.set('period', period);
   if (platform && platform !== 'all') params.set('platform', platform);
+  if (window && window !== '24mo') params.set('window', window);
   const qs = params.toString();
   const url = `${base}/scores/${venueSlug}${qs ? `?${qs}` : ''}`;
   const res = await f(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -270,6 +274,9 @@ export async function getCompetitorScores(
   venueSlug: string,
   period: string | undefined,
   token: string,
+  /** Time window: '24mo' (default) | '12mo' | '6mo' | '3mo'. Ranks competitors in the
+   *  same horizon as the own-venue card. Backend reads ?window= (scores/read.ts). */
+  window?: string,
   opts?: FetchOpts
 ): Promise<CompetitorScore[]> {
   // Competitors are REAL now (2026-07: Lago's rivals scored + RPI). We still fall
@@ -280,9 +287,11 @@ export async function getCompetitorScores(
     return MOCK_COMPETITORS;
   }
   const { base, f } = resolveFetch(opts);
-  const url = period
-    ? `${base}/scores/${venueSlug}/competitors?period=${encodeURIComponent(period)}`
-    : `${base}/scores/${venueSlug}/competitors`;
+  const params = new URLSearchParams();
+  if (period) params.set('period', period);
+  if (window && window !== '24mo') params.set('window', window);
+  const qs = params.toString();
+  const url = `${base}/scores/${venueSlug}/competitors${qs ? `?${qs}` : ''}`;
   const res = await f(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`getCompetitorScores failed: ${res.status}`);
   const live: CompetitorScore[] = await res.json();
@@ -598,6 +607,12 @@ export interface SegmentBucket {
   /** Raw value ('en', 'FAMILY', …) or 'unknown'. */
   key: string;
   count: number;
+  /**
+   * Language buckets only: GPI (0–100) computed from this language's analyzed
+   * reviews — same unit as the venue-wide score. null when the pool is too thin
+   * to score, or on the 'unknown' bucket. Absent on tripType buckets.
+   */
+  gpi?: number | null;
 }
 
 export interface SegmentsResponse {

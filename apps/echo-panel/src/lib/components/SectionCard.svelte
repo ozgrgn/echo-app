@@ -23,6 +23,14 @@
 	}
 
 	let { title, icon: Icon, hint, action, padding = 'sm', class: extra = '', children }: Props = $props();
+
+	// Sentence-case the hint (first letter up, rest untouched) for a tidier header —
+	// authors write hints lowercase ("son 30 gün"); we present them "Son 30 gün".
+	// Turkish locale so a leading 'i' becomes 'İ', not 'I'. Leaves '·'-separated and
+	// numeric hints ("14 · ABSA") alone since only the very first char is changed.
+	const hintDisplay = $derived(
+		hint ? hint.charAt(0).toLocaleUpperCase('tr') + hint.slice(1) : hint
+	);
 </script>
 
 <Card {padding} class={extra}>
@@ -36,7 +44,7 @@
 		{#if action}
 			{@render action()}
 		{:else if hint}
-			<span class="text-[11.5px] text-text-3">{hint}</span>
+			<span class="text-[11.5px] text-text-3">{hintDisplay}</span>
 		{/if}
 	</div>
 	{@render children()}

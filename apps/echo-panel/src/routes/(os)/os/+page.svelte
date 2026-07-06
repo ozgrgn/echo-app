@@ -19,7 +19,7 @@
 	import SegmentBreakdown from '$lib/components/SegmentBreakdown.svelte';
 	import MultiTrendChart from '$lib/components/MultiTrendChart.svelte';
 	import ImpactList from '$lib/components/ImpactList.svelte';
-	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert, MessageCircleReply, PieChart, LineChart, Rocket } from '@lucide/svelte';
+	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert, CircleCheck, MessageCircleReply, PieChart, LineChart, Rocket } from '@lucide/svelte';
 
 	import {
 		MOCK_OS_DEPTS,
@@ -55,7 +55,7 @@
 		}))),
 		// Our own blended line — emphasized, brand color, on top.
 		...(historyGpi.length > 1
-			? [{ key: 'all', label: 'Bizim (genel)', color: 'var(--color-brand)', values: historyGpi, emphasis: true }]
+			? [{ key: 'all', label: 'GPI (genel)', color: 'var(--color-brand)', values: historyGpi, emphasis: true }]
 			: [])
 	]);
 	const hasCompare = $derived(compareSeries.length > 1);
@@ -106,9 +106,6 @@
 			};
 		})
 	);
-
-	// Period segmented control (weekly/monthly) — UI state in the shared store.
-	const period = $derived(osState.period);
 
 	// KPI values: [REAL] from HotelScore; competitor metrics from data.competitors
 	// (currently the rich mock set — see MOCK_CONFIG.competitors).
@@ -187,17 +184,6 @@
 	</div>
 
 	<div class="ml-auto flex items-end gap-4">
-		<div class="inline-flex self-center rounded-[10px] bg-surface-2 p-[3px]">
-			{#each [{ k: 'weekly', l: 'Haftalık' }, { k: 'monthly', l: 'Aylık' }] as opt (opt.k)}
-				<button
-					onclick={() => osState.setPeriod(opt.k as 'weekly' | 'monthly')}
-					class="rounded-lg px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors
-						{period === opt.k ? 'bg-surface-1 text-text-1 shadow-card' : 'text-text-2'}"
-				>
-					{opt.l}
-				</button>
-			{/each}
-		</div>
 		<div class="flex flex-col items-end">
 			<span class="text-[10.5px] font-bold uppercase tracking-wide text-text-3">Genel GPI</span>
 			<span class="text-[42px] font-extrabold leading-none tracking-tight {gpiTextClass}">{hs.gpi.toFixed(1)}</span>
@@ -248,12 +234,20 @@
 </div>
 
 <!-- ── Trend + Platforms/Categories row ──────────────────────────────────── -->
-<div class="mb-3.5 grid grid-cols-1 items-start gap-3.5 lg:grid-cols-[1.55fr_1fr]">
+<div class="mb-3.5 grid grid-cols-1 items-stretch gap-3.5 lg:grid-cols-[1.55fr_1fr]">
 	<!-- Left column: reputation trend + platform comparison stacked. -->
 	<div class="flex flex-col gap-3.5">
 		<SectionCard title="İtibar trendi (GPI)" icon={TrendingUp} hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'geçmiş birikiyor'}>
 			{#snippet action()}
-				{#if hs.gpi < GPI_TARGET}
+				{#if hs.gpi >= GPI_TARGET}
+					<span class="inline-flex items-center gap-1.5 rounded-full bg-success-light px-2.5 py-1 text-[11px] font-bold text-success">
+						<CircleCheck size={13} strokeWidth={2.5} />Hedefte
+					</span>
+				{:else if hs.gpi >= GPI_TARGET - 3}
+					<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] font-bold text-text-2">
+						<TrendingUp size={13} strokeWidth={2.5} />Hedefe çok yakın
+					</span>
+				{:else}
 					<span class="inline-flex items-center gap-1.5 rounded-full bg-warning-light px-2.5 py-1 text-[11px] font-bold text-warning">
 						<TriangleAlert size={13} strokeWidth={2.5} />Hedefin altında
 					</span>
@@ -264,7 +258,7 @@
 				<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-text-2"><i class="h-[3px] w-2.5 rounded-sm" style="background:var(--color-text-3)"></i>Hedef {GPI_TARGET}</span>
 			</div>
 			{#if trendHasHistory}
-				<TrendChart actual={trendActual} target={GPI_TARGET} ymin={trendYmin} ymax={trendYmax} height={210} />
+				<TrendChart actual={trendActual} periods={comparePeriods} target={GPI_TARGET} ymin={trendYmin} ymax={trendYmax} height={210} />
 			{:else}
 				<p class="py-12 text-center text-[13px] text-text-3">
 					Trend için yeterli geçmiş yok — güncel GPI <b class="text-text-1">{hs.gpi.toFixed(1)}</b>.
@@ -280,7 +274,7 @@
 		{/if}
 	</div>
 
-	<SectionCard title="Platformlar" icon={Globe} hint="tıkla → evren">
+	<SectionCard title="Platformlar" icon={Globe} hint="tıkla → evren" class="h-full">
 		<div class="-mx-1">
 			{#each platforms as p (p.key)}
 				<PlatformRow platform={p} onenter={enterPlatform} />
@@ -322,8 +316,8 @@
 </SectionCard>
 
 <!-- ── Audience segments: who is reviewing you (language + trip type) ──────── -->
-<SectionCard title="Kitle profili" icon={PieChart} hint="dil · seyahat tipi" class="mb-3.5">
-	<SegmentBreakdown data={data.segments ?? null} />
+<SectionCard title="Kitle profili" icon={PieChart} hint="dil · memnuniyet" class="mb-3.5">
+	<SegmentBreakdown data={data.segments ?? null} venueGpi={hs.gpi} />
 </SectionCard>
 
 <!-- ── Departments ───────────────────────────────────────────────────────── -->
