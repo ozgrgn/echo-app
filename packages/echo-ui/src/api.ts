@@ -652,7 +652,12 @@ export interface HistoryPoint {
   period: string; // 'YYYY-MM'
   scoredAt: string;
   gpi: number;
+  /** Window-scoped cumulative count as of this period (can DECREASE as the window
+   *  slides). Not a "new reviews" signal — use newReviews for that. */
   reviewCount: number;
+  /** Reviews PUBLISHED in this period — window-independent, always ≥0. The honest
+   *  "new this month" metric. (Absent on older backend versions → treat as 0.) */
+  newReviews?: number;
 }
 
 export async function getScoreHistory(

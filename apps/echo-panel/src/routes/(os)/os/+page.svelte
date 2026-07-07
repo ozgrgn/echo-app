@@ -68,11 +68,15 @@
 	const spark = (arr: number[]) => arr.slice(-8);
 	const lastDelta = (arr: number[]) =>
 		arr.length >= 2 ? +(arr[arr.length - 1] - arr[arr.length - 2]).toFixed(1) : 0;
-	const historyReviews = $derived((data.history ?? []).map((p) => p.reviewCount));
+	// Per-period NEW reviews (published that month) — window-independent, always ≥0.
+	// The spark shows the monthly new-review trend (never dips like the cumulative,
+	// window-scoped reviewCount did); the caption shows the newest period's count.
+	const historyNewReviews = $derived((data.history ?? []).map((p) => p.newReviews ?? 0));
 	const gpiSpark = $derived(spark(historyGpi));
 	const gpiDelta = $derived(lastDelta(historyGpi));
-	const reviewSpark = $derived(spark(historyReviews));
-	const reviewDelta = $derived(lastDelta(historyReviews));
+	const reviewSpark = $derived(spark(historyNewReviews));
+	// "This period" = new reviews published in the latest period (not a delta).
+	const reviewDelta = $derived(historyNewReviews.length > 0 ? historyNewReviews[historyNewReviews.length - 1] : 0);
 
 	type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'brand';
 	function zoneTone(score: number): Tone {

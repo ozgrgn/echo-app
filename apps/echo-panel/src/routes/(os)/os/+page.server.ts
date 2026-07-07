@@ -77,7 +77,7 @@ export const load: PageServerLoad = async (event) => {
 		chart.daily
 			? api
 					.getDailyHistory(venueSlug, { platform, from: chart.from, window: chart.window, limit: 400 })
-					.then((r) => r.points.map((p) => ({ period: p.asOfDate, scoredAt: p.scoredAt, gpi: p.gpi, reviewCount: p.reviewCount })))
+					.then((r) => r.points.map((p) => ({ period: p.asOfDate, scoredAt: p.scoredAt, gpi: p.gpi, reviewCount: p.reviewCount, newReviews: 0 })))
 					.catch(() => null)
 			: api
 					.getScoreHistory(venueSlug, { platform, limit: 24, window: w })
