@@ -105,6 +105,10 @@ export interface OsDept {
 	label: string;        // [MOCK→ops]
 	score: number;        // [MOCK→echo] — needs responsibility map
 	trend: 'up' | 'down' | 'flat'; // [MOCK→radar]
+	/** Raw signed trend delta (period-over-period). Used to RANK the movement lists
+	 *  (most-negative first) and to show the exact ± value — a threshold only bucketed
+	 *  the direction and hid it. Optional so the mock set stays valid without it. */
+	trendValue?: number;
 	scope: string;        // human hint of covered categories
 	enters: boolean;
 }

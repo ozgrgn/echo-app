@@ -58,12 +58,18 @@
 
 	// Adapt a real DepartmentScore into the OsDept shape DeptCard/switcher expect.
 	// A null score (no mentions) sorts last and renders as 0 with a flat trend.
+	//
+	// Direction is threshold-FREE: any non-zero movement counts (a mature venue moves
+	// ±0.1/month, and a 0.5 threshold made "Düşüşte/Yükselişte olanlar" permanently
+	// empty). The movement lists then RANK by trendValue, so tiny-but-real changes still
+	// surface the department to look at first. Only an exact 0 (no prior period) is flat.
 	function toOsDept(d: DepartmentScore): OsDept {
 		return {
 			key: d.key,
 			label: d.label,
 			score: d.score ?? 0,
-			trend: d.trend > 0.5 ? 'up' : d.trend < -0.5 ? 'down' : 'flat',
+			trend: d.trend > 0 ? 'up' : d.trend < 0 ? 'down' : 'flat',
+			trendValue: d.trend,
 			scope: d.categories.join(' · '),
 			enters: d.score != null
 		};
@@ -80,8 +86,14 @@
 	const avgScore = $derived(
 		scored.length ? scored.reduce((s, d) => s + d.score, 0) / scored.length : 0
 	);
-	const declining = $derived(depts.filter((d) => d.trend === 'down'));
-	const improving = $derived(depts.filter((d) => d.trend === 'up'));
+	// Rank the movement lists by the raw delta: steepest drop first (that's the
+	// priority), strongest gain first. Falls back to 0 for the mock set (no trendValue).
+	const declining = $derived(
+		depts.filter((d) => d.trend === 'down').sort((a, b) => (a.trendValue ?? 0) - (b.trendValue ?? 0))
+	);
+	const improving = $derived(
+		depts.filter((d) => d.trend === 'up').sort((a, b) => (b.trendValue ?? 0) - (a.trendValue ?? 0))
+	);
 	const weakest = $derived([...scored].sort((a, b) => a.score - b.score)[0]);
 
 	function enterDept(key: string) {
@@ -186,7 +198,12 @@
 						<li>
 							<button onclick={() => enterDept(d.key)} class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-surface-2">
 								<span class="text-[13px] font-semibold text-text-1">{d.label}</span>
-								<span class="text-[13px] font-extrabold text-danger">{d.score.toFixed(0)}</span>
+								<span class="flex items-center gap-2">
+									{#if d.trendValue != null}
+										<span class="text-[11px] font-semibold text-danger">▼ {Math.abs(d.trendValue).toFixed(2)}</span>
+									{/if}
+									<span class="text-[13px] font-extrabold text-danger">{d.score.toFixed(0)}</span>
+								</span>
 							</button>
 						</li>
 					{/each}
@@ -203,7 +220,12 @@
 						<li>
 							<button onclick={() => enterDept(d.key)} class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-surface-2">
 								<span class="text-[13px] font-semibold text-text-1">{d.label}</span>
-								<span class="text-[13px] font-extrabold text-success">{d.score.toFixed(0)}</span>
+								<span class="flex items-center gap-2">
+									{#if d.trendValue != null}
+										<span class="text-[11px] font-semibold text-success">▲ {Math.abs(d.trendValue).toFixed(2)}</span>
+									{/if}
+									<span class="text-[13px] font-extrabold text-success">{d.score.toFixed(0)}</span>
+								</span>
 							</button>
 						</li>
 					{/each}
