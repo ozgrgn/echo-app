@@ -693,7 +693,7 @@ export interface DailyHistoryPoint {
 export async function getDailyHistory(
   venueSlug: string,
   token: string,
-  opts: { platform?: string; from?: string; to?: string; limit?: number } = {},
+  opts: { platform?: string; from?: string; to?: string; window?: string; limit?: number } = {},
   fetchOpts?: FetchOpts
 ): Promise<{ venueSlug: string; platform: string; points: DailyHistoryPoint[] }> {
   const { base, f } = resolveFetch(fetchOpts);
@@ -701,6 +701,7 @@ export async function getDailyHistory(
     ...(opts.platform ? { platform: opts.platform } : {}),
     ...(opts.from ? { from: opts.from } : {}),
     ...(opts.to ? { to: opts.to } : {}),
+    ...(opts.window ? { window: opts.window } : {}),
     ...(opts.limit ? { limit: String(opts.limit) } : {})
   });
   const qs = params.toString();

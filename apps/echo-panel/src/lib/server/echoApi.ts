@@ -114,7 +114,7 @@ export function makeServerApi(event: RequestEvent) {
 			withRetry((t) => getScoreHistory(venueSlug, t, opts, fo())),
 		getDailyHistory: (
 			venueSlug: string,
-			opts: { platform?: string; from?: string; to?: string; limit?: number } = {}
+			opts: { platform?: string; from?: string; to?: string; window?: string; limit?: number } = {}
 		) => withRetry((t) => getDailyHistory(venueSlug, t, opts, fo())),
 		getImpact: (venueSlug: string, opts: { platform?: string; period?: string; target?: number; window?: string } = {}) =>
 			withRetry((t) => getImpact(venueSlug, t, opts, fo())),

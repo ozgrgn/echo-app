@@ -46,10 +46,16 @@ const WINDOW_MONTHS: Record<OsWindow, number> = { '24mo': 24, '12mo': 12, '6mo':
  *   - narrow windows (6mo/3mo) → DAILY series (/daily) from the window lower bound,
  *     so a short horizon reads at day resolution instead of 3–6 sparse month points.
  * `from` is an ISO 'YYYY-MM-DD' lower bound for the daily fetch (undefined for monthly).
+ * `window` is the daily series to read (the SAME horizon as the KPI) — the daily points
+ * for a narrow window are scored over that rolling window, so the chart's last point
+ * equals the windowed KPI. Only set when `daily`.
  */
-export function windowChartMode(w: OsWindow, now: Date): { daily: boolean; from?: string } {
+export function windowChartMode(
+	w: OsWindow,
+	now: Date
+): { daily: boolean; from?: string; window?: OsWindow } {
 	if (w === '24mo' || w === '12mo') return { daily: false };
 	const d = new Date(now);
 	d.setUTCMonth(d.getUTCMonth() - WINDOW_MONTHS[w]);
-	return { daily: true, from: d.toISOString().slice(0, 10) };
+	return { daily: true, from: d.toISOString().slice(0, 10), window: w };
 }

@@ -39,7 +39,7 @@ export const load: PageServerLoad = async (event) => {
 
 	const historyFetch = chart.daily
 		? api
-				.getDailyHistory(session.venueSlug, { platform, from: chart.from, limit: 400 })
+				.getDailyHistory(session.venueSlug, { platform, from: chart.from, window: chart.window, limit: 400 })
 				.then((r) => r.points.map((p) => ({ period: p.asOfDate, scoredAt: p.scoredAt, gpi: p.gpi, reviewCount: p.reviewCount })))
 				.catch(() => null)
 		: api
