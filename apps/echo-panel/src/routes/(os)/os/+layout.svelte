@@ -15,7 +15,7 @@
 	import { MOCK_OS_COUNTERS } from '$lib/mock/os';
 	import { Target, Bell, Settings, Database } from '@lucide/svelte';
 	import { OS_NAV, type OsNavItem } from '$lib/config/osNav';
-	import { OS_WINDOW_TABS, parseOsWindow } from '$lib/config/window';
+	import { OS_WINDOW_TABS, parseOsWindow, hidesCompetitors } from '$lib/config/window';
 	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
 	import TalkwoMark from '$lib/components/TalkwoMark.svelte';
 	import LensTabs from '$lib/components/LensTabs.svelte';
@@ -70,7 +70,9 @@
 	<nav class="flex flex-col items-center gap-1 border-r border-border bg-surface-1 py-3.5">
 		<TalkwoMark size={24} class="mb-3" />
 
-		{#each OS_NAV as item (item.lens)}
+		<!-- 'max' (Tümü) lens hides competitor comparison → drop the Rakipler nav item
+		     (owner decision: owned full history isn't comparable to a rival's ~2yr). -->
+		{#each OS_NAV.filter((i) => !(i.lens === 'competitors' && hidesCompetitors(activeWindow))) as item (item.lens)}
 			{@const Icon = item.icon}
 			<button
 				onclick={() => go(item)}

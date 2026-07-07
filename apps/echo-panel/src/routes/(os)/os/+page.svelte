@@ -6,6 +6,7 @@
 <script lang="ts">
 	import { CATEGORIES, gpiZone, getSubcategoryLabel } from '@talkwo/echo-core';
 	import { goto } from '$app/navigation';
+	import { hidesCompetitors, parseOsWindow } from '$lib/config/window';
 	import { osState } from '$lib/stores/osState.svelte';
 
 	import StatTile from '$lib/components/StatTile.svelte';
@@ -121,6 +122,11 @@
 	);
 	const competitorGap = $derived(competitorAvg !== null ? +(hs.gpi - competitorAvg).toFixed(1) : null);
 
+	// In the 'max' (Tümü) lens competitor comparison is hidden — an owned venue's full
+	// history isn't comparable to a competitor's ~2 analyzed years (owner decision).
+	// Drop the RPI + Rakip Farkı KPI cards; the strip collapses 5→3.
+	const hideComp = $derived(hidesCompetitors(parseOsWindow(data.window)));
+
 	// Category movement — [REAL] top categories by mention.
 	// Category movement — declining categories first (most actionable), then by
 	// mention volume. Shows more rows so the column matches the left stack's height.
@@ -192,7 +198,7 @@
 </div>
 
 <!-- ── KPI strip ─────────────────────────────────────────────────────────── -->
-<div class="mb-3.5 grid grid-cols-2 gap-3.5 lg:grid-cols-5">
+<div class="mb-3.5 grid grid-cols-2 gap-3.5 {hideComp ? 'lg:grid-cols-3' : 'lg:grid-cols-5'}">
 	<StatTile
 		label="Genel GPI"
 		value={hs.gpi.toFixed(1)}
@@ -203,12 +209,14 @@
 		deltaPolarity="higher-better"
 		trend={gpiSpark}
 	/>
-	<StatTile
-		label="RPI"
-		value={rpiValue?.toFixed(1) ?? '—'}
-		tone={rpiValue !== null ? (rpiValue >= 100 ? 'success' : 'warning') : 'neutral'}
-		caption={competitorAvg !== null ? `${data.competitors.length} rakip · ort ${competitorAvg.toFixed(1)}` : 'rakip endeksi'}
-	/>
+	{#if !hideComp}
+		<StatTile
+			label="RPI"
+			value={rpiValue?.toFixed(1) ?? '—'}
+			tone={rpiValue !== null ? (rpiValue >= 100 ? 'success' : 'warning') : 'neutral'}
+			caption={competitorAvg !== null ? `${data.competitors.length} rakip · ort ${competitorAvg.toFixed(1)}` : 'rakip endeksi'}
+		/>
+	{/if}
 	<StatTile
 		label="Toplam Yorum"
 		value={hs.reviewCount.toLocaleString('tr-TR')}
@@ -225,12 +233,14 @@
 		deltaUnit="pp"
 		deltaPolarity="higher-better"
 	/>
-	<StatTile
-		label="Rakip Farkı"
-		value={competitorGap !== null ? competitorGap.toFixed(1) : '—'}
-		tone={competitorGap !== null && competitorGap < 0 ? 'danger' : 'neutral'}
-		caption={competitorGap !== null && competitorGap < 0 ? 'rakip önde' : 'öndeyiz'}
-	/>
+	{#if !hideComp}
+		<StatTile
+			label="Rakip Farkı"
+			value={competitorGap !== null ? competitorGap.toFixed(1) : '—'}
+			tone={competitorGap !== null && competitorGap < 0 ? 'danger' : 'neutral'}
+			caption={competitorGap !== null && competitorGap < 0 ? 'rakip önde' : 'öndeyiz'}
+		/>
+	{/if}
 </div>
 
 <!-- ── Trend + Platforms/Categories row ──────────────────────────────────── -->
