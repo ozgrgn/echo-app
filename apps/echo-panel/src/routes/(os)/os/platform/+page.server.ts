@@ -65,7 +65,7 @@ export const load: PageServerLoad = async (event) => {
 					.then((r) => r.points.map((p) => ({ period: p.asOfDate, scoredAt: p.scoredAt, gpi: p.gpi, reviewCount: p.reviewCount })))
 					.catch(() => null)
 			: api
-					.getScoreHistory(venueSlug, { platform, limit: 24 })
+					.getScoreHistory(venueSlug, { platform, limit: 24, window: w })
 					.then((r) => r.points)
 					.catch(() => null);
 

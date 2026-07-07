@@ -110,7 +110,7 @@ export function makeServerApi(event: RequestEvent) {
 			withRetry((t) => patchVenueSettings(venueSlug, patch, t, fo())),
 
 		// ── domain-opts shape: (..., token, domainOpts, FetchOpts) ──
-		getScoreHistory: (venueSlug: string, opts: { platform?: string; limit?: number } = {}) =>
+		getScoreHistory: (venueSlug: string, opts: { platform?: string; limit?: number; window?: string } = {}) =>
 			withRetry((t) => getScoreHistory(venueSlug, t, opts, fo())),
 		getDailyHistory: (
 			venueSlug: string,

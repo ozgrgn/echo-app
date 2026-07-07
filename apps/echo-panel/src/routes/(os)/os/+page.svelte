@@ -220,7 +220,7 @@
 	<StatTile
 		label="Toplam Yorum"
 		value={hs.reviewCount.toLocaleString('tr-TR')}
-		caption={reviewDelta !== 0 ? `bu dönem +${reviewDelta.toLocaleString('tr-TR')} yeni` : 'bu dönem'}
+		caption={reviewDelta > 0 ? `bu dönem +${reviewDelta.toLocaleString('tr-TR')} yeni` : 'bu dönem'}
 		trend={reviewSpark}
 	/>
 	<StatTile

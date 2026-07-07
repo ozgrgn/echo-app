@@ -658,13 +658,14 @@ export interface HistoryPoint {
 export async function getScoreHistory(
   venueSlug: string,
   token: string,
-  opts: { platform?: string; limit?: number } = {},
+  opts: { platform?: string; limit?: number; window?: string } = {},
   fetchOpts?: FetchOpts
 ): Promise<{ venueSlug: string; platform: string; points: HistoryPoint[] }> {
   const { base, f } = resolveFetch(fetchOpts);
   const params = new URLSearchParams({
     ...(opts.platform ? { platform: opts.platform } : {}),
-    ...(opts.limit ? { limit: String(opts.limit) } : {})
+    ...(opts.limit ? { limit: String(opts.limit) } : {}),
+    ...(opts.window ? { window: opts.window } : {})
   });
   const qs = params.toString();
   const res = await f(
