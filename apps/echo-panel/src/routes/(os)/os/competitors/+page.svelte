@@ -7,14 +7,38 @@
 -->
 <script lang="ts">
 	import { CATEGORIES, gpiZone, type CategoryKey } from '@talkwo/echo-core';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
-	import { Swords, BarChart3, Grid3x3 } from '@lucide/svelte';
+	import { Swords, BarChart3, Grid3x3, Building2, Globe } from '@lucide/svelte';
 
 	let { data } = $props();
 
 	// The time window comes from the global rail selector (?window=, shared across
 	// every lens); this page just consumes data.window that the SSR load resolved.
+
+	// ── Platform lens ────────────────────────────────────────────────────────
+	// A channel tab bar filters the WHOLE page (GPI bars + category heatmap + the
+	// department comparison) to one platform's snapshot. 'all' = blended overall.
+	// URL-driven (?platform=) so it survives refresh/share and every section's SSR
+	// load reads the same channel.
+	const PLATFORM_TABS = [
+		{ key: 'all', label: 'Genel' },
+		{ key: 'tripadvisor', label: 'TripAdvisor' },
+		{ key: 'google', label: 'Google' },
+		{ key: 'booking', label: 'Booking' },
+		{ key: 'holidaycheck', label: 'HolidayCheck' }
+	] as const;
+	const activePlatform = $derived(data.platform ?? 'all');
+
+	function selectPlatform(key: string) {
+		if (key === activePlatform) return;
+		const url = new URL(page.url);
+		if (key === 'all') url.searchParams.delete('platform');
+		else url.searchParams.set('platform', key);
+		goto(url.pathname + url.search, { keepFocus: true, noScroll: true, invalidateAll: true });
+	}
 
 	// ── Market average + CQI (derived live, not mocked) ──────────────────────
 	const competitorAvg = $derived(
@@ -109,6 +133,44 @@
 		const z = gpiZone(gpi);
 		return z === 'green' ? 'bg-success' : z === 'yellow' ? 'bg-warning' : 'bg-danger';
 	}
+
+	// ── Department comparison (grouped bars) ─────────────────────────────────
+	// data.deptCompare rolls own + each competitor up to department scores (backend
+	// /departments/:slug/compare, same mention-weighted rollup as the owned lens). We
+	// pivot it to one group per department, each holding own + rival bars. Departments
+	// where no venue has a score drop out; own's score orders them worst-first (that's
+	// where an operator looks). Null (no mentions) bars render as a dash, not a 0-bar.
+	type DeptBar = { venueName: string; score: number | null; isOwn: boolean };
+	type DeptGroup = { key: string; label: string; bars: DeptBar[]; ownScore: number | null };
+
+	const deptGroups = $derived.by<DeptGroup[]>(() => {
+		const dc = data.deptCompare;
+		if (!dc) return [];
+		// Department order + labels come from the OWN venue's rollup (canonical set).
+		const groups: DeptGroup[] = dc.own.departments.map((d) => {
+			const bars: DeptBar[] = [
+				{ venueName: dc.own.venueName, score: d.score, isOwn: true },
+				...dc.competitors.map((c) => ({
+					venueName: c.venueName,
+					score: c.departments.find((x) => x.key === d.key)?.score ?? null,
+					isOwn: false
+				}))
+			];
+			return { key: d.key, label: d.label, bars, ownScore: d.score };
+		});
+		// Keep only departments where at least one venue has a real score.
+		const scored = groups.filter((g) => g.bars.some((b) => b.score != null));
+		// Worst own-score first; departments with no own score sink to the bottom.
+		return scored.sort((a, b) => {
+			if (a.ownScore == null) return 1;
+			if (b.ownScore == null) return -1;
+			return a.ownScore - b.ownScore;
+		});
+	});
+
+	const activePlatformLabel = $derived(
+		PLATFORM_TABS.find((t) => t.key === activePlatform)?.label ?? 'Genel'
+	);
 </script>
 
 <!-- ── Header: title. The time window is chosen from the global rail selector
@@ -117,6 +179,31 @@
 	<Swords class="size-[18px] text-text-2" />
 	<h1 class="text-[15px] font-bold">Rakipler</h1>
 </div>
+
+<!-- ── Platform lens tabs — filter the whole page to one channel (?platform=). ── -->
+<div class="mb-3.5 flex flex-wrap items-center gap-2">
+	{#each PLATFORM_TABS as tab (tab.key)}
+		{@const isActive = activePlatform === tab.key}
+		<button
+			onclick={() => selectPlatform(tab.key)}
+			class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition-colors
+				{isActive
+				? 'border-transparent bg-text-1 text-white'
+				: 'border-border bg-surface-1 text-text-2 hover:bg-surface-2'}"
+		>
+			{tab.label}
+		</button>
+	{/each}
+</div>
+
+{#if !data.ownOnPlatform && activePlatform !== 'all'}
+	<!-- Own venue has no snapshot on this channel → its numbers below are the blended
+	     overall, while rivals are channel-specific. Rare for a real venue; flag it. -->
+	<div class="mb-3.5 rounded-[11px] border border-border bg-surface-1 px-3.5 py-2 text-[12px] text-text-3">
+		Bu kanalda otelinizin ayrı skoru yok — kendi satırınız <strong class="text-text-2">genel</strong> skoru gösteriyor,
+		rakipler {activePlatformLabel} skorunu.
+	</div>
+{/if}
 
 {#if hasMock}
 	<!-- Demo-data notice: some/all rows are placeholders, not real scores. Prevents
@@ -247,10 +334,67 @@
 	</div>
 </SectionCard>
 
-<!-- Department/source/language breakdown — [MOCK→radar], not yet wired. -->
-<SectionCard title="Departman & dil kırılımı" icon={Swords} hint="yakında">
-	<p class="py-6 text-center text-[13px] text-text-3">
-		Rakip kıyaslamasında departman, kaynak ve dil bazlı kırılım
-		<span class="font-medium text-text-2">Phase 2'de</span> radar verisiyle gelecek.
-	</p>
+<!-- ── Department comparison (grouped bars) ──────────────────────────────────
+     Each department: own + rival bars, worst own-score first. Same mention-weighted
+     rollup as the owned Departmanlar lens (backend /departments/:slug/compare). -->
+<SectionCard
+	title="Departman Bazlı Karşılaştırma"
+	icon={Building2}
+	hint={activePlatform === 'all' ? 'departman GPI · en zayıf üstte' : `${activePlatformLabel} · departman GPI`}
+>
+	{#if deptGroups.length === 0}
+		<p class="py-6 text-center text-[13px] text-text-3">
+			{#if data.pageIsMock}
+				Departman karşılaştırması yalnızca canlı veride görünür.
+			{:else}
+				Bu {activePlatform === 'all' ? 'dönemde' : 'kanalda'} departman bazlı karşılaştırma için yeterli veri yok.
+			{/if}
+		</p>
+	{:else}
+		<div class="flex flex-col gap-4">
+			{#each deptGroups as g (g.key)}
+				<div>
+					<div class="mb-1.5 text-[12.5px] font-bold text-text-1">{g.label}</div>
+					<ul class="flex flex-col gap-1.5">
+						{#each g.bars as bar (bar.venueName)}
+							<li class="grid grid-cols-[12rem_1fr_3rem] items-center gap-2.5">
+								<span
+									class="flex min-w-0 items-center gap-1.5 text-[12px] {bar.isOwn ? 'font-semibold text-text-1' : 'text-text-2'}"
+									title={bar.venueName}
+								>
+									{#if bar.isOwn}<span class="shrink-0 text-warning">▶</span>{/if}
+									<span class="truncate">{bar.venueName}</span>
+								</span>
+								<span class="h-2 overflow-hidden rounded-full bg-surface-2">
+									{#if bar.score != null}
+										<span
+											class="block h-full rounded-full transition-all duration-500 {barColor(bar.score)} {bar.isOwn ? '' : 'opacity-70'}"
+											style="width:{barWidth(bar.score)}%"
+										></span>
+									{/if}
+								</span>
+								<span
+									class="text-right text-[12.5px] font-bold tabular-nums {bar.score == null
+										? 'text-text-3'
+										: gpiZone(bar.score) === 'green'
+											? 'text-success'
+											: gpiZone(bar.score) === 'yellow'
+												? 'text-warning'
+												: 'text-danger'}"
+								>
+									{bar.score != null ? bar.score.toFixed(1) : '—'}
+								</span>
+							</li>
+						{/each}
+					</ul>
+				</div>
+			{/each}
+		</div>
+	{/if}
 </SectionCard>
+
+<!-- Source/language breakdown dropped from scope (owner, 2026-07-07): the value is in
+     the department + platform comparisons above, both now live. -->
+<p class="mt-3.5 flex items-center justify-center gap-1.5 text-[11.5px] text-text-3">
+	<Globe size={13} /> Kaynak & dil bazlı rakip kırılımı kapsam dışı — departman ve platform karşılaştırması yukarıda.
+</p>

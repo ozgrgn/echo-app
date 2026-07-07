@@ -277,6 +277,10 @@ export async function getCompetitorScores(
   /** Time window: '24mo' (default) | '12mo' | '6mo' | '3mo'. Ranks competitors in the
    *  same horizon as the own-venue card. Backend reads ?window= (scores/read.ts). */
   window?: string,
+  /** Platform lens: 'all' (default, blended) | 'tripadvisor' | 'google' | 'booking' |
+   *  'holidaycheck'. Compares rivals on ONE channel's snapshot (backend reads ?platform=,
+   *  per-platform competitor snapshots are already persisted by runScoring). */
+  platform?: string,
   opts?: FetchOpts
 ): Promise<CompetitorScore[]> {
   // Competitors are REAL now (2026-07: Lago's rivals scored + RPI). We still fall
@@ -290,12 +294,18 @@ export async function getCompetitorScores(
   const params = new URLSearchParams();
   if (period) params.set('period', period);
   if (window && window !== '24mo') params.set('window', window);
+  if (platform && platform !== 'all') params.set('platform', platform);
   const qs = params.toString();
   const url = `${base}/scores/${venueSlug}/competitors${qs ? `?${qs}` : ''}`;
   const res = await f(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`getCompetitorScores failed: ${res.status}`);
   const live: CompetitorScore[] = await res.json();
-  if (live.length === 0) {
+  // Empty-list fallback to the demo set keeps a competitor-less tenant from looking
+  // broken — but ONLY for the blended view. Under a platform filter, an empty result
+  // is a REAL "no rival snapshot on this channel" signal; showing mock rivals there
+  // would be misleading, so pass the empty list through untouched.
+  const filteredByPlatform = !!platform && platform !== 'all';
+  if (live.length === 0 && !filteredByPlatform) {
     const { MOCK_COMPETITORS } = await import('./mock/competitors.js');
     return MOCK_COMPETITORS;
   }
@@ -558,6 +568,45 @@ export async function getDepartmentDetail(
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!res.ok) throw new Error(`getDepartmentDetail failed: ${res.status}`);
+  return res.json();
+}
+
+// ─── Department comparison (OS "Rakipler" lens, department breakdown) ────────
+// Own venue + every competitor, each rolled up to department scores via the SAME
+// mention-weighted rollup the owned "Departmanlar" lens uses — so numbers line up.
+
+/** One venue's department rollup, trimmed to what the competitor comparison needs. */
+export interface DepartmentCompareRow {
+  venueSlug: string;
+  venueName: string;
+  departments: { key: string; label: string; score: number | null }[];
+}
+
+export interface DepartmentCompareResponse {
+  own: DepartmentCompareRow;
+  competitors: DepartmentCompareRow[];
+}
+
+export async function getDepartmentsCompare(
+  venueSlug: string,
+  token: string,
+  /** platform: 'all' (default) | a channel; window: '24mo' (default) | '12mo'|'6mo'|'3mo'.
+   *  Both mirror the competitors page's global window + platform lens. */
+  opts: { platform?: string; period?: string; window?: string } = {},
+  fetchOpts?: FetchOpts
+): Promise<DepartmentCompareResponse> {
+  const { base, f } = resolveFetch(fetchOpts);
+  const params = new URLSearchParams({
+    ...(opts.platform && opts.platform !== 'all' ? { platform: opts.platform } : {}),
+    ...(opts.period ? { period: opts.period } : {}),
+    ...(opts.window && opts.window !== '24mo' ? { window: opts.window } : {})
+  });
+  const qs = params.toString();
+  const res = await f(
+    `${base}/departments/${encodeURIComponent(venueSlug)}/compare${qs ? `?${qs}` : ''}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) throw new Error(`getDepartmentsCompare failed: ${res.status}`);
   return res.json();
 }
 

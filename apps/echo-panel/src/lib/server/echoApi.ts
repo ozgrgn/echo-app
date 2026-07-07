@@ -33,6 +33,7 @@ import {
 	getImpact,
 	getDepartments,
 	getDepartmentDetail,
+	getDepartmentsCompare,
 	getResponseStats,
 	getResponseQueue,
 	getReviews,
@@ -94,8 +95,8 @@ export function makeServerApi(event: RequestEvent) {
 		// ── simple shape: (..., token, FetchOpts) ──
 		getHotelScore: (venueSlug: string, period: string | undefined, platform?: string, window?: string) =>
 			withRetry((t) => getHotelScore(venueSlug, period, t, platform, window, fo())),
-		getCompetitorScores: (venueSlug: string, period: string | undefined, window?: string) =>
-			withRetry((t) => getCompetitorScores(venueSlug, period, t, window, fo())),
+		getCompetitorScores: (venueSlug: string, period: string | undefined, window?: string, platform?: string) =>
+			withRetry((t) => getCompetitorScores(venueSlug, period, t, window, platform, fo())),
 		getSegments: (venueSlug: string, platform?: string, window?: string) =>
 			withRetry((t) => getSegments(venueSlug, t, platform, window, fo())),
 		getResponseStats: (venueSlug: string, platform?: string) =>
@@ -125,6 +126,10 @@ export function makeServerApi(event: RequestEvent) {
 			deptKey: string,
 			opts: { platform?: string; period?: string; window?: string } = {}
 		) => withRetry((t) => getDepartmentDetail(venueSlug, deptKey, t, opts, fo())),
+		getDepartmentsCompare: (
+			venueSlug: string,
+			opts: { platform?: string; period?: string; window?: string } = {}
+		) => withRetry((t) => getDepartmentsCompare(venueSlug, t, opts, fo())),
 		getResponseQueue: (venueSlug: string, opts: { platform?: string; limit?: number } = {}) =>
 			withRetry((t) => getResponseQueue(venueSlug, t, opts, fo())),
 
