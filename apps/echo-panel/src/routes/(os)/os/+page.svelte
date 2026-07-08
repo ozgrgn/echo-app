@@ -46,17 +46,23 @@
 	const PLATFORM_LABELS: Record<string, string> = {
 		tripadvisor: 'TripAdvisor', booking: 'Booking', google: 'Google', holidaycheck: 'HolidayCheck'
 	};
+	// Per-platform review counts for the CURRENT window (from data.channels, which is
+	// window-scoped) — shown in the legend so each platform's weight is visible.
+	const platformCounts = $derived(
+		new Map((data.channels ?? []).map((c) => [c.platform, c.score.reviewCount]))
+	);
 	const compareSeries = $derived([
 		...((data.platformHistories ?? []).map((ph) => ({
 			key: ph.platform,
 			label: PLATFORM_LABELS[ph.platform] ?? ph.platform,
 			color: PLATFORM_COLOR[ph.platform as keyof typeof PLATFORM_COLOR] ?? '#94a3b8',
 			values: ph.points.map((p) => p.gpi),
+			count: platformCounts.get(ph.platform),
 			emphasis: false
 		}))),
 		// Our own blended line — emphasized, brand color, on top.
 		...(historyGpi.length > 1
-			? [{ key: 'all', label: 'GPI (genel)', color: 'var(--color-brand)', values: historyGpi, emphasis: true }]
+			? [{ key: 'all', label: 'GPI (genel)', color: 'var(--color-brand)', values: historyGpi, count: hs.reviewCount, emphasis: true }]
 			: [])
 	]);
 	const hasCompare = $derived(compareSeries.length > 1);
@@ -72,9 +78,37 @@
 	// The spark shows the monthly new-review trend (never dips like the cumulative,
 	// window-scoped reviewCount did); the caption shows the newest period's count.
 	const historyNewReviews = $derived((data.history ?? []).map((p) => p.newReviews ?? 0));
+
+	// ────────────────────────────────────────────────────────────────────────
+	// CONTRIBUTION POINT — proRateCurrentMonth()
+	//
+	// The last history point is the CURRENT calendar month, which is only partway
+	// through (e.g. today is the 8th → the month has barely started). Its raw
+	// new-review count is naturally low, so the spark dips at the end even though
+	// nothing is wrong. Rather than estimate it, we simply DROP that partial month
+	// from the spark so the line ends on the last COMPLETE month.
+	//
+	// "Partial" = the newest period equals the running calendar month AND we're not
+	// near its end (< 90% elapsed). A near-complete month is kept as-is.
+	// ────────────────────────────────────────────────────────────────────────
+	function dropPartialMonth(counts: number[], periods: string[]): number[] {
+		if (counts.length === 0 || counts.length !== periods.length) return counts;
+		const now = new Date();
+		const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+		if (periods[periods.length - 1] !== curKey) return counts; // ends on a past month
+
+		const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+		const elapsed = now.getDate() / daysInMonth;
+		if (elapsed >= 0.9) return counts; // month basically done — keep it
+		return counts.slice(0, -1); // drop the unfinished trailing month
+	}
+
 	const gpiSpark = $derived(spark(historyGpi));
 	const gpiDelta = $derived(lastDelta(historyGpi));
-	const reviewSpark = $derived(spark(historyNewReviews));
+	// Drop the running (partial) month so the spark doesn't show a false end-dip.
+	const reviewSpark = $derived(
+		dropPartialMonth(spark(historyNewReviews), spark((data.history ?? []).map((p) => p.period)))
+	);
 	// "This period" = new reviews published in the latest period (not a delta).
 	const reviewDelta = $derived(historyNewReviews.length > 0 ? historyNewReviews[historyNewReviews.length - 1] : 0);
 

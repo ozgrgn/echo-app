@@ -10,6 +10,8 @@
 		label: string;
 		color: string;
 		values: number[]; // oldest→newest
+		/** Review count for the current window — shown in the legend. */
+		count?: number;
 		emphasis?: boolean;
 	}
 	interface Props {
@@ -42,19 +44,36 @@
 		const t = (v - ymin) / Math.max(1, ymax - ymin);
 		return H - pB - t * (H - pT - pB);
 	}
+	// Catmull-Rom spline (passes through every point) → smooth line, matching
+	// TrendChart. Falls back to straight lines for <3 points.
+	function smooth(pts: [number, number][], tension = 1): string {
+		if (pts.length < 3) {
+			return pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+		}
+		const f = (v: number) => v.toFixed(1);
+		let d = `M${f(pts[0][0])} ${f(pts[0][1])}`;
+		for (let i = 0; i < pts.length - 1; i++) {
+			const p0 = pts[i === 0 ? 0 : i - 1];
+			const p1 = pts[i];
+			const p2 = pts[i + 1];
+			const p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
+			const c1x = p1[0] + ((p2[0] - p0[0]) / 6) * tension;
+			const c1y = p1[1] + ((p2[1] - p0[1]) / 6) * tension;
+			const c2x = p2[0] - ((p3[0] - p1[0]) / 6) * tension;
+			const c2y = p2[1] - ((p3[1] - p1[1]) / 6) * tension;
+			d += ` C${f(c1x)} ${f(c1y)} ${f(c2x)} ${f(c2y)} ${f(p2[0])} ${f(p2[1])}`;
+		}
+		return d;
+	}
 	function linePath(values: number[]): string {
 		const offset = n - values.length;
-		return values
-			.map((v, i) => `${i ? 'L' : 'M'}${X(offset + i).toFixed(1)} ${Y(v).toFixed(1)}`)
-			.join(' ');
+		return smooth(values.map((v, i) => [X(offset + i), Y(v)]));
 	}
 	// Area under the emphasized line (down to the baseline) for a soft fill.
 	function areaPath(values: number[]): string {
 		const offset = n - values.length;
 		const base = H - pB;
-		const top = values
-			.map((v, i) => `${i ? 'L' : 'M'}${X(offset + i).toFixed(1)} ${Y(v).toFixed(1)}`)
-			.join(' ');
+		const top = smooth(values.map((v, i) => [X(offset + i), Y(v)]));
 		const x0 = X(offset).toFixed(1);
 		const x1 = X(n - 1).toFixed(1);
 		return `${top} L${x1} ${base} L${x0} ${base} Z`;
@@ -77,9 +96,55 @@
 	const ordered = $derived([...series].sort((a, b) => (a.emphasis ? 1 : 0) - (b.emphasis ? 1 : 0)));
 	const ours = $derived(series.find((s) => s.emphasis));
 	const uid = 'mtc-' + Math.round(W + H + series.length);
+
+	// ── Hover: snap to nearest column, show every series' value there ─────────
+	let svgEl: SVGSVGElement | null = $state(null);
+	let hoverI = $state<number | null>(null);
+
+	function onMove(e: PointerEvent) {
+		if (!svgEl || n === 0) return;
+		const rect = svgEl.getBoundingClientRect();
+		const svgX = ((e.clientX - rect.left) / rect.width) * W;
+		let best = 0, bestD = Infinity;
+		for (let i = 0; i < n; i++) {
+			const d = Math.abs(X(i) - svgX);
+			if (d < bestD) { bestD = d; best = i; }
+		}
+		hoverI = best;
+	}
+	function onLeave() { hoverI = null; }
+
+	// For a hovered column index, each series' value at that column (series are
+	// right-aligned, so column i maps to values[i - offset]).
+	const hoverRows = $derived.by(() => {
+		if (hoverI === null) return [];
+		return ordered
+			.map((s) => {
+				const offset = n - s.values.length;
+				const vi = hoverI! - offset;
+				if (vi < 0 || vi >= s.values.length) return null;
+				return { label: s.label, color: s.color, value: s.values[vi], emphasis: s.emphasis };
+			})
+			.filter((r): r is NonNullable<typeof r> => r !== null)
+			.sort((a, b) => b.value - a.value); // highest GPI first
+	});
+	const hoverX = $derived(hoverI === null ? 0 : X(hoverI));
+	const hoverDate = $derived(hoverI !== null && periods[hoverI] ? fmtPeriod(periods[hoverI]) : '');
+
+	function fmtPeriod(p: string): string {
+		const [y, m, d] = p.split('-');
+		return daily ? `${d}.${m}.${y}` : `${m}/${y}`;
+	}
+
+	// Tooltip box geometry (header + one row per series).
+	const ttRows = $derived(hoverDate ? hoverRows.length + 1 : hoverRows.length);
+	const ttW = $derived(Math.max(96, ...hoverRows.map((r) => (r.label.length + 6) * 6.4 + 22)));
+	const ttH = $derived(ttRows * 15 + 10);
+	const ttX = $derived(hoverX + 12 + ttW > W - pR ? hoverX - ttW - 12 : hoverX + 12);
+	const ttY = $derived(Math.max(pT, Math.min(H - pB - ttH, 10)));
 </script>
 
-<svg viewBox="0 0 {W} {H}" class="w-full" style="height:{H}px" role="img" aria-label="Platform GPI karşılaştırması">
+<svg bind:this={svgEl} viewBox="0 0 {W} {H}" class="w-full" style="height:{H}px" role="img" aria-label="Platform GPI karşılaştırması" onpointermove={onMove} onpointerleave={onLeave}>
 	<defs>
 		<linearGradient id="{uid}-fill" x1="0" y1="0" x2="0" y2="1">
 			<stop offset="0%" stop-color="var(--color-brand)" stop-opacity="0.18" />
@@ -106,12 +171,14 @@
 	{#each ordered as s (s.key)}
 		<path
 			d={linePath(s.values)}
+			pathLength="1"
 			fill="none"
 			stroke={s.color}
-			stroke-width={s.emphasis ? 3.25 : 1.75}
+			stroke-width={s.emphasis ? 3.75 : 2.25}
 			stroke-linejoin="round"
 			stroke-linecap="round"
-			opacity={s.emphasis ? 1 : 0.5}
+			opacity={s.emphasis ? 1 : 0.65}
+			class="mtc-line"
 		/>
 		{#if s.values.length}
 			<circle cx={X(n - 1)} cy={Y(s.values[s.values.length - 1])} r={s.emphasis ? 4 : 2.75} fill={s.color} />
@@ -120,13 +187,52 @@
 			{/if}
 		{/if}
 	{/each}
+
+	<!-- hover crosshair + per-series focus dots -->
+	{#if hoverI !== null}
+		<line x1={hoverX} y1={pT} x2={hoverX} y2={H - pB} stroke="var(--color-text-3)" stroke-width="1" stroke-dasharray="3 3" opacity="0.45" />
+		{#each hoverRows as r (r.label)}
+			<circle cx={hoverX} cy={Y(r.value)} r={r.emphasis ? 4 : 3} fill={r.color} stroke="var(--color-surface-1, #fff)" stroke-width="1.5" />
+		{/each}
+	{/if}
+
+	<!-- tooltip: date header + one colour-dotted row per series -->
+	{#if hoverI !== null && hoverRows.length}
+		<g style="pointer-events:none">
+			<rect x={ttX} y={ttY} width={ttW} height={ttH} rx="7"
+				fill="var(--color-surface-1, #fff)" stroke="var(--color-border, #e5e7eb)" stroke-width="1"
+				style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.12))" />
+			{#if hoverDate}
+				<text x={ttX + 9} y={ttY + 15} font-size="10" font-weight="700" fill="var(--color-text-3)">{hoverDate}</text>
+			{/if}
+			{#each hoverRows as r, ri (r.label)}
+				{@const ry = ttY + (hoverDate ? 15 : 0) + 15 + ri * 15}
+				<circle cx={ttX + 12} cy={ry - 3.5} r="3.5" fill={r.color} />
+				<text x={ttX + 21} y={ry} font-size="10.5" font-weight={r.emphasis ? '800' : '500'} fill="var(--color-text-2)">{r.label}</text>
+				<text x={ttX + ttW - 9} y={ry} text-anchor="end" font-size="10.5" font-weight="800" fill="var(--color-text-1)">{r.value.toFixed(1)}</text>
+			{/each}
+		</g>
+	{/if}
 </svg>
+
+<style>
+	.mtc-line {
+		stroke-dasharray: 1;
+		stroke-dashoffset: 1;
+		animation: mtc-draw 0.9s ease-out forwards;
+	}
+	@keyframes mtc-draw { to { stroke-dashoffset: 0; } }
+	@media (prefers-reduced-motion: reduce) {
+		.mtc-line { animation: none; stroke-dashoffset: 0; }
+	}
+</style>
 
 <!-- Legend -->
 <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1">
 	{#each series as s (s.key)}
 		<span class="inline-flex items-center gap-1.5 text-[11.5px] {s.emphasis ? 'font-bold text-text-1' : 'text-text-2'}">
-			<i class="h-[3px] rounded-sm {s.emphasis ? 'w-4' : 'w-3'}" style="background:{s.color}"></i>{s.label}
+			<i class="rounded-full {s.emphasis ? 'h-[4px] w-4' : 'h-[3px] w-3.5'}" style="background:{s.color}"></i>{s.label}
+			{#if s.count !== undefined}<span class="font-normal text-text-3">· {s.count.toLocaleString('tr-TR')}</span>{/if}
 		</span>
 	{/each}
 </div>

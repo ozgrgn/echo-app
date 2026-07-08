@@ -14,7 +14,7 @@
 	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 	import { MOCK_OS_COUNTERS } from '$lib/mock/os';
 	import { Target, Bell, Settings, Database } from '@lucide/svelte';
-	import { OS_NAV, type OsNavItem } from '$lib/config/osNav';
+	import { OS_NAV, lensForPath, type OsNavItem } from '$lib/config/osNav';
 	import { OS_WINDOW_TABS, parseOsWindow, hidesCompetitors } from '$lib/config/window';
 	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
 	import TalkwoMark from '$lib/components/TalkwoMark.svelte';
@@ -24,7 +24,11 @@
 
 	// Rail nav renders from the shared OS_NAV config (single source of truth,
 	// mirrored by the in-canvas LensTabs). Lucide icons (single-color, currentColor).
-	const activeKind = $derived(osState.lens.kind);
+	//
+	// Active lens is derived from the URL (lensForPath), NOT osState — the URL is the
+	// source of truth. On HMR the in-memory store resets to its default while the URL
+	// stays put, which would desync the rail highlight from the actual route.
+	const activeKind = $derived(lensForPath(page.url.pathname) ?? osState.lens.kind);
 	const isMock = $derived(osDataSource.isMock);
 
 	// These lenses carry their own back button + in-page switcher row, so the

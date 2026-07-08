@@ -29,3 +29,15 @@ export const OS_NAV: OsNavItem[] = [
 	{ lens: 'competitors', label: 'Rakipler', icon: Swords, href: '/os/competitors' },
 	{ lens: 'departments', label: 'Departmanlar', icon: Users, href: '/os/departments' }
 ];
+
+/**
+ * Which lens does a pathname belong to? Derived from the URL so the nav highlight
+ * survives HMR reloads (which reset the in-memory osState store). Longest matching
+ * href wins because '/os' prefixes every OS route — first-match would always pick
+ * Genel. Returns undefined when no entry matches (caller falls back to the store).
+ */
+export function lensForPath(pathname: string): LensKind | undefined {
+	return [...OS_NAV]
+		.filter((i) => pathname === i.href || pathname.startsWith(i.href + '/'))
+		.sort((a, b) => b.href.length - a.href.length)[0]?.lens;
+}
