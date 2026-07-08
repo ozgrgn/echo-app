@@ -827,6 +827,82 @@ export async function patchVenueSettings(
   }
 }
 
+// ─── Owner Routing (per-venue route catalog snapshot) ───────────────────────
+
+/** One row of a venue's Owner Router catalog snapshot (mirrors echo-backend). */
+export interface VenueRouteRow {
+  route_key: string;
+  category: string;
+  subcategory: string;
+  route_label: string;
+  routing_mode: 'direct_map' | 'owner_router' | 'no_score' | 'critical';
+  /** Global default (read-only in the panel). */
+  default_owner_key: string | null;
+  /** Venue's chosen owner (editable). */
+  venue_owner_key: string | null;
+  /** Explicit fallback for owner_router rows when the LLM is low-confidence. */
+  fallback_owner_key?: string;
+  hint: string;
+  enabled: boolean;
+  /** True once the venue changed this row from the global default. */
+  is_customized: boolean;
+  catalog_version: string;
+}
+
+export interface VenueRoutingCatalog {
+  venueSlug: string;
+  catalog_version: string;
+  /** The owner dropdown vocabulary (ops departments ∪ system buckets), sorted. */
+  allowed_owners: string[];
+  rows: VenueRouteRow[];
+}
+
+/** GET a venue's Owner Router catalog snapshot (created lazily on first read). */
+export async function getVenueRoutingCatalog(
+  venueSlug: string,
+  token: string,
+  opts?: FetchOpts,
+): Promise<VenueRoutingCatalog> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/venues/${encodeURIComponent(venueSlug)}/owner-routing-catalog`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`getVenueRoutingCatalog failed: ${res.status}`);
+  return (await res.json()) as VenueRoutingCatalog;
+}
+
+/** Editable fields on one venue route row. */
+export interface VenueRoutePatch {
+  venue_owner_key?: string;
+  hint?: string;
+  enabled?: boolean;
+}
+
+/** PATCH one venue route row (venue_owner_key / hint / enabled). Returns the updated row. */
+export async function patchVenueRoutingRow(
+  venueSlug: string,
+  routeKey: string,
+  patch: VenueRoutePatch,
+  token: string,
+  opts?: FetchOpts,
+): Promise<VenueRouteRow> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(
+    `${base}/venues/${encodeURIComponent(venueSlug)}/owner-routing-catalog/${encodeURIComponent(routeKey)}`,
+    {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    },
+  );
+  if (!res.ok) {
+    const problem = await res.json().catch(() => ({ detail: 'Save failed' }));
+    throw new Error(problem.detail || `patchVenueRoutingRow failed: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.row as VenueRouteRow;
+}
+
 // ─── Survey (Hoops-Integrated mode only) ────────────────────────────────────
 
 export async function getSurveyResponses(

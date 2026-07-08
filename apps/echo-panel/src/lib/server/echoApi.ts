@@ -42,11 +42,14 @@ import {
 	getOsBundle,
 	getVenueSettings,
 	patchVenueSettings,
+	getVenueRoutingCatalog,
+	patchVenueRoutingRow,
 	listAllVenues,
 	listWatches,
 	type FetchOpts,
 	type ReviewFilters,
 	type MentionFilters,
+	type VenueRoutePatch,
 	type OsLens
 } from '@talkwo/echo-ui';
 import { setJwtCookie, clearSession } from '$lib/server/session';
@@ -116,6 +119,10 @@ export function makeServerApi(event: RequestEvent) {
 			withRetry((t) => getMentions(venueSlug, filters, t, fo())),
 		patchVenueSettings: (venueSlug: string, patch: Parameters<typeof patchVenueSettings>[1]) =>
 			withRetry((t) => patchVenueSettings(venueSlug, patch, t, fo())),
+		getVenueRoutingCatalog: (venueSlug: string) =>
+			withRetry((t) => getVenueRoutingCatalog(venueSlug, t, fo())),
+		patchVenueRoutingRow: (venueSlug: string, routeKey: string, patch: VenueRoutePatch) =>
+			withRetry((t) => patchVenueRoutingRow(venueSlug, routeKey, patch, t, fo())),
 
 		// ── domain-opts shape: (..., token, domainOpts, FetchOpts) ──
 		getScoreHistory: (venueSlug: string, opts: { platform?: string; limit?: number; window?: string } = {}) =>
