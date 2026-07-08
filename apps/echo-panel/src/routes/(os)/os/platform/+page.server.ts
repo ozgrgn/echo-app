@@ -41,7 +41,10 @@ export const load: PageServerLoad = async (event) => {
 		};
 	}
 
-	// ── LIVE source ──
+	// ── LIVE source: ONE bundle call ──
+	// Perf: this lens used to make ~10 parallel HTTP calls (blended + per-channel
+	// scores + per-channel histories). Now one round-trip; lens='platform' tells the
+	// backend to skip competitors/segments/impact (no over-fetch).
 	const venueSlug = event.locals.session?.venueSlug;
 	if (!venueSlug) throw error(401, 'Not authenticated');
 	const api = makeServerApi(event);
@@ -49,47 +52,28 @@ export const load: PageServerLoad = async (event) => {
 	const paramPeriod = url.searchParams.get('period');
 	const requestPeriod = /^\d{4}-\d{2}$/.test(paramPeriod ?? '') ? (paramPeriod as string) : undefined;
 
-	// Window narrows the point-in-time scores (blended + per-channel) AND the chart's
-	// range/resolution: wide → monthly series, narrow (6mo/3mo) → daily series clipped
-	// to the window (see windowChartMode).
 	const window = parseOsWindow(url.searchParams.get('window'));
 	const w = windowParam(window);
 	const chart = windowChartMode(window, new Date());
 
-	// Monthly or daily trend fetch per the window's chart mode; both normalize to
-	// { period, gpi }[] (daily uses asOfDate as the period).
-	const fetchHistory = (platform: string) =>
-		chart.daily
-			? api
-					.getDailyHistory(venueSlug, { platform, from: chart.from, window: chart.window, limit: 400 })
-					.then((r) => r.points.map((p) => ({ period: p.asOfDate, scoredAt: p.scoredAt, gpi: p.gpi, reviewCount: p.reviewCount })))
-					.catch(() => null)
-			: api
-					.getScoreHistory(venueSlug, { platform, limit: 24, window: w })
-					.then((r) => r.points)
-					.catch(() => null);
+	const b = await api.getOsBundle(venueSlug, {
+		lens: 'platform',
+		window: w,
+		period: requestPeriod,
+		chartDaily: chart.daily,
+		chartFrom: chart.from
+	});
 
-	const [blended, blendedHistory, platformHistories, ...channelResults] = await Promise.all([
-		api.getHotelScore(venueSlug, requestPeriod, undefined, w),
-		// Blended 'all' history — the longest, canonical x-axis for the compare chart.
-		fetchHistory('all'),
-		// Per-channel history — a channel that lacks ≥2 points is dropped so we never
-		// draw a flat one-point line (same filter the Genel compare chart uses).
-		Promise.all(
-			CHANNELS.map((p) =>
-				fetchHistory(p).then((points) => (points ? { platform: p as string, points } : null))
-			)
-		).then((rows) => rows.filter((r): r is NonNullable<typeof r> => r !== null && r.points.length > 1)),
-		// Per-channel snapshot — a channel with no snapshot yet drops out of the grid.
-		...CHANNELS.map((p) =>
-			api
-				.getHotelScore(venueSlug, requestPeriod, p, w)
-				.then((s) => ({ platform: p as string, score: s }))
-				.catch(() => null)
-		)
-	]);
+	// The bundle 404s without a snapshot, so a 200 always carries blended.
+	if (!b.blended) throw error(404, 'No score snapshot for this venue');
 
-	const channels = channelResults.filter((c): c is NonNullable<typeof c> => c !== null);
-
-	return { blended, period: blended.period, channels, platformHistories, blendedHistory, window, chartDaily: chart.daily };
+	return {
+		blended: b.blended,
+		period: b.period ?? b.blended?.period,
+		channels: b.channels,
+		platformHistories: b.platformHistories,
+		blendedHistory: b.blendedHistory,
+		window,
+		chartDaily: chart.daily
+	};
 };

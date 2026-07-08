@@ -41,24 +41,25 @@ function parseWindow(raw: string | null): Window {
 	return WINDOWS.includes(raw as Window) ? (raw as Window) : '24mo';
 }
 
-// Platform lens: ?platform=tripadvisor compares rivals on ONE channel's snapshot.
-// 'all' (default) = the blended overall comparison. The four channels match the
-// backend whitelist; anything else falls back to 'all'.
-const PLATFORMS = ['all', 'tripadvisor', 'google', 'booking', 'holidaycheck'] as const;
-type Platform = (typeof PLATFORMS)[number];
-function parsePlatform(raw: string | null): Platform {
-	return PLATFORMS.includes(raw as Platform) ? (raw as Platform) : 'all';
-}
+// Platform comparison channels. The top-level GPI bars + heatmap always show the
+// blended overall (no active-channel tab anymore); these four channels are pivoted
+// side-by-side in the "Platform Bazlı Karşılaştırma" section instead. Labels match
+// the backend whitelist (scores/read.ts ?platform=).
+const COMPARE_PLATFORMS = [
+	{ key: 'tripadvisor', label: 'TripAdvisor' },
+	{ key: 'google', label: 'Google' },
+	{ key: 'booking', label: 'Booking' },
+	{ key: 'holidaycheck', label: 'HolidayCheck' }
+] as const;
 
 export const load: PageServerLoad = async (event) => {
 	const { dataSource } = await event.parent();
 	const window = parseWindow(event.url.searchParams.get('window'));
-	const platform = parsePlatform(event.url.searchParams.get('platform'));
 
 	// ── MOCK source ──────────────────────────────────────────────────────────
-	// Demo data is a single fixed snapshot — the window/platform tabs still render
-	// and are selectable, but every combination returns the same mock numbers (no
-	// per-window/per-platform mock set). Live source is where the tabs change figures.
+	// Demo data is a single fixed snapshot — the window selector still renders but every
+	// value returns the same mock numbers (no per-window mock set), and the platform
+	// comparison is null (real-only). Live source is where the figures actually change.
 	if (dataSource === 'mock') {
 		// Whole page is demo → own hotel AND every competitor are mock.
 		return {
@@ -68,53 +69,58 @@ export const load: PageServerLoad = async (event) => {
 			ownRegion: ownRegionFor(DEMO_HOTEL_SCORE.venueSlug),
 			competitorRegions: COMPETITOR_REGIONS,
 			window,
-			platform,
-			ownOnPlatform: true,
-			// Department comparison is REAL-only (rolled up from live snapshots); demo mode
-			// shows the "canlıda gelir" placeholder rather than a fabricated rollup.
-			deptCompare: null,
+			// Platform comparison is REAL-only (each channel's live snapshot); demo mode
+			// shows the "canlıda gelir" placeholder rather than fabricated per-channel bars.
+			platformCompare: null,
 			pageIsMock: true,
 			mockSlugs: DEMO_COMPETITORS.map((c) => c.venueSlug)
 		};
 	}
 
-	// ── LIVE source ──────────────────────────────────────────────────────────
+	// ── LIVE source: ONE bundle call ──────────────────────────────────────────
+	// Perf: this lens was the worst offender — ~10 calls in TWO serial waves (the
+	// platformCompare fan-out awaited the first pair). The backend now does both
+	// server-side (platformCompare included); we make ONE round-trip. lens=
+	// 'competitors' skips histories/segments/impact (no over-fetch).
 	const session = event.locals.session;
 	if (!session) throw error(401, 'Not authenticated');
 	const api = makeServerApi(event);
 
-	// All three follow the same platform+window lens. Department compare is best-effort
-	// (a channel with thin data may 404 the own snapshot) — null it rather than fail the
-	// whole page, so the GPI/heatmap sections still render.
-	//
-	// Own score under a platform filter can 404 if the venue lacks a snapshot on that
-	// channel; fall back to the blended own score so the page still renders (competitors
-	// are still compared on the selected channel). `ownOnPlatform=false` lets the UI note
-	// the own row is blended while rivals are channel-specific — rare for a real venue.
-	const platformArg = platform === 'all' ? undefined : platform;
-	const [ownPlatformScore, competitors, deptCompare] = await Promise.all([
-		api.getHotelScore(session.venueSlug, undefined, platformArg, window).catch(() => null),
-		api.getCompetitorScores(session.venueSlug, undefined, window, platform),
-		api.getDepartmentsCompare(session.venueSlug, { platform, window }).catch(() => null)
-	]);
-	const ownOnPlatform = ownPlatformScore !== null;
-	const hotelScore = ownPlatformScore ?? (await api.getHotelScore(session.venueSlug, undefined, undefined, window));
+	// window is this file's local '24mo'|'12mo'|'6mo'|'3mo'; send undefined at the
+	// default so the URL/param stays clean at 24mo (matches windowParam elsewhere).
+	const b = await api.getOsBundle(session.venueSlug, {
+		lens: 'competitors',
+		window: window === '24mo' ? undefined : window
+	});
 
-	// Live own-venue data is always real. Competitors CAN still be mock: getCompetitorScores
-	// falls back to MOCK_COMPETITORS when the live endpoint returns an empty list (blended
-	// only — under a platform filter an empty list passes through). Flag known mock slugs.
+	// The bundle 404s without a snapshot, so a 200 always carries blended.
+	if (!b.blended) throw error(404, 'No score snapshot for this venue');
+
+	// Empty-competitor fallback: the old getCompetitorScores fetcher substituted the
+	// demo set when the live blended list was empty, so a competitor-less tenant never
+	// looked broken. The bundle does NOT do this (it returns the raw []), so re-apply
+	// it here — ONLY for the blended list, matching the old fetcher's behaviour.
+	const competitors = b.competitors.length > 0 ? b.competitors : MOCK_COMPETITORS;
+
+	// platformCompare comes ready from the bundle (own+rivals per channel, filtered to
+	// channels with a score). ownVenueName falls back to session if the score lacked one.
+	const platformCompare =
+		b.platformCompare && b.platformCompare.platforms.length > 0
+			? { ...b.platformCompare, ownVenueName: b.platformCompare.ownVenueName || (session.venueName ?? session.venueSlug) }
+			: null;
+
+	// Live own-venue data is always real. Competitors CAN still be mock (the fallback
+	// above, or a rival slug that is itself a demo placeholder) — badge them.
 	const mockSlugs = competitors.filter((c) => MOCK_COMPETITOR_SLUGS.has(c.venueSlug)).map((c) => c.venueSlug);
 
 	return {
-		hotelScore,
+		hotelScore: b.blended,
 		competitors,
 		venueName: session.venueName ?? session.venueSlug,
 		ownRegion: ownRegionFor(session.venueSlug),
 		competitorRegions: COMPETITOR_REGIONS,
 		window,
-		platform,
-		ownOnPlatform,
-		deptCompare,
+		platformCompare,
 		pageIsMock: false,
 		mockSlugs
 	};

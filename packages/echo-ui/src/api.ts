@@ -849,3 +849,67 @@ export async function getFeedback(venueSlug: string, token: string, opts?: Fetch
   });
   return res.json();
 }
+
+// ─── OS bundle (one call per /os page — perf) ───────────────────────────────
+//
+// GET /v1/os/:venueSlug?lens=genel|platform|competitors collapses the ~10-13
+// separate score calls each /os page used to make into ONE round-trip. The
+// backend fans the reads out server-side (Mongo is ~0ms; the bottleneck was HTTP
+// chattiness). `lens` selects which parts are fetched, so a page never over-fetches.
+// Live-only: the panel keeps its own mock branch and only calls this in live mode.
+
+export type OsLens = 'genel' | 'platform' | 'competitors';
+
+/** platformCompare block (/os/competitors "Platform Bazlı Karşılaştırma"). */
+export interface OsPlatformCompare {
+  ownVenueName: string;
+  platforms: {
+    key: string;
+    label: string;
+    ownGpi: number | null;
+    rivals: { venueSlug: string; venueName: string; gpi: number }[];
+  }[];
+}
+
+export interface OsBundleResponse {
+  window: string;
+  period: string | null;
+  chartDaily: boolean;
+  /** Blended 'all' snapshot (RPI-enriched). Every lens. */
+  blended: HotelScore | null;
+  /** Per-platform snapshots. lens=genel|platform. */
+  channels: { platform: string; score: HotelScore }[];
+  /** Blended competitors (fail-closed []). lens=genel|competitors. */
+  competitors: CompetitorScore[];
+  /** Audience breakdown. lens=genel only. */
+  segments: SegmentsResponse | null;
+  /** Category GPI leverage. lens=genel only. */
+  impact: ImpactResponse | null;
+  /** Blended trend (monthly or daily per chartDaily). lens=genel|platform. */
+  blendedHistory: HistoryPoint[] | null;
+  /** Per-platform trends (≥2-point filter applied server-side). lens=genel|platform. */
+  platformHistories: { platform: string; points: HistoryPoint[] }[];
+  /** Per-channel own+rivals compare. lens=competitors only. */
+  platformCompare: OsPlatformCompare | null;
+}
+
+export async function getOsBundle(
+  venueSlug: string,
+  token: string,
+  opts: { lens: OsLens; window?: string; period?: string; chartDaily?: boolean; chartFrom?: string },
+  fetchOpts?: FetchOpts
+): Promise<OsBundleResponse> {
+  const { base, f } = resolveFetch(fetchOpts);
+  const params = new URLSearchParams({ lens: opts.lens });
+  if (opts.window && opts.window !== '24mo') params.set('window', opts.window);
+  if (opts.period) params.set('period', opts.period);
+  if (opts.chartDaily) {
+    params.set('chartDaily', '1');
+    if (opts.chartFrom) params.set('chartFrom', opts.chartFrom);
+  }
+  const res = await f(`${base}/os/${encodeURIComponent(venueSlug)}?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error(`getOsBundle failed: ${res.status}`);
+  return res.json();
+}

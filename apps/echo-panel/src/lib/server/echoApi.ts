@@ -39,13 +39,15 @@ import {
 	getReviews,
 	getMentions,
 	getPortfolioScore,
+	getOsBundle,
 	getVenueSettings,
 	patchVenueSettings,
 	listAllVenues,
 	listWatches,
 	type FetchOpts,
 	type ReviewFilters,
-	type MentionFilters
+	type MentionFilters,
+	type OsLens
 } from '@talkwo/echo-ui';
 import { setJwtCookie, clearSession } from '$lib/server/session';
 
@@ -102,6 +104,11 @@ export function makeServerApi(event: RequestEvent) {
 		getResponseStats: (venueSlug: string, platform?: string) =>
 			withRetry((t) => getResponseStats(venueSlug, t, platform, fo())),
 		getPortfolioScore: (period: string) => withRetry((t) => getPortfolioScore(period, t, fo())),
+		// OS bundle: one call feeding a whole /os page (perf). 401-refresh comes free via withRetry.
+		getOsBundle: (
+			venueSlug: string,
+			opts: { lens: OsLens; window?: string; period?: string; chartDaily?: boolean; chartFrom?: string }
+		) => withRetry((t) => getOsBundle(venueSlug, t, opts, fo())),
 		getVenueSettings: (venueSlug: string) => withRetry((t) => getVenueSettings(venueSlug, t, fo())),
 		getReviews: (venueSlug: string, filters: ReviewFilters) =>
 			withRetry((t) => getReviews(venueSlug, filters, t, fo())),

@@ -54,7 +54,11 @@ export const load: PageServerLoad = async (event) => {
 		};
 	}
 
-	// ── LIVE source: real backend over the private network ───────────────────
+	// ── LIVE source: ONE bundle call over the private network ────────────────
+	// Perf: this whole lens used to make ~12 separate HTTP calls (11 parallel + 1
+	// serial getImpact). The backend now fans them out server-side; we make ONE
+	// round-trip. The window→chart decision stays here (windowChartMode) and is
+	// passed to the bundle so the monthly-vs-daily series logic lives in one place.
 	const venueSlug = event.locals.session?.venueSlug;
 	if (!venueSlug) throw error(401, 'Not authenticated');
 	const api = makeServerApi(event);
@@ -62,53 +66,32 @@ export const load: PageServerLoad = async (event) => {
 	const paramPeriod = url.searchParams.get('period');
 	const requestPeriod = /^\d{4}-\d{2}$/.test(paramPeriod ?? '') ? (paramPeriod as string) : undefined;
 
-	// Global time-window: a lookback horizon applied to the POINT-IN-TIME figures
-	// (own score, competitors, segments, impact, per-platform scores) AND to the
-	// trend chart's range/resolution — wide windows show the monthly series, narrow
-	// ones (6mo/3mo) switch to the DAILY series clipped to the window so the chart
-	// zooms in at day resolution instead of showing 3–6 sparse month points.
 	const window = parseOsWindow(url.searchParams.get('window'));
 	const w = windowParam(window);
 	const chart = windowChartMode(window, new Date());
 
-	// A trend fetch for one platform, monthly or daily per the window's chart mode.
-	// Both normalize to { period, gpi }[] (daily uses asOfDate as the period).
-	const fetchHistory = (platform: string) =>
-		chart.daily
-			? api
-					.getDailyHistory(venueSlug, { platform, from: chart.from, window: chart.window, limit: 400 })
-					.then((r) => r.points.map((p) => ({ period: p.asOfDate, scoredAt: p.scoredAt, gpi: p.gpi, reviewCount: p.reviewCount, newReviews: 0 })))
-					.catch(() => null)
-			: api
-					.getScoreHistory(venueSlug, { platform, limit: 24, window: w })
-					.then((r) => r.points)
-					.catch(() => null);
+	const b = await api.getOsBundle(venueSlug, {
+		lens: 'genel',
+		window: w,
+		period: requestPeriod,
+		chartDaily: chart.daily,
+		chartFrom: chart.from
+	});
 
-	const [hotelScore, competitors, segments, history, platformHistories, ...channelResults] =
-		await Promise.all([
-			api.getHotelScore(venueSlug, requestPeriod, undefined, w),
-			api.getCompetitorScores(venueSlug, requestPeriod, w),
-			// Best-effort: a failure must not break the whole lens.
-			api.getSegments(venueSlug, undefined, w).catch(() => null),
-			fetchHistory('all'),
-			Promise.all(
-				CHANNELS.map((p) =>
-					fetchHistory(p).then((points) => (points ? { platform: p as string, points } : null))
-				)
-			).then((rows) => rows.filter((r): r is NonNullable<typeof r> => r !== null && r.points.length > 1)),
-			...CHANNELS.map((p) =>
-				api
-					.getHotelScore(venueSlug, requestPeriod, p, w)
-					.then((s) => ({ platform: p, score: s }))
-					.catch(() => null)
-			)
-		]);
+	// The bundle 404s when there's no snapshot, so a 200 always carries a blended
+	// score. Narrow the type (and guard the edge case) before handing it to the page.
+	if (!b.blended) throw error(404, 'No score snapshot for this venue');
 
-	const channels = channelResults.filter((c): c is NonNullable<typeof c> => c !== null);
-
-	const impact = await api
-		.getImpact(venueSlug, { ...(requestPeriod ? { period: requestPeriod } : {}), ...(w ? { window: w } : {}) })
-		.catch(() => null);
-
-	return { hotelScore, competitors, channels, period: hotelScore.period, segments, history, platformHistories, impact, window, chartDaily: chart.daily };
+	return {
+		hotelScore: b.blended,
+		competitors: b.competitors,
+		channels: b.channels,
+		period: b.period ?? b.blended?.period,
+		segments: b.segments,
+		history: b.blendedHistory,
+		platformHistories: b.platformHistories,
+		impact: b.impact,
+		window,
+		chartDaily: chart.daily
+	};
 };
