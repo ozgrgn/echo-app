@@ -78,7 +78,7 @@
 			const res = await fetch('/api/owner-routing', {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ venueSlug: data.venueSlug, routeKey: row.route_key, patch })
+				body: JSON.stringify({ routeKey: row.route_key, patch })
 			});
 			if (!res.ok) throw new Error(String(res.status));
 			const { row: updated } = (await res.json()) as { row: VenueRouteRow };
