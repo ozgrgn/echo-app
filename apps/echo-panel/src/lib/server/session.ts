@@ -32,6 +32,9 @@ export interface SessionIdentity {
 	tenantKey: string;
 	venueSlug: string;
 	venueName: string;
+	/** Ecosystem superadmin (from /auth/whoami at login). Gates the Yönetim
+	 *  surface in the UI; the backend still enforces it via requireSuperadmin. */
+	isSuperadmin: boolean;
 }
 
 export interface RefreshCreds {
@@ -130,7 +133,15 @@ export function readIdentity(cookies: Cookies): SessionIdentity | null {
 	const raw = cookies.get(SESSION_COOKIE);
 	if (!raw) return null;
 	try {
-		return JSON.parse(raw) as SessionIdentity;
+		const parsed = JSON.parse(raw) as Partial<SessionIdentity>;
+		if (!parsed.tenantKey || !parsed.venueSlug) return null;
+		// Back-compat: cookies minted before isSuperadmin existed default to false.
+		return {
+			tenantKey: parsed.tenantKey,
+			venueSlug: parsed.venueSlug,
+			venueName: parsed.venueName ?? '',
+			isSuperadmin: parsed.isSuperadmin ?? false
+		};
 	} catch {
 		return null;
 	}

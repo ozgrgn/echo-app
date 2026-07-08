@@ -16,7 +16,8 @@ export const load: LayoutServerLoad = ({ locals }) => {
 			? {
 					tenantKey: locals.session.tenantKey,
 					venueSlug: locals.session.venueSlug,
-					venueName: locals.session.venueName
+					venueName: locals.session.venueName,
+					isSuperadmin: locals.session.isSuperadmin
 				}
 			: null
 	};

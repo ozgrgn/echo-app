@@ -29,7 +29,8 @@ export const load: LayoutServerLoad = ({ locals, cookies, url }) => {
 			? {
 					tenantKey: locals.session.tenantKey,
 					venueSlug: locals.session.venueSlug,
-					venueName: locals.session.venueName
+					venueName: locals.session.venueName,
+					isSuperadmin: locals.session.isSuperadmin
 				}
 			: null
 	};

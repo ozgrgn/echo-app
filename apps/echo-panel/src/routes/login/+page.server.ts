@@ -12,9 +12,9 @@
  */
 
 import { fail, redirect } from '@sveltejs/kit';
-import { login, listVenues } from '@talkwo/echo-ui';
+import { login, listVenues, whoami } from '@talkwo/echo-ui';
 import { serverApiBaseUrl } from '$lib/server/apiBaseUrl';
-import { setSession, setIdentityCookie, readRefresh, readJwt } from '$lib/server/session';
+import { setSession, setIdentityCookie, readRefresh, readJwt, readIdentity } from '$lib/server/session';
 import type { Actions } from './$types';
 
 function safeRedirectTarget(raw: string | null): string {
@@ -43,6 +43,15 @@ export const actions: Actions = {
 			return fail(401, { error: e instanceof Error ? e.message : 'Giriş başarısız.', tenantKey });
 		}
 
+		// Resolve authority once at login (superadmin is per-identity, not per-venue).
+		// A whoami failure must not block login — degrade to non-superadmin.
+		let isSuperadmin = false;
+		try {
+			isSuperadmin = (await whoami(token, opts)).isSuperadmin;
+		} catch {
+			isSuperadmin = false;
+		}
+
 		const owned = (await listVenues(token, opts)).filter((v) => v.isOwned);
 		if (owned.length === 0) {
 			return fail(400, {
@@ -57,7 +66,7 @@ export const actions: Actions = {
 				token,
 				expiresIn,
 				refresh: { tenantKey, clientSecret },
-				identity: { tenantKey, venueSlug: v.slug, venueName: v.name }
+				identity: { tenantKey, venueSlug: v.slug, venueName: v.name, isSuperadmin }
 			});
 			throw redirect(303, redirectTo);
 		}
@@ -69,7 +78,7 @@ export const actions: Actions = {
 			token,
 			expiresIn,
 			refresh: { tenantKey, clientSecret },
-			identity: { tenantKey, venueSlug: first.slug, venueName: first.name }
+			identity: { tenantKey, venueSlug: first.slug, venueName: first.name, isSuperadmin }
 		});
 		return {
 			step: 'venue-picker' as const,
@@ -87,7 +96,9 @@ export const actions: Actions = {
 		if (!venueSlug) return fail(400, { error: 'Otel seçilmedi.' });
 
 		const refresh = readRefresh(cookies)!;
-		setIdentityCookie(cookies, { tenantKey: refresh.tenantKey, venueSlug, venueName });
+		// Preserve superadmin resolved at login — a venue switch doesn't change authority.
+		const isSuperadmin = readIdentity(cookies)?.isSuperadmin ?? false;
+		setIdentityCookie(cookies, { tenantKey: refresh.tenantKey, venueSlug, venueName, isSuperadmin });
 		throw redirect(303, safeRedirectTarget(url.searchParams.get('redirectTo')));
 	}
 };

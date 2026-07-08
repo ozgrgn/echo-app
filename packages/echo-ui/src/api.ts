@@ -92,6 +92,19 @@ export interface AuthTokenResponse {
   expiresIn: number;
 }
 
+/** GET /auth/whoami — the caller's own identity + authority, computed backend-side.
+ *  `isSuperadmin` is the single source of truth (backend rule: isSuperadmin flag OR
+ *  role 'platform_admin'); the frontend never decodes the JWT to avoid drift. */
+export interface WhoamiResponse {
+  sub: string;
+  name: string | null;
+  role: string | null;
+  department: string | null;
+  tenantKey: string | null;
+  venueId: string | null;
+  isSuperadmin: boolean;
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export async function login(creds: AuthCredentials, opts?: FetchOpts): Promise<AuthTokenResponse> {
@@ -105,6 +118,18 @@ export async function login(creds: AuthCredentials, opts?: FetchOpts): Promise<A
   if (!res.ok) {
     const problem = await res.json().catch(() => ({ detail: 'Login failed' }));
     throw new Error(problem.detail || `Login failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function whoami(token: string, opts?: FetchOpts): Promise<WhoamiResponse> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/auth/whoami`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    const problem = await res.json().catch(() => ({ detail: 'whoami failed' }));
+    throw new Error(problem.detail || `whoami failed: ${res.status}`);
   }
   return res.json();
 }

@@ -36,9 +36,18 @@
 		requires?: () => boolean;
 	}
 
-	const sub = $derived(ctx?.subscription ?? null);
+	/** A labeled section of nav items whose whole visibility can be gated at once. */
+	interface NavGroup {
+		label: string;
+		requires?: () => boolean;
+		items: NavItem[];
+	}
 
-	const allNav: NavItem[] = [
+	const sub = $derived(ctx?.subscription ?? null);
+	const isSuperadmin = $derived(data?.session?.isSuperadmin ?? false);
+
+	// Top-level (ungrouped) items — visible per their own `requires`.
+	const primaryNav: NavItem[] = [
 		{ href: '/dashboard', icon: '📊', label: 'Dashboard' },
 		{ href: '/os', icon: '⚡', label: 'ECHO OS (beta)' },
 		{
@@ -63,12 +72,39 @@
 			label: 'Geribildirim',
 			requires: () => ctx?.mode === 'hoops'
 		},
-		{ href: '/settings', icon: '⚙️', label: 'Ayarlar' },
-		// Superadmin venue/competitor/platform management (Talkwo team). TODO: gate by role.
-		{ href: '/admin', icon: '🛠️', label: 'Yönetim' }
+		{ href: '/settings', icon: '⚙️', label: 'Ayarlar' }
 	];
 
-	const navItems = $derived(allNav.filter((i) => !i.requires || i.requires()));
+	// Yönetim — superadmin-only group. Owner Routing lives here now (was a
+	// standalone item); the whole group is gated, so routing is superadmin-only too.
+	// Route paths are unchanged — only the sidebar grouping/gating moved. Owner
+	// Routing (/settings/owner-routing) is listed first so the startsWith active-
+	// match below picks the more specific path before /settings.
+	const adminGroup: NavGroup = {
+		label: 'Yönetim',
+		requires: () => isSuperadmin,
+		items: [
+			{ href: '/settings/owner-routing', icon: '🧭', label: 'Yönlendirme' },
+			{ href: '/admin', icon: '🛠️', label: 'Venue / Platform' }
+		]
+	};
+
+	const primaryItems = $derived(primaryNav.filter((i) => !i.requires || i.requires()));
+	const showAdminGroup = $derived(!adminGroup.requires || adminGroup.requires());
+	// Flat list of every currently-visible item, sorted longest-href-first so the
+	// startsWith title lookup below resolves the most specific path — e.g.
+	// /settings/owner-routing must win over /settings (they share a prefix).
+	const visibleItems = $derived(
+		[...primaryItems, ...(showAdminGroup ? adminGroup.items : [])].sort(
+			(a, b) => b.href.length - a.href.length
+		)
+	);
+	// The single active item = the most specific href that prefixes the current
+	// path (visibleItems is longest-first, so the first match is the winner). This
+	// prevents /settings from also lighting up while on /settings/owner-routing.
+	const activeHref = $derived(
+		visibleItems.find((i) => page.url.pathname.startsWith(i.href))?.href ?? null
+	);
 
 	let collapsed = $state(false);
 
@@ -113,8 +149,8 @@
 
 		<!-- Nav -->
 		<nav class="flex-1 overflow-y-auto">
-			{#each navItems as item (item.href)}
-				{@const active = page.url.pathname.startsWith(item.href)}
+			{#snippet navLink(item: NavItem)}
+				{@const active = activeHref === item.href}
 				<a
 					href={item.href}
 					class={[
@@ -128,7 +164,27 @@
 					<span class="text-lg shrink-0">{item.icon}</span>
 					{#if !collapsed}<span>{item.label}</span>{/if}
 				</a>
+			{/snippet}
+
+			{#each primaryItems as item (item.href)}
+				{@render navLink(item)}
 			{/each}
+
+			<!-- Yönetim (superadmin-only group) -->
+			{#if showAdminGroup}
+				{#if !collapsed}
+					<div
+						class="px-6 pt-5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-sidebar-text/50"
+					>
+						{adminGroup.label}
+					</div>
+				{:else}
+					<div class="mx-6 my-2 border-t border-white/10"></div>
+				{/if}
+				{#each adminGroup.items as item (item.href)}
+					{@render navLink(item)}
+				{/each}
+			{/if}
 		</nav>
 
 		<!-- Footer -->
@@ -167,7 +223,7 @@
 			class="sticky top-0 z-10 bg-surface-1 border-b border-border px-8 py-4 flex items-center justify-between"
 		>
 			<h1 class="text-lg font-semibold text-text-1">
-				{navItems.find((i) => page.url.pathname.startsWith(i.href))?.label ?? 'ECHO'}
+				{visibleItems.find((i) => page.url.pathname.startsWith(i.href))?.label ?? 'ECHO'}
 			</h1>
 			<div class="flex items-center gap-4 text-sm text-text-2">
 				<!-- Period selector + venue switcher come in later phases -->
