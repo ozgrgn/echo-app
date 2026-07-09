@@ -36,6 +36,9 @@ export const actions: Actions = {
 		const opts = { baseUrl: serverApiBaseUrl(), fetch };
 		let token: string, expiresIn: number;
 		try {
+			// Dev superadmin preview is NOT a login-form choice — the backend grants it
+			// server-side (PANEL_DEV_SUPERADMIN_TENANTS allowlist + NODE_ENV=development),
+			// so there's nothing to pass here. whoami below reflects whatever it decided.
 			const res = await login({ tenantKey, clientSecret }, opts);
 			token = res.accessToken;
 			expiresIn = res.expiresIn;

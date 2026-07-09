@@ -596,45 +596,6 @@ export async function getDepartmentDetail(
   return res.json();
 }
 
-// ─── Department comparison (OS "Rakipler" lens, department breakdown) ────────
-// Own venue + every competitor, each rolled up to department scores via the SAME
-// mention-weighted rollup the owned "Departmanlar" lens uses — so numbers line up.
-
-/** One venue's department rollup, trimmed to what the competitor comparison needs. */
-export interface DepartmentCompareRow {
-  venueSlug: string;
-  venueName: string;
-  departments: { key: string; label: string; score: number | null }[];
-}
-
-export interface DepartmentCompareResponse {
-  own: DepartmentCompareRow;
-  competitors: DepartmentCompareRow[];
-}
-
-export async function getDepartmentsCompare(
-  venueSlug: string,
-  token: string,
-  /** platform: 'all' (default) | a channel; window: '24mo' (default) | '12mo'|'6mo'|'3mo'.
-   *  Both mirror the competitors page's global window + platform lens. */
-  opts: { platform?: string; period?: string; window?: string } = {},
-  fetchOpts?: FetchOpts
-): Promise<DepartmentCompareResponse> {
-  const { base, f } = resolveFetch(fetchOpts);
-  const params = new URLSearchParams({
-    ...(opts.platform && opts.platform !== 'all' ? { platform: opts.platform } : {}),
-    ...(opts.period ? { period: opts.period } : {}),
-    ...(opts.window && opts.window !== '24mo' ? { window: opts.window } : {})
-  });
-  const qs = params.toString();
-  const res = await f(
-    `${base}/departments/${encodeURIComponent(venueSlug)}/compare${qs ? `?${qs}` : ''}`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  if (!res.ok) throw new Error(`getDepartmentsCompare failed: ${res.status}`);
-  return res.json();
-}
-
 // ─── Impact analysis (OS "neyi düzeltirsem GPI artar?") ──────────────────────
 // REAL leverage: per-category GPI lift computed with the backend scoring function.
 

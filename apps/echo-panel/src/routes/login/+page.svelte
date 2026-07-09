@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { dev } from '$app/environment';
 
 	let { form } = $props();
 
@@ -76,6 +77,16 @@
 						Bu sır size bir kez verilir. Kaybederseniz Talkwo ekibinden yeni bir sır talep edin.
 					</small>
 				</label>
+
+				{#if dev}
+					<!-- DEV hint: superadmin (Yönetim) is granted server-side, not via this
+					     form — add the tenantKey to PANEL_DEV_SUPERADMIN_TENANTS in the
+					     backend .env (NODE_ENV=development). Real prod path is OTP login. -->
+					<p class="rounded-md border border-dashed border-warning/40 bg-warning-light/20 px-3 py-2 text-xs text-text-3">
+						Dev: Yönetim'i görmek için bu tenant'ı backend <code>.env</code>'inde
+						<code>PANEL_DEV_SUPERADMIN_TENANTS</code>'e ekle.
+					</p>
+				{/if}
 
 				{#if error}
 					<p class="rounded-md bg-danger-light px-3 py-2 text-sm text-danger">{error}</p>

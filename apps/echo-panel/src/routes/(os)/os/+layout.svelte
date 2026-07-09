@@ -13,7 +13,7 @@
 	import { osState } from '$lib/stores/osState.svelte';
 	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 	import { MOCK_OS_COUNTERS } from '$lib/mock/os';
-	import { Target, Bell, Settings, Database } from '@lucide/svelte';
+	import { Target, Bell, Settings, Database, Wrench } from '@lucide/svelte';
 	import { OS_NAV, lensForPath, type OsNavItem } from '$lib/config/osNav';
 	import { OS_WINDOW_TABS, parseOsWindow, hidesCompetitors } from '$lib/config/window';
 	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
@@ -30,6 +30,10 @@
 	// stays put, which would desync the rail highlight from the actual route.
 	const activeKind = $derived(lensForPath(page.url.pathname) ?? osState.lens.kind);
 	const isMock = $derived(osDataSource.isMock);
+
+	// Superadmin gates the Yönetim rail entry — same flag the classic (app) nav
+	// uses, plumbed via /auth/whoami → session cookie → PageData.
+	const isSuperadmin = $derived(data?.session?.isSuperadmin ?? false);
 
 	// These lenses carry their own back button + in-page switcher row, so the
 	// global LensTabs would stack a second button row. Hide it on them.
@@ -146,13 +150,33 @@
 			</span>
 		</button>
 
+		<!-- Ayarlar — venue settings. Lives at /settings for now; opened from the OS
+		     rail so the classic sidebar is no longer the only way in. -->
 		<button
-			onclick={() => goto('/dashboard')}
-			title="Klasik panele dön"
-			class="grid h-10 w-10 place-items-center rounded-xl text-text-3 transition-colors hover:bg-surface-2 hover:text-text-1"
+			onclick={() => goto('/settings')}
+			title="Ayarlar"
+			class="grid h-10 w-10 place-items-center rounded-xl transition-colors
+				{page.url.pathname.startsWith('/settings') && !page.url.pathname.startsWith('/settings/owner-routing')
+				? 'bg-text-1 text-white'
+				: 'text-text-3 hover:bg-surface-2 hover:text-text-1'}"
 		>
 			<Settings size={19} strokeWidth={2} />
 		</button>
+
+		<!-- Yönetim — superadmin-only (venue/platform/refs/watches + Yönlendirme).
+		     Hidden entirely for non-superadmins; backend also enforces requireSuperadmin. -->
+		{#if isSuperadmin}
+			<button
+				onclick={() => goto('/admin')}
+				title="Yönetim"
+				class="grid h-10 w-10 place-items-center rounded-xl transition-colors
+					{page.url.pathname.startsWith('/admin') || page.url.pathname.startsWith('/settings/owner-routing')
+					? 'bg-text-1 text-white'
+					: 'text-text-3 hover:bg-surface-2 hover:text-text-1'}"
+			>
+				<Wrench size={19} strokeWidth={2} />
+			</button>
+		{/if}
 	</nav>
 
 	<!-- ── Canvas (lens views render here) ───────────────────────────────── -->
