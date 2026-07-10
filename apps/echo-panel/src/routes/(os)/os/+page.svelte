@@ -24,7 +24,6 @@
 
 	import {
 		MOCK_OS_DEPTS,
-		MOCK_OS_RESPONSE,
 		PLATFORM_COLOR,
 		type OsPlatform
 	} from '$lib/mock/os';
@@ -357,9 +356,9 @@
 	<ResponseAnalytics
 		overallRate={hs.responseStats.rate}
 		medianHours={hs.responseStats.medianResponseTimeHours}
-		byPlatform={MOCK_OS_RESPONSE.byPlatform}
-		bySentiment={MOCK_OS_RESPONSE.bySentiment}
-		competitorAvgRate={MOCK_OS_RESPONSE.competitorAvgRate}
+		byPlatform={data.responseBreakdown.byPlatform}
+		bySentiment={data.responseBreakdown.bySentiment}
+		competitorAvgRate={data.responseBreakdown.competitorAvgRate}
 	/>
 </SectionCard>
 

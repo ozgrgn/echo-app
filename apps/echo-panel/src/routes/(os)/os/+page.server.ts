@@ -1,9 +1,47 @@
 import type { PageServerLoad } from './$types';
-import type { SegmentsResponse, HistoryPoint, ImpactResponse } from '@talkwo/echo-ui';
-import { DEMO_HOTEL_SCORE, DEMO_PLATFORM_SCORES, DEMO_COMPETITORS, DEMO_SEGMENTS, DEMO_HISTORY } from '$lib/mock/os';
+import type { SegmentsResponse, HistoryPoint, ImpactResponse, ResponseStats } from '@talkwo/echo-ui';
+import type { ResponseRateRow } from '$lib/mock/os';
+import { DEMO_HOTEL_SCORE, DEMO_PLATFORM_SCORES, DEMO_COMPETITORS, DEMO_SEGMENTS, DEMO_HISTORY, MOCK_OS_RESPONSE } from '$lib/mock/os';
 import { error } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
 import { parseOsWindow, windowParam, windowChartMode } from '$lib/config/window';
+
+// Human labels for the response breakdown (backend slices carry a raw platform key).
+const PLATFORM_LABEL: Record<string, string> = {
+	google: 'Google',
+	tripadvisor: 'TripAdvisor',
+	booking: 'Booking',
+	holidaycheck: 'HolidayCheck'
+};
+const SENTIMENT_LABEL: Record<string, string> = {
+	negative: 'Olumsuz',
+	neutral: 'Nötr',
+	positive: 'Olumlu'
+};
+
+/** Map the backend's ResponseStats into the ResponseRateRow shape the card renders.
+ *  Backend byPlatform slices carry `platform`; bySentiment carry a `key` — normalize
+ *  both to {key,label,rate,responded,total}. */
+function toResponseRows(stats: ResponseStats): {
+	byPlatform: ResponseRateRow[];
+	bySentiment: ResponseRateRow[];
+} {
+	const byPlatform = (stats.byPlatform ?? []).map((p) => ({
+		key: p.platform,
+		label: PLATFORM_LABEL[p.platform] ?? p.platform,
+		rate: p.rate,
+		responded: p.responded,
+		total: p.total
+	}));
+	const bySentiment = (stats.bySentiment ?? []).map((s) => ({
+		key: s.key,
+		label: SENTIMENT_LABEL[s.key] ?? s.key,
+		rate: s.rate,
+		responded: s.responded,
+		total: s.total
+	}));
+	return { byPlatform, bySentiment };
+}
 
 // SSR server load. Source is decided by the layout server load (echo_os_source
 // cookie): 'mock' → rich demo dataset (no auth); 'live' → real backend over the
@@ -50,7 +88,13 @@ export const load: PageServerLoad = async (event) => {
 				platform: p as string,
 				points: (DEMO_HISTORY as HistoryPoint[]).map((h) => ({ ...h, gpi: +(h.gpi + (i - 1.5) * 2).toFixed(1) }))
 			})),
-			impact: demoImpact()
+			impact: demoImpact(),
+			// Demo response breakdown — the mock constants (already in ResponseRateRow shape).
+			responseBreakdown: {
+				byPlatform: MOCK_OS_RESPONSE.byPlatform,
+				bySentiment: MOCK_OS_RESPONSE.bySentiment,
+				competitorAvgRate: MOCK_OS_RESPONSE.competitorAvgRate
+			}
 		};
 	}
 
@@ -70,17 +114,33 @@ export const load: PageServerLoad = async (event) => {
 	const w = windowParam(window);
 	const chart = windowChartMode(window, new Date());
 
-	const b = await api.getOsBundle(venueSlug, {
-		lens: 'genel',
-		window: w,
-		period: requestPeriod,
-		chartDaily: chart.daily,
-		chartFrom: chart.from
-	});
+	// The OS bundle drives the whole page; the response-stats endpoint feeds ONLY the
+	// "Yanıt Yönetimi" breakdown. Run them in parallel, but never let a response-stats
+	// failure 404 the whole lens — the card degrades to the mock breakdown instead.
+	const [b, responseStats] = await Promise.all([
+		api.getOsBundle(venueSlug, {
+			lens: 'genel',
+			window: w,
+			period: requestPeriod,
+			chartDaily: chart.daily,
+			chartFrom: chart.from
+		}),
+		api.getResponseStats(venueSlug).catch(() => null)
+	]);
 
 	// The bundle 404s when there's no snapshot, so a 200 always carries a blended
 	// score. Narrow the type (and guard the edge case) before handing it to the page.
 	if (!b.blended) throw error(404, 'No score snapshot for this venue');
+
+	// Real per-platform / per-sentiment response rates (replaces the old mock). The
+	// competitor/market average is not served yet → keep the mock benchmark for now.
+	const responseBreakdown = responseStats
+		? { ...toResponseRows(responseStats), competitorAvgRate: MOCK_OS_RESPONSE.competitorAvgRate }
+		: {
+				byPlatform: MOCK_OS_RESPONSE.byPlatform,
+				bySentiment: MOCK_OS_RESPONSE.bySentiment,
+				competitorAvgRate: MOCK_OS_RESPONSE.competitorAvgRate
+			};
 
 	return {
 		hotelScore: b.blended,
@@ -91,6 +151,7 @@ export const load: PageServerLoad = async (event) => {
 		history: b.blendedHistory,
 		platformHistories: b.platformHistories,
 		impact: b.impact,
+		responseBreakdown,
 		window,
 		chartDaily: chart.daily
 	};

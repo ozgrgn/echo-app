@@ -130,10 +130,12 @@ export const MOCK_OS_COUNTERS = {
 	atRiskGoals: 1    // [MOCK→echo] goal definitions + [MOCK→radar] risk verdict
 };
 
-// ── Management response analytics — [MOCK→radar] ─────────────────────────────
-// The blended response rate is [REAL] (HotelScore.responseStats), but the
-// per-platform / per-sentiment / competitor-average breakdowns are not served by
-// the backend yet. Radar's response-rollup will own these. Rates are 0..1.
+// ── Management response analytics ────────────────────────────────────────────
+// UPDATE: byPlatform / bySentiment are now [REAL] — served by /v1/responses/stats
+// and wired in the OS loader (toResponseRows). MOCK_OS_RESPONSE below is retained
+// for: (1) demo/mock source mode, and (2) the competitorAvgRate ("Pazar") benchmark,
+// which is still [MOCK→radar] until radar serves a market response-rate rollup.
+// Rates are 0..1.
 export interface ResponseRateRow {
 	key: string;
 	label: string;

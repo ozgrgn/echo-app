@@ -1,8 +1,9 @@
 <!--
   ResponseAnalytics — management-response breakdown: response rate per platform
   and per sentiment, benchmarked against the market average. The blended rate +
-  median time are [REAL] (HotelScore.responseStats); the breakdowns are
-  [MOCK→radar] (MOCK_OS_RESPONSE) until radar serves a response rollup.
+  median time and the per-platform / per-sentiment breakdowns are all [REAL]
+  (/v1/responses/stats). Only competitorAvgRate ("Pazar") is still [MOCK→radar]
+  until radar serves a market response-rate benchmark.
 -->
 <script lang="ts">
 	import type { ResponseRateRow } from '$lib/mock/os';
