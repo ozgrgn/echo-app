@@ -33,7 +33,6 @@ import {
 	getImpact,
 	getDepartments,
 	getDepartmentDetail,
-	getDepartmentsCompare,
 	getResponseStats,
 	getResponseQueue,
 	getReviews,
@@ -42,14 +41,15 @@ import {
 	getOsBundle,
 	getVenueSettings,
 	patchVenueSettings,
-	getVenueRoutingCatalog,
-	patchVenueRoutingRow,
+	getVenueGranularCatalog,
+	patchVenueGranularRow,
+	deleteVenueGranularRow,
 	listAllVenues,
 	listWatches,
 	type FetchOpts,
 	type ReviewFilters,
 	type MentionFilters,
-	type VenueRoutePatch,
+	type VenueGranularPatch,
 	type OsLens
 } from '@talkwo/echo-ui';
 import { setJwtCookie, clearSession } from '$lib/server/session';
@@ -119,10 +119,12 @@ export function makeServerApi(event: RequestEvent) {
 			withRetry((t) => getMentions(venueSlug, filters, t, fo())),
 		patchVenueSettings: (venueSlug: string, patch: Parameters<typeof patchVenueSettings>[1]) =>
 			withRetry((t) => patchVenueSettings(venueSlug, patch, t, fo())),
-		getVenueRoutingCatalog: (venueSlug: string) =>
-			withRetry((t) => getVenueRoutingCatalog(venueSlug, t, fo())),
-		patchVenueRoutingRow: (venueSlug: string, routeKey: string, patch: VenueRoutePatch) =>
-			withRetry((t) => patchVenueRoutingRow(venueSlug, routeKey, patch, t, fo())),
+		getVenueGranularCatalog: (venueSlug: string) =>
+			withRetry((t) => getVenueGranularCatalog(venueSlug, t, fo())),
+		patchVenueGranularRow: (venueSlug: string, granularKey: string, patch: VenueGranularPatch) =>
+			withRetry((t) => patchVenueGranularRow(venueSlug, granularKey, patch, t, fo())),
+		deleteVenueGranularRow: (venueSlug: string, granularKey: string) =>
+			withRetry((t) => deleteVenueGranularRow(venueSlug, granularKey, t, fo())),
 
 		// ── domain-opts shape: (..., token, domainOpts, FetchOpts) ──
 		getScoreHistory: (venueSlug: string, opts: { platform?: string; limit?: number; window?: string } = {}) =>
@@ -140,10 +142,6 @@ export function makeServerApi(event: RequestEvent) {
 			deptKey: string,
 			opts: { platform?: string; period?: string; window?: string } = {}
 		) => withRetry((t) => getDepartmentDetail(venueSlug, deptKey, t, opts, fo())),
-		getDepartmentsCompare: (
-			venueSlug: string,
-			opts: { platform?: string; period?: string; window?: string } = {}
-		) => withRetry((t) => getDepartmentsCompare(venueSlug, t, opts, fo())),
 		getResponseQueue: (venueSlug: string, opts: { platform?: string; limit?: number } = {}) =>
 			withRetry((t) => getResponseQueue(venueSlug, t, opts, fo())),
 

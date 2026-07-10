@@ -788,68 +788,75 @@ export async function patchVenueSettings(
   }
 }
 
-// ─── Owner Routing (per-venue route catalog snapshot) ───────────────────────
+// ─── Granular owner config (per-venue owner override, v2) ───────────────────
+//
+// Replaces the Owner Router route catalog. The global granular catalog is committed in
+// echo-backend; a venue only OVERRIDES a granular_key's owner (and enabled). There is NO
+// routing mode — each granular_key has exactly one owner (the ABSA granular split removed
+// the "route through the LLM or not" question). GET returns the merged view (catalog ⊕
+// venue overrides); PATCH sets owner_key/enabled; DELETE resets a key to its catalog default.
 
-/** One row of a venue's Owner Router catalog snapshot (mirrors echo-backend). */
-export interface VenueRouteRow {
-  route_key: string;
+/** One row of the merged granular catalog for a venue (mirrors echo-backend MergedGranularRow). */
+export interface VenueGranularRow {
   category: string;
-  subcategory: string;
-  route_label: string;
-  routing_mode: 'direct_map' | 'owner_router' | 'no_score' | 'critical';
-  /** Global default (read-only in the panel). */
-  default_owner_key: string | null;
-  /** Venue's chosen owner (editable). */
+  parent_key: string;
+  granular_key: string;
+  label_tr: string;
+  description_tr: string;
+  /** Global default owner from the committed catalog (read-only). */
+  default_owner_key: string;
+  /** The venue's override owner, or null if none. */
   venue_owner_key: string | null;
-  /** Explicit fallback for owner_router rows when the LLM is low-confidence. */
-  fallback_owner_key?: string;
-  hint: string;
+  /** What routing actually uses: venue override if set, else default. */
+  effective_owner_key: string;
+  owner_source: 'catalog_default' | 'venue_override';
+  /** Catalog-authoritative, read-only in the panel. */
+  score_policy: 'department_score' | 'no_score' | 'external_report' | 'manual_review';
+  alert_policy: 'none' | 'critical_alert';
+  critical_flags: string[];
   enabled: boolean;
-  /** True once the venue changed this row from the global default. */
-  is_customized: boolean;
-  catalog_version: string;
 }
 
-export interface VenueRoutingCatalog {
+export interface VenueGranularCatalog {
   venueSlug: string;
   catalog_version: string;
+  catalog_hash: string;
   /** The owner dropdown vocabulary (ops departments ∪ system buckets), sorted. */
   allowed_owners: string[];
-  rows: VenueRouteRow[];
+  rows: VenueGranularRow[];
 }
 
-/** GET a venue's Owner Router catalog snapshot (created lazily on first read). */
-export async function getVenueRoutingCatalog(
+/** GET a venue's merged granular catalog (committed catalog ⊕ venue owner overrides). */
+export async function getVenueGranularCatalog(
   venueSlug: string,
   token: string,
   opts?: FetchOpts,
-): Promise<VenueRoutingCatalog> {
+): Promise<VenueGranularCatalog> {
   const { base, f } = resolveFetch(opts);
-  const res = await f(`${base}/venues/${encodeURIComponent(venueSlug)}/owner-routing-catalog`, {
+  const res = await f(`${base}/venues/${encodeURIComponent(venueSlug)}/granular-catalog`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error(`getVenueRoutingCatalog failed: ${res.status}`);
-  return (await res.json()) as VenueRoutingCatalog;
+  if (!res.ok) throw new Error(`getVenueGranularCatalog failed: ${res.status}`);
+  return (await res.json()) as VenueGranularCatalog;
 }
 
-/** Editable fields on one venue route row. */
-export interface VenueRoutePatch {
-  venue_owner_key?: string;
-  hint?: string;
+/** Editable fields on one venue granular row (owner + enabled ONLY). */
+export interface VenueGranularPatch {
+  owner_key?: string;
   enabled?: boolean;
 }
 
-/** PATCH one venue route row (venue_owner_key / hint / enabled). Returns the updated row. */
-export async function patchVenueRoutingRow(
+/** PATCH one granular_key's owner/enabled override for a venue. Returns the merged row. */
+export async function patchVenueGranularRow(
   venueSlug: string,
-  routeKey: string,
-  patch: VenueRoutePatch,
+  granularKey: string,
+  patch: VenueGranularPatch,
   token: string,
   opts?: FetchOpts,
-): Promise<VenueRouteRow> {
+): Promise<VenueGranularRow> {
   const { base, f } = resolveFetch(opts);
   const res = await f(
-    `${base}/venues/${encodeURIComponent(venueSlug)}/owner-routing-catalog/${encodeURIComponent(routeKey)}`,
+    `${base}/venues/${encodeURIComponent(venueSlug)}/granular-catalog/${encodeURIComponent(granularKey)}`,
     {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -858,10 +865,33 @@ export async function patchVenueRoutingRow(
   );
   if (!res.ok) {
     const problem = await res.json().catch(() => ({ detail: 'Save failed' }));
-    throw new Error(problem.detail || `patchVenueRoutingRow failed: ${res.status}`);
+    throw new Error(problem.detail || `patchVenueGranularRow failed: ${res.status}`);
   }
   const data = await res.json();
-  return data.row as VenueRouteRow;
+  return data.row as VenueGranularRow;
+}
+
+/** DELETE a venue's override for one granular_key → resets it to the catalog default owner. */
+export async function deleteVenueGranularRow(
+  venueSlug: string,
+  granularKey: string,
+  token: string,
+  opts?: FetchOpts,
+): Promise<VenueGranularRow> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(
+    `${base}/venues/${encodeURIComponent(venueSlug)}/granular-catalog/${encodeURIComponent(granularKey)}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  if (!res.ok) {
+    const problem = await res.json().catch(() => ({ detail: 'Reset failed' }));
+    throw new Error(problem.detail || `deleteVenueGranularRow failed: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.row as VenueGranularRow;
 }
 
 // ─── Survey (Hoops-Integrated mode only) ────────────────────────────────────
