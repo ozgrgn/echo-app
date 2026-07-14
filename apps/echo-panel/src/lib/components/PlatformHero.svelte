@@ -46,7 +46,9 @@
 			{label}
 			<span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide" style="background:{pal.soft};color:{pal.deep}">canlı veri</span>
 		</div>
-		<div class="mt-0.5 text-xs text-text-3">{reviewCount} yorum · Manavgat bölgesi · Sezon: Nis–Kas</div>
+		<!-- Region + season were hardcoded to one customer's venue; neither is in the
+		     score payload, so the subtitle now carries only what we actually know. -->
+		<div class="mt-0.5 text-xs text-text-3">{reviewCount} yorum</div>
 	</div>
 
 	<div class="ml-auto flex items-end gap-3">

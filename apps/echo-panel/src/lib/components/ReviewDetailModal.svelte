@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Dialog } from 'bits-ui';
-	import { CATEGORIES, PLATFORM_REGISTRY, getSubcategoryLabel, type Review, type Sentiment } from '@talkwo/echo-core';
+	import { CATEGORIES, PLATFORM_REGISTRY, getSubcategoryLabel, type Review, type Sentiment, type SentimentItem } from '@talkwo/echo-core';
 
 	interface Props {
 		review: Review | null;
@@ -39,6 +39,14 @@
 			default:
 				return 'bg-text-3';
 		}
+	}
+
+	/**
+	 * The mention's topic key. v2 aspects carry `parent_key` (the 107-key taxonomy
+	 * key); pre-v2 ones only have `subcategory`. Same vocabulary, renamed field.
+	 */
+	function topicKey(item: SentimentItem): string {
+		return item.parent_key ?? item.subcategory ?? '';
 	}
 
 	function subcategoryLabel(subcat: string): string {
@@ -159,7 +167,7 @@
 						ABSA Etiketleri ({review.sentiments.length})
 					</h3>
 					<ul class="space-y-2">
-						{#each review.sentiments as item (`${item.category}-${item.subcategory}-${item.excerpt}`)}
+						{#each review.sentiments as item (`${item.category}-${item.granular_key ?? topicKey(item)}-${item.excerpt}`)}
 							{@const meta = CATEGORIES[item.category]}
 							<li
 								class="flex items-start gap-3 p-2.5 rounded-md bg-surface-2/50 hover:bg-surface-2 transition-colors"
@@ -172,7 +180,7 @@
 										<span class="text-xs font-semibold text-text-2">{meta.label}</span>
 										<span class="text-text-3 text-xs">·</span>
 										<span class="text-xs text-text-2 capitalize">
-											{subcategoryLabel(item.subcategory)}
+											{subcategoryLabel(topicKey(item))}
 										</span>
 										<span
 											class="text-xs px-1.5 py-0.5 rounded {sentimentClass(item.sentiment)} font-medium"

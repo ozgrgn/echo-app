@@ -10,15 +10,16 @@
 			: data.competitors.reduce((s, c) => s + c.gpi, 0) / data.competitors.length
 	);
 
-	// Combine own hotel + competitors for sortable bar list
+	// Combine own hotel + competitors for sortable bar list.
+	// Region/sameRegion dropped: they were fed by a hardcoded slug→town map in the
+	// loader (one customer's rivals). Region is venue metadata the backend doesn't
+	// serve yet, so the row no longer claims to know it.
 	type Row = {
 		venueSlug: string;
 		venueName: string;
 		gpi: number;
 		reviewCount: number;
 		isOwn: boolean;
-		region?: string;
-		sameRegion: boolean;
 	};
 
 	const allRows = $derived.by<Row[]>(() => {
@@ -28,22 +29,15 @@
 				venueName: data.venueName,
 				gpi: data.hotelScore.gpi,
 				reviewCount: data.hotelScore.reviewCount,
-				isOwn: true,
-				region: data.ownRegion,
-				sameRegion: true // own venue trivially "same region as self"
+				isOwn: true
 			},
-			...data.competitors.map((c) => {
-				const region = data.competitorRegions[c.venueSlug];
-				return {
-					venueSlug: c.venueSlug,
-					venueName: c.venueName,
-					gpi: c.gpi,
-					reviewCount: c.reviewCount,
-					isOwn: false,
-					region,
-					sameRegion: !!data.ownRegion && region === data.ownRegion
-				};
-			})
+			...data.competitors.map((c) => ({
+				venueSlug: c.venueSlug,
+				venueName: c.venueName,
+				gpi: c.gpi,
+				reviewCount: c.reviewCount,
+				isOwn: false
+			}))
 		];
 		return rows.sort((a, b) => b.gpi - a.gpi);
 	});
@@ -175,16 +169,6 @@
 						>
 							{row.venueName}
 						</span>
-						{#if row.sameRegion && !row.isOwn}
-							<span
-								class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-brand-light text-brand font-medium shrink-0"
-								title="Sizinle aynı bölgede: {row.region}"
-							>
-								Aynı bölge
-							</span>
-						{:else if row.region && !row.isOwn}
-							<span class="text-xs text-text-3 shrink-0">{row.region}</span>
-						{/if}
 					</div>
 
 					<!-- Bar column -->

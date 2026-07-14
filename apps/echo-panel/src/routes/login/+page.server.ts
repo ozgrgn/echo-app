@@ -36,6 +36,9 @@ export const actions: Actions = {
 		const opts = { baseUrl: serverApiBaseUrl(), fetch };
 		let token: string, expiresIn: number;
 		try {
+			// Dev superadmin preview is NOT a login-form choice — the backend grants it
+			// server-side (PANEL_DEV_SUPERADMIN_TENANTS allowlist + NODE_ENV=development),
+			// so there's nothing to pass here. whoami below reflects whatever it decided.
 			const res = await login({ tenantKey, clientSecret }, opts);
 			token = res.accessToken;
 			expiresIn = res.expiresIn;
@@ -95,10 +98,19 @@ export const actions: Actions = {
 		const venueName = String(form.get('venueName') ?? '').trim();
 		if (!venueSlug) return fail(400, { error: 'Otel seçilmedi.' });
 
-		const refresh = readRefresh(cookies)!;
+		// Read tenantKey from the identity cookie, not the refresh one: RefreshCreds is now
+		// a union ({tenantKey,clientSecret} | {demoToken}) and only the password variant
+		// carries a tenantKey. A demo session never reaches this action anyway (it has one
+		// venue and no picker), but reading identity keeps this independent of that.
+		const identity = readIdentity(cookies);
+		if (!identity) return fail(401, { error: 'Oturum bulunamadı.' });
 		// Preserve superadmin resolved at login — a venue switch doesn't change authority.
-		const isSuperadmin = readIdentity(cookies)?.isSuperadmin ?? false;
-		setIdentityCookie(cookies, { tenantKey: refresh.tenantKey, venueSlug, venueName, isSuperadmin });
+		setIdentityCookie(cookies, {
+			tenantKey: identity.tenantKey,
+			venueSlug,
+			venueName,
+			isSuperadmin: identity.isSuperadmin
+		});
 		throw redirect(303, safeRedirectTarget(url.searchParams.get('redirectTo')));
 	}
 };

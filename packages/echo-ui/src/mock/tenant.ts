@@ -1,8 +1,8 @@
 import type { Tenant } from '@talkwo/echo-core';
 
 export const MOCK_TENANT: Tenant = {
-  tenantKey: 'TEN_LAGO_HOTELS',
-  name: 'Lago Hotels',
+  tenantKey: 'TEN_DEMO_AURELIA',
+  name: 'Aurelia Hotels',
   createdAt: '2025-01-15T08:00:00Z',
   subscriptions: [
     {

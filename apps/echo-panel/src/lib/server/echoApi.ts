@@ -25,6 +25,7 @@ import { redirect } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import {
 	login,
+	loginDemo,
 	getHotelScore,
 	getCompetitorScores,
 	getScoreHistory,
@@ -33,7 +34,7 @@ import {
 	getImpact,
 	getDepartments,
 	getDepartmentDetail,
-	getDepartmentsCompare,
+	getDepartmentKeyTrend,
 	getResponseStats,
 	getResponseQueue,
 	getReviews,
@@ -42,17 +43,18 @@ import {
 	getOsBundle,
 	getVenueSettings,
 	patchVenueSettings,
-	getVenueRoutingCatalog,
-	patchVenueRoutingRow,
+	getVenueGranularCatalog,
+	patchVenueGranularRow,
+	deleteVenueGranularRow,
 	listAllVenues,
 	listWatches,
 	type FetchOpts,
 	type ReviewFilters,
 	type MentionFilters,
-	type VenueRoutePatch,
+	type VenueGranularPatch,
 	type OsLens
 } from '@talkwo/echo-ui';
-import { setJwtCookie, clearSession } from '$lib/server/session';
+import { setJwtCookie, clearSession, isDemoRefresh } from '$lib/server/session';
 
 class Unauthenticated extends Error {}
 
@@ -65,13 +67,28 @@ export function makeServerApi(event: RequestEvent) {
 
 	const fo = (): FetchOpts => ({ baseUrl, fetch });
 
+	/**
+	 * Re-auth after a 401. TWO paths, because a demo session has no password.
+	 *
+	 * A normal login stores {tenantKey, clientSecret} in the encrypted refresh cookie and
+	 * re-logs-in with it. A demo session stores {demoToken} — the 30-day link token — and
+	 * exchanges it for a fresh 1-hour staff JWT.
+	 *
+	 * WITHOUT THE DEMO BRANCH a presentation dies exactly one hour in: this function would
+	 * call login() with an undefined clientSecret, the backend would 401, and the viewer
+	 * would be bounced to /login mid-demo. The asymmetric lifetimes (long link, short JWT)
+	 * are what make the demo survive a long session — but only if we come back here with
+	 * the link token.
+	 */
 	async function refresh(): Promise<boolean> {
 		if (!locals.refresh) return false;
 		try {
-			const res = await login(
-				{ tenantKey: locals.refresh.tenantKey, clientSecret: locals.refresh.clientSecret },
-				fo()
-			);
+			const res = isDemoRefresh(locals.refresh)
+				? await loginDemo(locals.refresh.demoToken, fo())
+				: await login(
+						{ tenantKey: locals.refresh.tenantKey, clientSecret: locals.refresh.clientSecret },
+						fo()
+					);
 			token = res.accessToken;
 			setJwtCookie(cookies, res.accessToken, res.expiresIn);
 			return true;
@@ -119,10 +136,12 @@ export function makeServerApi(event: RequestEvent) {
 			withRetry((t) => getMentions(venueSlug, filters, t, fo())),
 		patchVenueSettings: (venueSlug: string, patch: Parameters<typeof patchVenueSettings>[1]) =>
 			withRetry((t) => patchVenueSettings(venueSlug, patch, t, fo())),
-		getVenueRoutingCatalog: (venueSlug: string) =>
-			withRetry((t) => getVenueRoutingCatalog(venueSlug, t, fo())),
-		patchVenueRoutingRow: (venueSlug: string, routeKey: string, patch: VenueRoutePatch) =>
-			withRetry((t) => patchVenueRoutingRow(venueSlug, routeKey, patch, t, fo())),
+		getVenueGranularCatalog: (venueSlug: string) =>
+			withRetry((t) => getVenueGranularCatalog(venueSlug, t, fo())),
+		patchVenueGranularRow: (venueSlug: string, granularKey: string, patch: VenueGranularPatch) =>
+			withRetry((t) => patchVenueGranularRow(venueSlug, granularKey, patch, t, fo())),
+		deleteVenueGranularRow: (venueSlug: string, granularKey: string) =>
+			withRetry((t) => deleteVenueGranularRow(venueSlug, granularKey, t, fo())),
 
 		// ── domain-opts shape: (..., token, domainOpts, FetchOpts) ──
 		getScoreHistory: (venueSlug: string, opts: { platform?: string; limit?: number; window?: string } = {}) =>
@@ -140,10 +159,12 @@ export function makeServerApi(event: RequestEvent) {
 			deptKey: string,
 			opts: { platform?: string; period?: string; window?: string } = {}
 		) => withRetry((t) => getDepartmentDetail(venueSlug, deptKey, t, opts, fo())),
-		getDepartmentsCompare: (
+		getDepartmentKeyTrend: (
 			venueSlug: string,
-			opts: { platform?: string; period?: string; window?: string } = {}
-		) => withRetry((t) => getDepartmentsCompare(venueSlug, t, opts, fo())),
+			deptKey: string,
+			granularKey: string,
+			opts: { platform?: string; window?: string } = {}
+		) => withRetry((t) => getDepartmentKeyTrend(venueSlug, deptKey, granularKey, t, opts, fo())),
 		getResponseQueue: (venueSlug: string, opts: { platform?: string; limit?: number } = {}) =>
 			withRetry((t) => getResponseQueue(venueSlug, t, opts, fo())),
 

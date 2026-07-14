@@ -28,6 +28,11 @@
 	const colorFor = (p: string) => PLATFORM_COLOR[p as keyof typeof PLATFORM_COLOR] ?? '#64748b';
 	const labelFor = (p: string) => PLATFORM_LABEL[p] ?? p;
 
+	// Channel switcher pills — the SAME control the detail page shows, mirrored here so
+	// the "click a channel" affordance is explicit (the tiles alone read as non-clickable).
+	// 'all' is this overview page itself (active); the four channels deep-link into detail.
+	const ALL_PLATFORMS = ['tripadvisor', 'booking', 'google', 'holidaycheck'];
+
 	// ── Channel tiles — REAL per-channel snapshot (blended shown first for context).
 	const channels = $derived(data.channels);
 
@@ -101,6 +106,35 @@
 	</div>
 </div>
 
+<!-- Channel switcher — 'Genel' (this overview, active) + a pill per channel that
+     deep-links into its universe. Mirrors the detail page's switcher so navigation is
+     obvious and consistent; the tiles below stay clickable as a secondary path. -->
+<div class="mb-3.5 flex flex-wrap items-center gap-2">
+	<!-- 'Genel' = the overview itself (active on this page). -->
+	<span
+		class="inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-text-1 px-2.5 py-1.5 text-[12.5px] font-semibold text-white"
+	>
+		<Globe size={14} strokeWidth={2} />
+		Genel
+	</span>
+	<span class="mx-0.5 h-5 w-px bg-border"></span>
+	{#each ALL_PLATFORMS as p (p)}
+		{@const c = colorFor(p)}
+		<button
+			onclick={() => enterPlatform(p)}
+			class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2"
+		>
+			<span
+				class="grid h-4 w-4 place-items-center rounded text-[9px] font-extrabold"
+				style="background:{c}1a;color:{c}"
+			>
+				{labelFor(p).slice(0, 1)}
+			</span>
+			{labelFor(p)}
+		</button>
+	{/each}
+</div>
+
 <!-- Channel tiles — click a channel to enter its universe. -->
 <div class="mb-3.5 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
 	{#each channels as ch (ch.platform)}
@@ -144,7 +178,17 @@
 		<p class="py-8 text-center text-[13px] text-text-3">Bu dönemde kanal bazlı kategori verisi yok.</p>
 	{:else}
 		<div class="overflow-x-auto">
-			<table class="w-full border-collapse text-[13px]">
+			<!-- table-fixed + an explicit colgroup: with auto layout the label column (long
+			     strings like "Animasyon & Eğlence") swallowed the slack and the numeric columns
+			     bunched up on the right, leaving the last channel visually detached from the
+			     other three. Fixed layout with equal channel widths spaces them evenly. -->
+			<table class="w-full table-fixed border-collapse text-[13px]">
+				<colgroup>
+					<col style="width:22%" />
+					{#each channels as ch (ch.platform)}
+						<col style="width:{78 / channels.length}%" />
+					{/each}
+				</colgroup>
 				<thead>
 					<tr class="text-text-3">
 						<th class="py-2 pr-3 text-left font-semibold">Kategori</th>

@@ -29,21 +29,19 @@
 	const cqiTone = $derived<Tone>(cqi === null ? 'neutral' : cqi >= 100 ? 'success' : cqi >= 95 ? 'warning' : 'danger');
 
 	// ── Sortable rows: own hotel + competitors, GPI descending ───────────────
+	// Every row is a real, scored venue now. The loader no longer ships mockSlugs /
+	// pageIsMock (there is no mock fallback to flag) nor region labels (they came from
+	// a hardcoded slug→town map), so Row carries neither a "demo" flag nor a region.
 	type Row = {
 		venueSlug: string;
 		venueName: string;
 		gpi: number;
 		reviewCount: number;
 		isOwn: boolean;
-		region?: string;
-		sameRegion: boolean;
-		isMock: boolean;
 	};
 
-	// Slugs backed by demo data, not real scores — badged "demo" in the list.
-	const mockSlugSet = $derived(new Set(data.mockSlugs ?? []));
-	// Any demo data on the page at all → show the explanatory banner.
-	const hasMock = $derived((data.pageIsMock ?? false) || mockSlugSet.size > 0);
+	// No rivals configured → the page shows an empty state instead of inventing some.
+	const hasCompetitors = $derived(data.competitors.length > 0);
 
 	const allRows = $derived.by<Row[]>(() => {
 		const rows: Row[] = [
@@ -52,25 +50,15 @@
 				venueName: data.venueName,
 				gpi: data.hotelScore.gpi,
 				reviewCount: data.hotelScore.reviewCount,
-				isOwn: true,
-				region: data.ownRegion,
-				sameRegion: true,
-				// Own venue is real in live mode; only demo when the whole page is mock.
-				isMock: data.pageIsMock ?? false
+				isOwn: true
 			},
-			...data.competitors.map((c) => {
-				const region = data.competitorRegions[c.venueSlug];
-				return {
-					venueSlug: c.venueSlug,
-					venueName: c.venueName,
-					gpi: c.gpi,
-					reviewCount: c.reviewCount,
-					isOwn: false,
-					region,
-					sameRegion: !!data.ownRegion && region === data.ownRegion,
-					isMock: mockSlugSet.has(c.venueSlug)
-				};
-			})
+			...data.competitors.map((c) => ({
+				venueSlug: c.venueSlug,
+				venueName: c.venueName,
+				gpi: c.gpi,
+				reviewCount: c.reviewCount,
+				isOwn: false
+			}))
 		];
 		return rows.sort((a, b) => b.gpi - a.gpi);
 	});
@@ -139,21 +127,19 @@
 	<h1 class="text-[15px] font-bold">Rakipler</h1>
 </div>
 
-{#if hasMock}
-	<!-- Demo-data notice: some/all rows are placeholders, not real scores. Prevents
-	     users from mistaking demo rivals for live competitors. -->
+<!-- The "mock veri" warning banner is gone with the mock fallback it warned about:
+     nothing on this page is a placeholder any more. Zero rivals now reads as zero
+     rivals (empty state below), not as a fake leaderboard with a disclaimer. -->
+{#if !hasCompetitors}
 	<div
-		class="mb-3.5 flex items-center gap-2 rounded-[11px] border border-warning/30 bg-warning-light/50 px-3.5 py-2.5 text-[12.5px] text-text-1"
+		class="mb-3.5 rounded-[11px] border border-border bg-surface-2 px-3.5 py-6 text-center"
 		role="status"
 	>
-		<span class="text-warning">⚠</span>
-		<span>
-			{#if data.pageIsMock}
-				Bu sayfa <strong>örnek (demo) veri</strong> gösteriyor. Gerçek skorlar için veri kaynağını canlıya alın.
-			{:else}
-				<strong>demo</strong> etiketli rakipler örnek veridir — henüz gerçek skoru olmayan rakipler için yer tutucu gösteriliyor.
-			{/if}
-		</span>
+		<p class="text-[13px] font-semibold text-text-1">Bu tenant için rakip takibi henüz kurulmadı.</p>
+		<p class="mt-1 text-[12.5px] text-text-3">
+			Rakip otelleri tanımladığınızda GPI sıralaması, kategori ısı haritası ve platform
+			karşılaştırması burada görünür.
+		</p>
 	</div>
 {/if}
 
@@ -196,17 +182,6 @@
 						<span class="shrink-0 font-bold text-warning" title="Sizin oteliniz">▶</span>
 					{/if}
 					<span class="truncate text-[13px] font-semibold text-text-1" title={row.venueName}>{row.venueName}</span>
-					{#if row.isMock}
-						<span
-							class="shrink-0 rounded bg-warning-light px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning"
-							title="Örnek (demo) veri — gerçek skor değil"
-						>demo</span>
-					{/if}
-					{#if row.sameRegion && !row.isOwn}
-						<span class="shrink-0 rounded bg-brand-light px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand" title="Aynı bölge: {row.region}">Aynı bölge</span>
-					{:else if row.region && !row.isOwn}
-						<span class="shrink-0 text-[11px] text-text-3">{row.region}</span>
-					{/if}
 				</div>
 				<div class="h-2.5 overflow-hidden rounded-full bg-surface-2">
 					<div class="h-full rounded-full transition-all duration-500 {barColor(row.gpi)}" style="width:{barWidth(row.gpi)}%"></div>
@@ -278,11 +253,7 @@
 >
 	{#if platformGroups.length === 0}
 		<p class="py-6 text-center text-[13px] text-text-3">
-			{#if data.pageIsMock}
-				Platform karşılaştırması yalnızca canlı veride görünür.
-			{:else}
-				Bu dönemde platform bazlı karşılaştırma için yeterli veri yok.
-			{/if}
+			Bu dönemde platform bazlı karşılaştırma için yeterli veri yok.
 		</p>
 	{:else}
 		<div class="flex flex-col gap-4">

@@ -40,7 +40,6 @@ export interface MockConfig {
   reviews: boolean;
   venues: boolean;
   scores: boolean;
-  competitors: boolean;
   survey: boolean;
   feedback: boolean;
   tenant: boolean;
@@ -50,7 +49,6 @@ export const MOCK_CONFIG: MockConfig = {
   reviews: false,     // REAL — Bronze layer shipped
   venues: false,      // REAL — /v1/venues shipped
   scores: false,      // REAL — Gold layer (M3) shipped
-  competitors: false, // REAL — competitor scoring shipped (2026-07: Lago 5 rivals + RPI)
   survey: false,      // LIVE — surfaces 404 until /v1/surveys/* lands (intentional)
   feedback: false,    // LIVE — surfaces 404 until /v1/feedback lands (intentional)
   tenant: false       // LIVE — surfaces 404 until /v1/tenants/me lands (intentional)
@@ -118,6 +116,35 @@ export async function login(creds: AuthCredentials, opts?: FetchOpts): Promise<A
   if (!res.ok) {
     const problem = await res.json().catch(() => ({ detail: 'Login failed' }));
     throw new Error(problem.detail || `Login failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+/** What POST /v1/auth/demo-token returns: a staff JWT plus the demo venue's identity. */
+export interface DemoTokenResponse extends AuthTokenResponse {
+  venue: { slug: string; name: string };
+  /** When the LINK (not this token) expires — the hub shows it. */
+  linkExpiresAt: string;
+}
+
+/**
+ * Exchange a marketing demo LINK token for a demo-scoped staff JWT.
+ *
+ * The link token is long-lived (30 days) and lives in the encrypted refresh cookie; the
+ * staff JWT it buys lasts an hour. That asymmetry is the point: when the hour is up,
+ * echoApi.refresh() comes back here with the same link token and gets a fresh JWT — so a
+ * presentation does not drop to /login mid-flow.
+ */
+export async function loginDemo(demoToken: string, opts?: FetchOpts): Promise<DemoTokenResponse> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/auth/demo-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ demoToken })
+  });
+  if (!res.ok) {
+    const problem = await res.json().catch(() => ({ detail: 'Demo login failed' }));
+    throw new Error(problem.detail || `Demo login failed: ${res.status}`);
   }
   return res.json();
 }
@@ -308,13 +335,12 @@ export async function getCompetitorScores(
   platform?: string,
   opts?: FetchOpts
 ): Promise<CompetitorScore[]> {
-  // Competitors are REAL now (2026-07: Lago's rivals scored + RPI). We still fall
-  // back to the demo set if the live endpoint returns an empty list (e.g. a tenant
-  // with no competitors yet), so a bare page never looks broken.
-  if (MOCK_CONFIG.competitors) {
-    const { MOCK_COMPETITORS } = await import('./mock/competitors.js');
-    return MOCK_COMPETITORS;
-  }
+  // NO EMPTY-LIST FALLBACK. There used to be one: an empty live result quietly became a
+  // hard-coded set of real hotels (Rixos, Titanic, Barut…) so "a bare page never looks
+  // broken". It hid a real bug — a tenant whose rivals were never scored — behind
+  // plausible-looking data, and it put actual competitor brands on screen in a demo that
+  // is supposed to name no real hotel. An empty list now renders as an empty state that
+  // says so. Loud and honest beats quiet and wrong.
   const { base, f } = resolveFetch(opts);
   const params = new URLSearchParams();
   if (period) params.set('period', period);
@@ -324,17 +350,8 @@ export async function getCompetitorScores(
   const url = `${base}/scores/${venueSlug}/competitors${qs ? `?${qs}` : ''}`;
   const res = await f(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`getCompetitorScores failed: ${res.status}`);
-  const live: CompetitorScore[] = await res.json();
-  // Empty-list fallback to the demo set keeps a competitor-less tenant from looking
-  // broken — but ONLY for the blended view. Under a platform filter, an empty result
-  // is a REAL "no rival snapshot on this channel" signal; showing mock rivals there
-  // would be misleading, so pass the empty list through untouched.
-  const filteredByPlatform = !!platform && platform !== 'all';
-  if (live.length === 0 && !filteredByPlatform) {
-    const { MOCK_COMPETITORS } = await import('./mock/competitors.js');
-    return MOCK_COMPETITORS;
-  }
-  return live;
+  // Empty means empty. See the note at the top of this function.
+  return res.json();
 }
 
 export async function getPortfolioScore(
@@ -400,6 +417,12 @@ export interface MentionRow {
   publishedDate: string;
   category: string;
   subcategory: string;
+  /** v2 granular routing key (absent on pre-v2 aspects). */
+  granular_key?: string;
+  /** v2 granular display label (label_tr) — prefer this over the legacy subcategory label. */
+  granular_label?: string;
+  /** v2 parent_key (the old 107-key rollup). */
+  parent_key?: string;
   sentiment: string;
   /** -1..+1, signed. */
   polarity: number;
@@ -410,6 +433,13 @@ export interface MentionRow {
 export interface MentionFilters {
   category?: string;
   subcategory?: string;
+  /**
+   * v2: comma-separated granular_keys. THE correct way to scope mentions to a
+   * department — a category spans several departments in the granular taxonomy
+   * (ROOM feeds hk + fo + mnt + tesis), so `category` alone leaks other
+   * departments' mentions into the list.
+   */
+  granularKey?: string;
   /** 'negative' → polarity ≤ -0.2, 'positive' → polarity ≥ +0.2. */
   polarity?: 'negative' | 'positive';
   limit?: number;
@@ -596,42 +626,43 @@ export async function getDepartmentDetail(
   return res.json();
 }
 
-// ─── Department comparison (OS "Rakipler" lens, department breakdown) ────────
-// Own venue + every competitor, each rolled up to department scores via the SAME
-// mention-weighted rollup the owned "Departmanlar" lens uses — so numbers line up.
+// Per-granular-key historical series (category-history modal). The window here is
+// the MODAL's own horizon (Tümü/2Y/1Y tabs), independent of the page's global ?window=.
 
-/** One venue's department rollup, trimmed to what the competitor comparison needs. */
-export interface DepartmentCompareRow {
-  venueSlug: string;
-  venueName: string;
-  departments: { key: string; label: string; score: number | null }[];
+export interface DepartmentKeyTrendPoint {
+  period: string;
+  /** Key score for that period; null when the key had no scoreable mentions. */
+  score: number | null;
+  /** RAW mention count for the key in that period (0 when absent). */
+  mentions: number;
 }
 
-export interface DepartmentCompareResponse {
-  own: DepartmentCompareRow;
-  competitors: DepartmentCompareRow[];
+export interface DepartmentKeyTrendResponse {
+  deptKey: string;
+  granular_key: string;
+  window: string;
+  points: DepartmentKeyTrendPoint[];
 }
 
-export async function getDepartmentsCompare(
+export async function getDepartmentKeyTrend(
   venueSlug: string,
+  deptKey: string,
+  granularKey: string,
   token: string,
-  /** platform: 'all' (default) | a channel; window: '24mo' (default) | '12mo'|'6mo'|'3mo'.
-   *  Both mirror the competitors page's global window + platform lens. */
-  opts: { platform?: string; period?: string; window?: string } = {},
+  opts: { platform?: string; window?: string } = {},
   fetchOpts?: FetchOpts
-): Promise<DepartmentCompareResponse> {
+): Promise<DepartmentKeyTrendResponse> {
   const { base, f } = resolveFetch(fetchOpts);
   const params = new URLSearchParams({
-    ...(opts.platform && opts.platform !== 'all' ? { platform: opts.platform } : {}),
-    ...(opts.period ? { period: opts.period } : {}),
-    ...(opts.window && opts.window !== '24mo' ? { window: opts.window } : {})
+    granularKey,
+    ...(opts.platform ? { platform: opts.platform } : {}),
+    ...(opts.window ? { window: opts.window } : {})
   });
-  const qs = params.toString();
   const res = await f(
-    `${base}/departments/${encodeURIComponent(venueSlug)}/compare${qs ? `?${qs}` : ''}`,
+    `${base}/departments/${encodeURIComponent(venueSlug)}/${encodeURIComponent(deptKey)}/key-trend?${params}`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
-  if (!res.ok) throw new Error(`getDepartmentsCompare failed: ${res.status}`);
+  if (!res.ok) throw new Error(`getDepartmentKeyTrend failed: ${res.status}`);
   return res.json();
 }
 
@@ -827,68 +858,75 @@ export async function patchVenueSettings(
   }
 }
 
-// ─── Owner Routing (per-venue route catalog snapshot) ───────────────────────
+// ─── Granular owner config (per-venue owner override, v2) ───────────────────
+//
+// Replaces the Owner Router route catalog. The global granular catalog is committed in
+// echo-backend; a venue only OVERRIDES a granular_key's owner (and enabled). There is NO
+// routing mode — each granular_key has exactly one owner (the ABSA granular split removed
+// the "route through the LLM or not" question). GET returns the merged view (catalog ⊕
+// venue overrides); PATCH sets owner_key/enabled; DELETE resets a key to its catalog default.
 
-/** One row of a venue's Owner Router catalog snapshot (mirrors echo-backend). */
-export interface VenueRouteRow {
-  route_key: string;
+/** One row of the merged granular catalog for a venue (mirrors echo-backend MergedGranularRow). */
+export interface VenueGranularRow {
   category: string;
-  subcategory: string;
-  route_label: string;
-  routing_mode: 'direct_map' | 'owner_router' | 'no_score' | 'critical';
-  /** Global default (read-only in the panel). */
-  default_owner_key: string | null;
-  /** Venue's chosen owner (editable). */
+  parent_key: string;
+  granular_key: string;
+  label_tr: string;
+  description_tr: string;
+  /** Global default owner from the committed catalog (read-only). */
+  default_owner_key: string;
+  /** The venue's override owner, or null if none. */
   venue_owner_key: string | null;
-  /** Explicit fallback for owner_router rows when the LLM is low-confidence. */
-  fallback_owner_key?: string;
-  hint: string;
+  /** What routing actually uses: venue override if set, else default. */
+  effective_owner_key: string;
+  owner_source: 'catalog_default' | 'venue_override';
+  /** Catalog-authoritative, read-only in the panel. */
+  score_policy: 'department_score' | 'no_score' | 'external_report' | 'manual_review';
+  alert_policy: 'none' | 'critical_alert';
+  critical_flags: string[];
   enabled: boolean;
-  /** True once the venue changed this row from the global default. */
-  is_customized: boolean;
-  catalog_version: string;
 }
 
-export interface VenueRoutingCatalog {
+export interface VenueGranularCatalog {
   venueSlug: string;
   catalog_version: string;
+  catalog_hash: string;
   /** The owner dropdown vocabulary (ops departments ∪ system buckets), sorted. */
   allowed_owners: string[];
-  rows: VenueRouteRow[];
+  rows: VenueGranularRow[];
 }
 
-/** GET a venue's Owner Router catalog snapshot (created lazily on first read). */
-export async function getVenueRoutingCatalog(
+/** GET a venue's merged granular catalog (committed catalog ⊕ venue owner overrides). */
+export async function getVenueGranularCatalog(
   venueSlug: string,
   token: string,
   opts?: FetchOpts,
-): Promise<VenueRoutingCatalog> {
+): Promise<VenueGranularCatalog> {
   const { base, f } = resolveFetch(opts);
-  const res = await f(`${base}/venues/${encodeURIComponent(venueSlug)}/owner-routing-catalog`, {
+  const res = await f(`${base}/venues/${encodeURIComponent(venueSlug)}/granular-catalog`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error(`getVenueRoutingCatalog failed: ${res.status}`);
-  return (await res.json()) as VenueRoutingCatalog;
+  if (!res.ok) throw new Error(`getVenueGranularCatalog failed: ${res.status}`);
+  return (await res.json()) as VenueGranularCatalog;
 }
 
-/** Editable fields on one venue route row. */
-export interface VenueRoutePatch {
-  venue_owner_key?: string;
-  hint?: string;
+/** Editable fields on one venue granular row (owner + enabled ONLY). */
+export interface VenueGranularPatch {
+  owner_key?: string;
   enabled?: boolean;
 }
 
-/** PATCH one venue route row (venue_owner_key / hint / enabled). Returns the updated row. */
-export async function patchVenueRoutingRow(
+/** PATCH one granular_key's owner/enabled override for a venue. Returns the merged row. */
+export async function patchVenueGranularRow(
   venueSlug: string,
-  routeKey: string,
-  patch: VenueRoutePatch,
+  granularKey: string,
+  patch: VenueGranularPatch,
   token: string,
   opts?: FetchOpts,
-): Promise<VenueRouteRow> {
+): Promise<VenueGranularRow> {
   const { base, f } = resolveFetch(opts);
   const res = await f(
-    `${base}/venues/${encodeURIComponent(venueSlug)}/owner-routing-catalog/${encodeURIComponent(routeKey)}`,
+    `${base}/venues/${encodeURIComponent(venueSlug)}/granular-catalog/${encodeURIComponent(granularKey)}`,
     {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -897,10 +935,33 @@ export async function patchVenueRoutingRow(
   );
   if (!res.ok) {
     const problem = await res.json().catch(() => ({ detail: 'Save failed' }));
-    throw new Error(problem.detail || `patchVenueRoutingRow failed: ${res.status}`);
+    throw new Error(problem.detail || `patchVenueGranularRow failed: ${res.status}`);
   }
   const data = await res.json();
-  return data.row as VenueRouteRow;
+  return data.row as VenueGranularRow;
+}
+
+/** DELETE a venue's override for one granular_key → resets it to the catalog default owner. */
+export async function deleteVenueGranularRow(
+  venueSlug: string,
+  granularKey: string,
+  token: string,
+  opts?: FetchOpts,
+): Promise<VenueGranularRow> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(
+    `${base}/venues/${encodeURIComponent(venueSlug)}/granular-catalog/${encodeURIComponent(granularKey)}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  if (!res.ok) {
+    const problem = await res.json().catch(() => ({ detail: 'Reset failed' }));
+    throw new Error(problem.detail || `deleteVenueGranularRow failed: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.row as VenueGranularRow;
 }
 
 // ─── Survey (Hoops-Integrated mode only) ────────────────────────────────────

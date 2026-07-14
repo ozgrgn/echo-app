@@ -1,63 +1,80 @@
 <script lang="ts">
-	import type { VenueRouteRow } from '@talkwo/echo-ui';
+	import type { VenueGranularRow } from '@talkwo/echo-ui';
 
 	let { data } = $props();
 
-	// Live editable copy of the snapshot rows (keyed by route_key). Seeded once from
-	// the load data; mutated in place on save (server returns the canonical row).
-	let rows = $state<VenueRouteRow[]>([...data.catalog.rows]);
+	// Live editable copy of the merged rows (keyed by granular_key). Seeded once from the
+	// load data; each row is replaced in place on save/reset with the server's canonical row.
+	let rows = $state<VenueGranularRow[]>([...data.catalog.rows]);
 	const allowedOwners = $derived(data.catalog.allowed_owners);
 
 	// System buckets render distinctly in the dropdown (not real departments).
 	const SYSTEM_BUCKETS = new Set(['w0', 'external', 'manual_review']);
 
 	// ── Filters ──────────────────────────────────────────────────────────────
-	type ModeFilter = 'all' | 'owner_router' | 'direct_map' | 'no_score' | 'critical' | 'changed';
-	let modeFilter = $state<ModeFilter>('all');
+	// v2: no routing mode. Filter by score_policy + critical + overridden.
+	type Filter =
+		| 'all'
+		| 'department_score'
+		| 'no_score'
+		| 'external_report'
+		| 'manual_review'
+		| 'critical'
+		| 'changed';
+	let policyFilter = $state<Filter>('all');
 	let search = $state('');
 
-	const MODE_LABEL: Record<string, string> = {
-		owner_router: 'Owner Router',
-		direct_map: 'Direct',
+	const POLICY_LABEL: Record<string, string> = {
+		department_score: 'Skorlanır',
 		no_score: 'Skorsuz',
-		critical: 'Kritik'
+		external_report: 'Dış rapor',
+		manual_review: 'Elle inceleme'
 	};
-	const MODE_STYLE: Record<string, string> = {
-		owner_router: 'bg-brand-light text-brand-dark',
-		direct_map: 'bg-surface-3 text-text-2',
+	const POLICY_STYLE: Record<string, string> = {
+		department_score: 'bg-brand-light text-brand-dark',
 		no_score: 'bg-surface-2 text-text-3',
-		critical: 'bg-danger-light text-danger'
+		external_report: 'bg-surface-3 text-text-2',
+		manual_review: 'bg-surface-2 text-text-2'
 	};
 
-	const filters: { key: ModeFilter; label: string }[] = [
+	const filters: { key: Filter; label: string }[] = [
 		{ key: 'all', label: 'Tümü' },
-		{ key: 'owner_router', label: 'Owner Router' },
-		{ key: 'direct_map', label: 'Direct' },
+		{ key: 'department_score', label: 'Skorlanır' },
 		{ key: 'no_score', label: 'Skorsuz' },
+		{ key: 'external_report', label: 'Dış rapor' },
+		{ key: 'manual_review', label: 'Elle inceleme' },
 		{ key: 'critical', label: 'Kritik' },
 		{ key: 'changed', label: 'Değiştirilmiş' }
 	];
 
+	// A row is "overridden" when the venue reassigned its owner (owner_source).
+	function isOverridden(r: VenueGranularRow): boolean {
+		return r.owner_source === 'venue_override';
+	}
+
 	const filtered = $derived.by(() => {
 		const q = search.trim().toLocaleLowerCase('tr');
 		return rows.filter((r) => {
-			if (modeFilter === 'changed') {
-				if (!r.is_customized) return false;
-			} else if (modeFilter !== 'all' && r.routing_mode !== modeFilter) {
+			if (policyFilter === 'changed') {
+				if (!isOverridden(r)) return false;
+			} else if (policyFilter === 'critical') {
+				if (r.alert_policy !== 'critical_alert') return false;
+			} else if (policyFilter !== 'all' && r.score_policy !== policyFilter) {
 				return false;
 			}
 			if (!q) return true;
 			return (
-				r.route_label.toLocaleLowerCase('tr').includes(q) ||
-				r.subcategory.toLowerCase().includes(q) ||
-				(r.venue_owner_key ?? '').toLowerCase().includes(q)
+				r.label_tr.toLocaleLowerCase('tr').includes(q) ||
+				r.granular_key.toLowerCase().includes(q) ||
+				r.parent_key.toLowerCase().includes(q) ||
+				r.effective_owner_key.toLowerCase().includes(q)
 			);
 		});
 	});
 
 	// Group the filtered rows by category (stable order = first appearance).
 	const grouped = $derived.by(() => {
-		const map = new Map<string, VenueRouteRow[]>();
+		const map = new Map<string, VenueGranularRow[]>();
 		for (const r of filtered) {
 			const list = map.get(r.category) ?? [];
 			list.push(r);
@@ -66,37 +83,54 @@
 		return [...map.entries()];
 	});
 
-	const changedCount = $derived(rows.filter((r) => r.is_customized).length);
+	const changedCount = $derived(rows.filter(isOverridden).length);
 
-	// ── Per-row save ───────────────────────────────────────────────────────────
-	// Track save state per route_key so each row shows its own status.
+	// ── Per-row save / reset ─────────────────────────────────────────────────────
+	// Track state per granular_key so each row shows its own status.
 	let saving = $state<Record<string, 'saving' | 'saved' | 'error'>>({});
 
-	async function saveRow(row: VenueRouteRow, patch: { venue_owner_key?: string; enabled?: boolean }) {
-		saving = { ...saving, [row.route_key]: 'saving' };
+	function flash(key: string, state: 'saved') {
+		saving = { ...saving, [key]: state };
+		setTimeout(() => {
+			const { [key]: _, ...rest } = saving;
+			saving = rest;
+		}, 1500);
+	}
+
+	async function saveOwner(row: VenueGranularRow, ownerKey: string) {
+		if (ownerKey === row.effective_owner_key) return;
+		saving = { ...saving, [row.granular_key]: 'saving' };
 		try {
 			const res = await fetch('/api/owner-routing', {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ routeKey: row.route_key, patch })
+				body: JSON.stringify({ granularKey: row.granular_key, patch: { owner_key: ownerKey } })
 			});
 			if (!res.ok) throw new Error(String(res.status));
-			const { row: updated } = (await res.json()) as { row: VenueRouteRow };
-			// Replace the row in place with the server's canonical version (is_customized etc.).
-			rows = rows.map((r) => (r.route_key === updated.route_key ? updated : r));
-			saving = { ...saving, [row.route_key]: 'saved' };
-			setTimeout(() => {
-				const { [row.route_key]: _, ...rest } = saving;
-				saving = rest;
-			}, 1500);
+			const { row: updated } = (await res.json()) as { row: VenueGranularRow };
+			rows = rows.map((r) => (r.granular_key === updated.granular_key ? updated : r));
+			flash(row.granular_key, 'saved');
 		} catch {
-			saving = { ...saving, [row.route_key]: 'error' };
+			saving = { ...saving, [row.granular_key]: 'error' };
 		}
 	}
 
-	function onOwnerChange(row: VenueRouteRow, next: string) {
-		if (next === row.venue_owner_key) return;
-		saveRow(row, { venue_owner_key: next });
+	// Reset a row to its catalog default owner (DELETE the venue override).
+	async function resetOwner(row: VenueGranularRow) {
+		saving = { ...saving, [row.granular_key]: 'saving' };
+		try {
+			const res = await fetch('/api/owner-routing', {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ granularKey: row.granular_key })
+			});
+			if (!res.ok) throw new Error(String(res.status));
+			const { row: updated } = (await res.json()) as { row: VenueGranularRow };
+			rows = rows.map((r) => (r.granular_key === updated.granular_key ? updated : r));
+			flash(row.granular_key, 'saved');
+		} catch {
+			saving = { ...saving, [row.granular_key]: 'error' };
+		}
 	}
 
 	function ownerLabel(key: string): string {
@@ -109,16 +143,16 @@
 
 <div class="space-y-6">
 	<header>
-		<h1 class="text-xl font-semibold text-text-1">Owner Routing Ayarları</h1>
+		<h1 class="text-xl font-semibold text-text-1">Departman Yönlendirme Ayarları</h1>
 		<p class="mt-1 text-sm text-text-2">
-			Her konu satırının hangi departmana yönlendirileceğini bu otel için belirleyin.
+			Her granular konunun bu otelde hangi departmana ait olduğunu belirleyin.
 			<span class="text-text-3">
-				Owner Router satırlarında seçtiğiniz departman modele <em>ipucu</em> olur; kesin
-				(direct) satırlarda doğrudan uygulanır. Routing modu ve global varsayılan salt-okunurdur.
+				Yalnızca <em>departman</em> değiştirilebilir; skorlama türü, alarm ve kritik sınıflandırması
+				global katalogdan gelir (salt-okunur). Varsayılana dönmek için <em>Sıfırla</em>'yı kullanın.
 			</span>
 		</p>
 		<p class="mt-1 text-xs text-text-3">
-			{data.venueName} · {rows.length} satır · {changedCount} değiştirilmiş · katalog {data.catalog.catalog_version}
+			{data.venueName} · {rows.length} konu · {changedCount} değiştirilmiş · katalog {data.catalog.catalog_version}
 		</p>
 	</header>
 
@@ -127,10 +161,10 @@
 		{#each filters as f (f.key)}
 			<button
 				class="px-3 py-1.5 text-xs font-medium rounded-full border transition-colors
-					{modeFilter === f.key
+					{policyFilter === f.key
 						? 'bg-brand text-white border-brand'
 						: 'bg-surface-1 text-text-2 border-border hover:text-text-1'}"
-				onclick={() => (modeFilter = f.key)}
+				onclick={() => (policyFilter = f.key)}
 			>
 				{f.label}{#if f.key === 'changed' && changedCount > 0}&nbsp;({changedCount}){/if}
 			</button>
@@ -138,14 +172,14 @@
 		<input
 			type="search"
 			bind:value={search}
-			placeholder="Ara: konu, subcategory, departman…"
+			placeholder="Ara: konu, granular_key, departman…"
 			class="ml-auto w-64 max-w-full px-3 py-1.5 text-sm rounded-md border border-border bg-surface-1
 				text-text-1 placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-brand/30"
 		/>
 	</div>
 
 	{#if filtered.length === 0}
-		<p class="py-12 text-center text-sm text-text-3">Bu filtreyle eşleşen satır yok.</p>
+		<p class="py-12 text-center text-sm text-text-3">Bu filtreyle eşleşen konu yok.</p>
 	{/if}
 
 	{#each grouped as [category, catRows] (category)}
@@ -155,73 +189,85 @@
 				<!-- table-fixed + shared colgroup so every category table aligns identically. -->
 				<table class="w-full table-fixed text-sm border-collapse">
 					<colgroup>
-						<col class="w-[22%]" /><!-- Olay -->
-						<col class="w-[15%]" /><!-- Subcategory -->
-						<col class="w-[9%]" /><!-- Mod -->
+						<col class="w-[24%]" /><!-- Konu -->
+						<col class="w-[16%]" /><!-- granular_key -->
+						<col class="w-[11%]" /><!-- Skorlama -->
 						<col class="w-[8%]" /><!-- Global -->
-						<col class="w-[16%]" /><!-- Bu venue -->
-						<col class="w-[30%]" /><!-- İpucu -->
+						<col class="w-[22%]" /><!-- Bu venue -->
+						<col class="w-[19%]" /><!-- Açıklama -->
 					</colgroup>
 					<thead>
 						<tr class="border-b border-border bg-surface-2 text-left text-xs uppercase tracking-wide text-text-3">
-							<th class="py-2 px-3 font-semibold">Olay</th>
-							<th class="py-2 px-3 font-semibold">Subcategory</th>
-							<th class="py-2 px-3 font-semibold">Mod</th>
+							<th class="py-2 px-3 font-semibold">Konu</th>
+							<th class="py-2 px-3 font-semibold">granular_key</th>
+							<th class="py-2 px-3 font-semibold">Skorlama</th>
 							<th class="py-2 px-3 font-semibold">Global</th>
 							<th class="py-2 px-3 font-semibold">Bu venue</th>
-							<th class="py-2 px-3 font-semibold">İpucu</th>
+							<th class="py-2 px-3 font-semibold">Açıklama</th>
 						</tr>
 					</thead>
 					<tbody>
-						{#each catRows as row (row.route_key)}
+						{#each catRows as row (row.granular_key)}
 							<tr
 								class="border-b border-border last:border-b-0 align-top
-									{row.is_customized ? 'bg-brand-light/20' : ''}"
+									{isOverridden(row) ? 'bg-brand-light/20' : ''}"
 							>
 								<td class="py-2 px-3">
-									<div class="font-medium text-text-1 break-words">{row.route_label}</div>
-									{#if row.is_customized}
-										<span class="mt-0.5 inline-block text-[10px] font-medium text-brand-dark">● değiştirildi</span>
-									{/if}
+									<div class="font-medium text-text-1 break-words">{row.label_tr}</div>
+									<div class="mt-0.5 flex flex-wrap items-center gap-1">
+										{#if isOverridden(row)}
+											<span class="text-[10px] font-medium text-brand-dark">● değiştirildi</span>
+										{/if}
+										{#if row.alert_policy === 'critical_alert'}
+											<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-danger-light text-danger" title={row.critical_flags.join(', ')}>
+												kritik
+											</span>
+										{/if}
+									</div>
 								</td>
-								<td class="py-2 px-3 font-mono text-xs text-text-2 truncate">{row.subcategory}</td>
+								<td class="py-2 px-3 font-mono text-xs text-text-2 truncate" title={row.parent_key}>{row.granular_key}</td>
 								<td class="py-2 px-3">
 									<span
 										class="inline-block px-2 py-0.5 rounded text-[11px] font-medium whitespace-nowrap
-											{MODE_STYLE[row.routing_mode] ?? 'bg-surface-2 text-text-2'}"
+											{POLICY_STYLE[row.score_policy] ?? 'bg-surface-2 text-text-2'}"
+										title="skorlama türü global katalogdan gelir (salt-okunur)"
 									>
-										{MODE_LABEL[row.routing_mode] ?? row.routing_mode}
+										{POLICY_LABEL[row.score_policy] ?? row.score_policy}
 									</span>
 								</td>
-								<td class="py-2 px-3 font-mono text-xs text-text-3">{row.default_owner_key ?? '—'}</td>
+								<td class="py-2 px-3 font-mono text-xs text-text-3">{row.default_owner_key}</td>
 								<td class="py-2 px-3">
 									<div class="flex items-center gap-1.5">
 										<select
 											class="w-full min-w-0 px-2 py-1 text-xs rounded border border-border bg-surface-1
 												text-text-1 focus:outline-none focus:ring-2 focus:ring-brand/30
-												{!row.venue_owner_key || SYSTEM_BUCKETS.has(row.venue_owner_key) ? 'text-text-3 italic' : ''}"
-											value={row.venue_owner_key ?? ''}
-											onchange={(e) => onOwnerChange(row, e.currentTarget.value)}
+												{SYSTEM_BUCKETS.has(row.effective_owner_key) ? 'text-text-3 italic' : ''}"
+											value={row.effective_owner_key}
+											onchange={(e) => saveOwner(row, e.currentTarget.value)}
 										>
-											<!-- Empty (infer_from_context): the LLM picks the owner from the excerpt.
-											     Shown as a labelled placeholder instead of a blank box. -->
-											{#if !row.venue_owner_key}
-												<option value="" disabled selected>İlgili departman (metne göre)</option>
-											{/if}
 											{#each allowedOwners as o (o)}
 												<option value={o}>{ownerLabel(o)}</option>
 											{/each}
 										</select>
-										{#if saving[row.route_key] === 'saving'}
+										{#if isOverridden(row)}
+											<button
+												class="text-[10px] text-text-3 hover:text-text-1 whitespace-nowrap"
+												title="varsayılan departmana ({row.default_owner_key}) dön"
+												onclick={() => resetOwner(row)}
+											>
+												sıfırla
+											</button>
+										{/if}
+										{#if saving[row.granular_key] === 'saving'}
 											<span class="text-[10px] text-text-3">…</span>
-										{:else if saving[row.route_key] === 'saved'}
+										{:else if saving[row.granular_key] === 'saved'}
 											<span class="text-[10px] text-success">✓</span>
-										{:else if saving[row.route_key] === 'error'}
+										{:else if saving[row.granular_key] === 'error'}
 											<span class="text-[10px] text-danger">hata</span>
 										{/if}
 									</div>
 								</td>
-								<td class="py-2 px-3 text-xs text-text-2 break-words">{row.hint}</td>
+								<td class="py-2 px-3 text-xs text-text-2 break-words">{row.description_tr}</td>
 							</tr>
 						{/each}
 					</tbody>

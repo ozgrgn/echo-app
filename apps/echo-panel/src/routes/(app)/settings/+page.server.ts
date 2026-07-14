@@ -4,14 +4,9 @@ import { listVenues } from '@talkwo/echo-ui';
 import { error } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
 
-// Phase 1 mock region labels — Phase 2: from backend venue metadata
-const COMPETITOR_REGIONS: Record<string, string> = {
-	'crystal-sunset-luxury-resort-spa': 'Side',
-	'rixos-premium-belek':              'Belek',
-	'titanic-deluxe-belek':             'Belek',
-	'barut-hemera':                     'Side',
-	'voyage-sorgun':                    'Sorgun',
-};
+// Region labels used to come from a hard-coded slug→town map naming one customer's real
+// rivals. Removed: a venue's own metadata (venue.region.area) is the only source now, and
+// a venue without it renders '—' rather than a label the frontend invented.
 
 export const load: PageServerLoad = async (event) => {
 	const session = event.locals.session;
@@ -34,7 +29,6 @@ export const load: PageServerLoad = async (event) => {
 		tenantKey: session.tenantKey,
 		// Subscription is not carried in the server session; the page tolerates null.
 		subscription: null as EchoSubscription | null,
-		competitorRegions: COMPETITOR_REGIONS,
 		venueSettings,
 	};
 };

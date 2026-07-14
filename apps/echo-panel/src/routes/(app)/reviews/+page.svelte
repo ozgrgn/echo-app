@@ -333,7 +333,7 @@
 
 						<!-- Sentiment tags + response indicator -->
 						<div class="flex items-center gap-2 flex-wrap text-xs">
-							{#each review.sentiments.slice(0, 4) as s (s.category + '-' + s.subcategory)}
+							{#each review.sentiments.slice(0, 4) as s, i (s.category + '-' + (s.granular_key ?? s.parent_key ?? s.subcategory ?? i))}
 								{@const meta = CATEGORIES[s.category]}
 								{@const cls =
 									s.sentiment === 'positive'

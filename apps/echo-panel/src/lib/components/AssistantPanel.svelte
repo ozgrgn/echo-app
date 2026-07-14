@@ -11,7 +11,9 @@
 	import TalkwoMark from './TalkwoMark.svelte';
 
 	// Active venue name for the scope header (from the SSR session, via the OS layout).
-	let { venueName = 'Lago Hotel Sorgun' }: { venueName?: string } = $props();
+	// Required, not defaulted: the old default hardcoded one real customer's hotel name,
+	// which would silently render on every other tenant if the session name went missing.
+	let { venueName }: { venueName: string } = $props();
 
 	// Scope label tracks the active lens (the assistant's identity shifts per lens).
 	const scopeLabel = $derived(
@@ -115,8 +117,12 @@
 			<div class="mb-1.5 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-success">
 				<GitCompare size={13} />sadece genelde görünür
 			</div>
+			<!-- Cross-channel insight. Numbers match what the platform lens actually shows
+			     (Resepsiyon: HolidayCheck 90.9 vs Google 66.9) — an invented example here
+			     would contradict the table two clicks away. -->
 			<p class="text-[12px] leading-relaxed text-text-1">
-				<b>Yeme&İçme</b> TripAdvisor'da düşük (53.7) ama Google'da iyi (68). Fark akşam konaklayanlardan — asıl kaldıraç akşam menüsü.
+				<b>Resepsiyon</b> HolidayCheck'te çok iyi (90.9) ama Google'da en zayıf kategoriniz (66.9)
+				— 24 puanlık fark. Google'a yazanlar check-in kuyruğundan şikâyetçi; asıl kaldıraç orada.
 			</p>
 		</div>
 	</div>

@@ -156,10 +156,12 @@ const CRITICAL_CONCEPTS = new Set([
 ]);
 
 export function deriveSeverity(
-  aspect: Pick<SentimentItem, 'intensity' | 'critical_flags' | 'subcategory' | 'severity_hint'>
+  aspect: Pick<SentimentItem, 'intensity' | 'critical_flags' | 'parent_key' | 'subcategory' | 'severity_hint'>
 ): 'low' | 'medium' | 'high' | 'critical' {
   if (aspect.critical_flags?.some(f => CRITICAL_CONCEPTS.has(f))) return 'critical';
-  const subMeta = SUBCATEGORY_MAP.get(aspect.subcategory);
+  // parent_key is the key into the 107-key taxonomy (SUBCATEGORY_MAP keeps its
+  // historical name; parent_key is its lookup key). `subcategory` is the pre-v2 name.
+  const subMeta = SUBCATEGORY_MAP.get(aspect.parent_key ?? aspect.subcategory ?? '');
   if (subMeta?.severityBase === 'critical') return 'critical';
   if (subMeta?.severityBase === 'high' && (aspect.intensity ?? 0) >= 0.6) return 'high';
   const intensity = aspect.intensity ?? 0;
