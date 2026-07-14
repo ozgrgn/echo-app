@@ -283,6 +283,71 @@ export function createWatch(ownerVenueId: string, targetVenueId: string, token: 
   return adminWrite('/admin/watches', 'POST', { ownerVenueId, targetVenueId }, token, opts);
 }
 
+/**
+ * One slice of harvest history. `fetched` is what we pulled from the source (cost);
+ * `inserted` is what was genuinely new (value). Read them together — a big gap means
+ * we are re-pulling reviews we already store.
+ */
+export interface HarvestRollup {
+  key: string;
+  triggers: number;
+  fetched: number;
+  inserted: number;
+  updated: number;
+  errors: number;
+  fullScans: number;
+  /** inserted/fetched × 100; null when nothing was fetched. */
+  yieldPct: number | null;
+}
+
+export interface HarvestRunRow {
+  ranAt: string;
+  tenantKey: string;
+  venueSlug: string;
+  platform: string;
+  status: 'ok' | 'error';
+  mode: 'incremental' | 'full';
+  reviewsStartDate?: string | null;
+  fetched?: number | null;
+  inserted?: number | null;
+  updated?: number | null;
+  durationMs?: number | null;
+  error?: string | null;
+}
+
+export interface HarvestError {
+  platform: string;
+  message: string;
+  count: number;
+  venues: string[];
+  lastSeen: string;
+}
+
+export interface HarvestRunsReport {
+  windowDays: number;
+  venueSlug: string | null;
+  total: Omit<HarvestRollup, 'key'>;
+  byDay: HarvestRollup[];
+  byPlatform: HarvestRollup[];
+  byVenue: HarvestRollup[];
+  errors: HarvestError[];
+  recent: HarvestRunRow[];
+}
+
+/** Harvest run history — superadmin scrape health/cost view. */
+export async function getHarvestRuns(
+  token: string,
+  days = 14,
+  opts?: FetchOpts,
+): Promise<HarvestRunsReport> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/admin/harvest/runs?days=${days}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`getHarvestRuns failed: ${res.status}`);
+  return res.json();
+}
+
 /** Delete a watch. */
 export function deleteWatch(ownerVenueId: string, targetVenueId: string, token: string, opts?: FetchOpts): Promise<void> {
   return adminWrite(
@@ -517,10 +582,17 @@ export async function getResponseStats(
   venueSlug: string,
   token: string,
   platform?: string,
-  opts?: FetchOpts
+  opts?: FetchOpts,
+  /** Lookback window ('24mo' default server-side). Pass the page's window so the
+   *  breakdown rows cover the same universe as the headline rate beside them. */
+  window?: string
 ): Promise<ResponseStats> {
   const { base, f } = resolveFetch(opts);
-  const params = new URLSearchParams({ venueSlug, ...(platform ? { platform } : {}) });
+  const params = new URLSearchParams({
+    venueSlug,
+    ...(platform ? { platform } : {}),
+    ...(window ? { window } : {})
+  });
   const res = await f(`${base}/responses/stats?${params}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
