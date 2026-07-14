@@ -189,10 +189,28 @@ export interface OwnerResponse {
   language: string;             // ISO 639-1
 }
 
+/**
+ * One ABSA mention as the backend serves it on GET /v1/reviews (v2 granular model).
+ *
+ * TWO KEYS, TWO AXES — do not conflate them:
+ *   - `parent_key`  → the 107-key taxonomy subcategory. The GPI/topic rollup axis.
+ *     This is what SubcategoryMeta / getSubcategoryLabel() are keyed by.
+ *   - `granular_key` → the 185-key granular aspect. The DEPARTMENT routing axis
+ *     (granular_key → owner_key, resolved deterministically by the backend).
+ *
+ * `subcategory` is the pre-v2 name for parent_key. It is still present on reviews
+ * analyzed before the granular refactor, so it stays optional here — read
+ * `parent_key ?? subcategory` and drop the fallback once all reviews are re-analyzed.
+ */
 export interface SentimentItem {
   // ── LLM-produced ──────────────────────────────────────────────────────────
   category: CategoryKey;
-  subcategory: string;          // English key from SubcategoryMeta (or runtime LLM value)
+  /** GPI/topic rollup key (107-key taxonomy). Absent only on pre-v2 reviews. */
+  parent_key?: string;
+  /** Granular aspect key (185-key catalog) — drives department routing. v2 only. */
+  granular_key?: string;
+  /** LEGACY (pre-v2) alias of parent_key. Prefer `parent_key ?? subcategory`. */
+  subcategory?: string;
   sentiment: Sentiment;
   polarity: number;             // -1..+1 continuous
   intensity: number;            // 0..1 (strength of feeling)
@@ -201,7 +219,8 @@ export interface SentimentItem {
   target_text?: string;         // free text — e.g. "klima", "duş"
   concept_key?: string | null;  // whitelist-only, null if not in whitelist
   severity_hint?: 'low' | 'medium' | 'high' | 'critical';
-  critical_flags?: string[];    // e.g. ['food_poisoning', 'theft']
+  /** v2: catalog-sourced (from the granular row), not from ABSA. */
+  critical_flags?: string[];    // e.g. ['food_safety', 'theft']
   // ── Backend-enriched (after severity derivation) ──────────────────────────
   severity_final?: 'low' | 'medium' | 'high' | 'critical';
   severity_weight?: number;
@@ -327,8 +346,17 @@ export interface EchoSubscription extends TenantSubscription {
 
 // ─── Hoops Notification Settings (per-venue, stored in echo-backend) ─────────
 
-/** Valid department keys for Hoops task routing. */
-export type HoopsDepartment = 'hk' | 'fnb' | 'mnt' | 'spa' | 'gr';
+/**
+ * An ops-engine department key for Hoops task routing (hk, fnb, mnt, spa, gr, fo,
+ * anm, pnb, kitchen, sec, con, it, acc, hr, qc, sales, management, tesis, garden,
+ * doctor, …).
+ *
+ * Deliberately a plain string, NOT a closed union: the department vocabulary is
+ * OWNED BY ops-engine and grows there (it is already ~21 keys). Freezing a subset
+ * here would make the panel reject valid keys at compile time — the key set is
+ * validated at the API boundary, not by this type.
+ */
+export type HoopsDepartment = string;
 
 /** Escalation strategy when a review goes unanswered past the SLA. */
 export type HoopsEscalation = 'normal_to_urgent' | 'normal_to_high' | 'fixed_normal';

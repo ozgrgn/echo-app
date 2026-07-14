@@ -22,14 +22,21 @@
 	// ── Subcategory breakdown ──
 	// Aggregate sentiment counts per subcategory across all reviews for this
 	// category. In production this comes from the backend; mock derives it.
+	//
+	// AXIS: this page rolls up on `parent_key` (the 107-key taxonomy), NOT on the
+	// 185-key `granular_key` — the seed list below and getSubcategoryLabel() are both
+	// keyed by parent_key. (The granular axis belongs to the department lens.)
+	// Pre-v2 reviews carry the same key under its old name, `subcategory`.
 	type SubAgg = { subcategory: string; positive: number; negative: number; neutral: number };
 	const subBreakdown = $derived.by<SubAgg[]>(() => {
 		const map = new Map<string, SubAgg>();
 		for (const r of data.reviews) {
 			for (const s of r.sentiments) {
 				if (s.category !== data.categoryKey) continue;
-				const agg = map.get(s.subcategory) ?? {
-					subcategory: s.subcategory,
+				const key = s.parent_key ?? s.subcategory;
+				if (!key) continue;
+				const agg = map.get(key) ?? {
+					subcategory: key,
 					positive: 0,
 					negative: 0,
 					neutral: 0
@@ -41,7 +48,7 @@
 					agg.positive += 0.5;
 					agg.negative += 0.5;
 				}
-				map.set(s.subcategory, agg);
+				map.set(key, agg);
 			}
 		}
 		// Seed-list: any subcategory declared on the category but missing in
@@ -91,7 +98,8 @@
 		return data.reviews.filter((r) => {
 			return r.sentiments.some((s) => {
 				if (s.category !== data.categoryKey) return false;
-				if (subcatFilter && s.subcategory !== subcatFilter) return false;
+				// Same parent_key axis as subBreakdown (subcatFilter holds a parent_key).
+				if (subcatFilter && (s.parent_key ?? s.subcategory) !== subcatFilter) return false;
 				if (sentimentFilter !== 'all' && s.sentiment !== sentimentFilter) return false;
 				return true;
 			});

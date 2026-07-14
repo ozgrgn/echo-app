@@ -1,13 +1,16 @@
 <!--
-  ECHO OS — Genel lens (the "Gündem" view). Real fields (gpi/rpi/categoryScores…)
-  from getHotelScore; series/platform/dept from lib/mock/os (labeled [MOCK→…] in
-  ECHO_OS_DATA.md). Built from the shared primitives (StatTile/TrendChart/…).
+  ECHO OS — Genel lens (the "Gündem" view). Real fields (gpi/rpi/categoryScores/
+  history/platforms/impact/responses/segments) from the loader; departments from
+  GET /v1/departments/:slug. lib/mock/os supplies the demo-mode fallback set and
+  the platform color palette. Built from the shared primitives (StatTile/TrendChart/…).
 -->
 <script lang="ts">
 	import { CATEGORIES, gpiZone, getSubcategoryLabel } from '@talkwo/echo-core';
+	import { type DepartmentScore } from '@talkwo/echo-ui';
 	import { goto } from '$app/navigation';
-	import { hidesCompetitors, parseOsWindow } from '$lib/config/window';
+	import { hidesCompetitors, parseOsWindow, windowParam } from '$lib/config/window';
 	import { osState } from '$lib/stores/osState.svelte';
+	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 
 	import StatTile from '$lib/components/StatTile.svelte';
 	import SectionCard from '$lib/components/SectionCard.svelte';
@@ -25,7 +28,8 @@
 	import {
 		MOCK_OS_DEPTS,
 		PLATFORM_COLOR,
-		type OsPlatform
+		type OsPlatform,
+		type OsDept
 	} from '$lib/mock/os';
 
 	let { data } = $props();
@@ -70,7 +74,9 @@
 
 	// Real KPI sparklines + deltas from history (GPI, review count). Last-vs-previous
 	// point = the delta. Series capped to the trailing 8 points for a compact spark.
-	const spark = (arr: number[]) => arr.slice(-8);
+	// Trailing-8 slice. Generic because the same window must be applied to the value
+	// series AND to its period labels, so the two stay index-aligned.
+	const spark = <T,>(arr: T[]): T[] => arr.slice(-8);
 	const lastDelta = (arr: number[]) =>
 		arr.length >= 2 ? +(arr[arr.length - 1] - arr[arr.length - 2]).toFixed(1) : 0;
 	// Per-period NEW reviews (published that month) — window-independent, always ≥0.
@@ -214,6 +220,47 @@
 		osState.setLens({ kind: 'department', department: key });
 		goto(`/os/department/${key}`);
 	}
+
+	// ── Departments — REAL (GET /v1/departments/:slug via the OS data proxy) ────
+	// Mention-level scores routed by the granular catalog (granular_key → owner_key).
+	// The old MOCK_OS_DEPTS set stays as the demo-mode source only: it predates the
+	// routing map and its scores are invented.
+	let realDepts = $state<DepartmentScore[] | null>(null);
+
+	async function loadDepts(window: string | undefined) {
+		if (osDataSource.isMock) {
+			realDepts = null;
+			return;
+		}
+		try {
+			const qs = new URLSearchParams({ resource: 'departments', ...(window ? { window } : {}) });
+			const r = await fetch(`/api/os/data?${qs}`);
+			const res = r.ok ? await r.json() : { departments: [] };
+			realDepts = res.departments;
+		} catch {
+			realDepts = null;
+		}
+	}
+	// `data.window` comes from the loader, so it already tracks the rail's ?window=.
+	$effect(() => {
+		loadDepts(windowParam(parseOsWindow(data.window)));
+	});
+
+	// A null score (no mentions yet) renders as 0 and cannot be entered.
+	function toOsDept(d: DepartmentScore): OsDept {
+		return {
+			key: d.key,
+			label: d.label,
+			score: d.score ?? 0,
+			trend: d.trend > 0 ? 'up' : d.trend < 0 ? 'down' : 'flat',
+			trendValue: d.trend,
+			scope: d.categories.join(' · '),
+			enters: d.score != null
+		};
+	}
+
+	// Real list when available; the mock set only in demo mode / before routing lands.
+	const depts = $derived<OsDept[]>(realDepts ? realDepts.map(toOsDept) : MOCK_OS_DEPTS);
 </script>
 
 <!-- ── Venue hero: neutral band, same skeleton as PlatformHero so lenses align ── -->
@@ -369,9 +416,15 @@
 
 <!-- ── Departments ───────────────────────────────────────────────────────── -->
 <SectionCard title="Departmanlar" icon={Users} hint="tıkla → ekip detayı">
-	<div class="grid grid-cols-2 gap-1 sm:grid-cols-4">
-		{#each MOCK_OS_DEPTS as d (d.key)}
-			<DeptCard dept={d} onenter={enterDept} />
-		{/each}
-	</div>
+	{#if depts.length === 0}
+		<p class="px-1 py-2 text-sm text-text-3">
+			Departman skoru henüz yok — yorumlar departmanlara yönlendirildikçe dolar.
+		</p>
+	{:else}
+		<div class="grid grid-cols-2 gap-1 sm:grid-cols-4">
+			{#each depts as d (d.key)}
+				<DeptCard dept={d} onenter={enterDept} />
+			{/each}
+		</div>
+	{/if}
 </SectionCard>
