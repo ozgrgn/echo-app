@@ -40,7 +40,6 @@ export interface MockConfig {
   reviews: boolean;
   venues: boolean;
   scores: boolean;
-  competitors: boolean;
   survey: boolean;
   feedback: boolean;
   tenant: boolean;
@@ -50,7 +49,6 @@ export const MOCK_CONFIG: MockConfig = {
   reviews: false,     // REAL — Bronze layer shipped
   venues: false,      // REAL — /v1/venues shipped
   scores: false,      // REAL — Gold layer (M3) shipped
-  competitors: false, // REAL — competitor scoring shipped (2026-07: Lago 5 rivals + RPI)
   survey: false,      // LIVE — surfaces 404 until /v1/surveys/* lands (intentional)
   feedback: false,    // LIVE — surfaces 404 until /v1/feedback lands (intentional)
   tenant: false       // LIVE — surfaces 404 until /v1/tenants/me lands (intentional)
@@ -118,6 +116,35 @@ export async function login(creds: AuthCredentials, opts?: FetchOpts): Promise<A
   if (!res.ok) {
     const problem = await res.json().catch(() => ({ detail: 'Login failed' }));
     throw new Error(problem.detail || `Login failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+/** What POST /v1/auth/demo-token returns: a staff JWT plus the demo venue's identity. */
+export interface DemoTokenResponse extends AuthTokenResponse {
+  venue: { slug: string; name: string };
+  /** When the LINK (not this token) expires — the hub shows it. */
+  linkExpiresAt: string;
+}
+
+/**
+ * Exchange a marketing demo LINK token for a demo-scoped staff JWT.
+ *
+ * The link token is long-lived (30 days) and lives in the encrypted refresh cookie; the
+ * staff JWT it buys lasts an hour. That asymmetry is the point: when the hour is up,
+ * echoApi.refresh() comes back here with the same link token and gets a fresh JWT — so a
+ * presentation does not drop to /login mid-flow.
+ */
+export async function loginDemo(demoToken: string, opts?: FetchOpts): Promise<DemoTokenResponse> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/auth/demo-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ demoToken })
+  });
+  if (!res.ok) {
+    const problem = await res.json().catch(() => ({ detail: 'Demo login failed' }));
+    throw new Error(problem.detail || `Demo login failed: ${res.status}`);
   }
   return res.json();
 }
@@ -308,13 +335,12 @@ export async function getCompetitorScores(
   platform?: string,
   opts?: FetchOpts
 ): Promise<CompetitorScore[]> {
-  // Competitors are REAL now (2026-07: Lago's rivals scored + RPI). We still fall
-  // back to the demo set if the live endpoint returns an empty list (e.g. a tenant
-  // with no competitors yet), so a bare page never looks broken.
-  if (MOCK_CONFIG.competitors) {
-    const { MOCK_COMPETITORS } = await import('./mock/competitors.js');
-    return MOCK_COMPETITORS;
-  }
+  // NO EMPTY-LIST FALLBACK. There used to be one: an empty live result quietly became a
+  // hard-coded set of real hotels (Rixos, Titanic, Barut…) so "a bare page never looks
+  // broken". It hid a real bug — a tenant whose rivals were never scored — behind
+  // plausible-looking data, and it put actual competitor brands on screen in a demo that
+  // is supposed to name no real hotel. An empty list now renders as an empty state that
+  // says so. Loud and honest beats quiet and wrong.
   const { base, f } = resolveFetch(opts);
   const params = new URLSearchParams();
   if (period) params.set('period', period);
@@ -324,17 +350,8 @@ export async function getCompetitorScores(
   const url = `${base}/scores/${venueSlug}/competitors${qs ? `?${qs}` : ''}`;
   const res = await f(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`getCompetitorScores failed: ${res.status}`);
-  const live: CompetitorScore[] = await res.json();
-  // Empty-list fallback to the demo set keeps a competitor-less tenant from looking
-  // broken — but ONLY for the blended view. Under a platform filter, an empty result
-  // is a REAL "no rival snapshot on this channel" signal; showing mock rivals there
-  // would be misleading, so pass the empty list through untouched.
-  const filteredByPlatform = !!platform && platform !== 'all';
-  if (live.length === 0 && !filteredByPlatform) {
-    const { MOCK_COMPETITORS } = await import('./mock/competitors.js');
-    return MOCK_COMPETITORS;
-  }
-  return live;
+  // Empty means empty. See the note at the top of this function.
+  return res.json();
 }
 
 export async function getPortfolioScore(

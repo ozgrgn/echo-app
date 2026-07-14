@@ -19,6 +19,8 @@ import type { RequestHandler } from './$types';
 
 export const PATCH: RequestHandler = async (event) => {
 	if (!event.locals.session) throw error(401, 'Not authenticated');
+	// Demo sessions are read-only — see the note in api/venue-settings.
+	if (event.locals.session.isDemo) throw error(403, 'Demo oturumu salt-okunurdur.');
 
 	let body: { granularKey?: string; patch?: VenueGranularPatch };
 	try {
@@ -49,6 +51,8 @@ export const PATCH: RequestHandler = async (event) => {
 
 export const DELETE: RequestHandler = async (event) => {
 	if (!event.locals.session) throw error(401, 'Not authenticated');
+	// Demo sessions are read-only — see the note in api/venue-settings.
+	if (event.locals.session.isDemo) throw error(403, 'Demo oturumu salt-okunurdur.');
 
 	let body: { granularKey?: string };
 	try {

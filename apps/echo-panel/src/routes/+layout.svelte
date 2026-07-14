@@ -7,7 +7,6 @@
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 
 	let { children, data } = $props();
 
@@ -27,12 +26,14 @@
 
 	// ── Auth guard (client fallback) ──
 	// Server layout loads already redirect unauthenticated requests; this is a
-	// client-side backstop for in-app navigation. Public routes + mock /os pass.
+	// client-side backstop for in-app navigation. Only public routes pass.
+	// /os used to get a free pass whenever the client-side mock flag was on — that
+	// was the same bypass as the server-side cookie carve-out. It's gone: /os now
+	// requires a session like everything else, and the demo *has* one.
 	$effect(() => {
 		const path = page.url.pathname;
 		const isPublic = path.startsWith('/login') || path.startsWith('/dev');
-		const isMockOs = path.startsWith('/os') && osDataSource.isMock;
-		if (!session && !isPublic && !isMockOs) {
+		if (!session && !isPublic) {
 			goto('/login');
 		}
 	});

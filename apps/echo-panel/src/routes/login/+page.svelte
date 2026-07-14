@@ -44,7 +44,7 @@
 						name="tenantKey"
 						value={form?.tenantKey ?? ''}
 						class="w-full rounded-md border border-border px-3 py-2 bg-surface-1 text-text-1 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-						placeholder="TEN_LAGO_HOTELS"
+						placeholder="TEN_..."
 						autocomplete="username"
 						required
 						disabled={loading}

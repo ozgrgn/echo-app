@@ -8,12 +8,11 @@
   wires it to the radar federated brain.
 -->
 <script lang="ts">
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { page, navigating } from '$app/state';
 	import { osState } from '$lib/stores/osState.svelte';
-	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 	import { MOCK_OS_COUNTERS } from '$lib/mock/os';
-	import { Target, Bell, Settings, Database, Wrench } from '@lucide/svelte';
+	import { Target, Bell, Settings, Wrench } from '@lucide/svelte';
 	import { OS_NAV, lensForPath, type OsNavItem } from '$lib/config/osNav';
 	import { OS_WINDOW_TABS, parseOsWindow, hidesCompetitors } from '$lib/config/window';
 	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
@@ -29,7 +28,6 @@
 	// source of truth. On HMR the in-memory store resets to its default while the URL
 	// stays put, which would desync the rail highlight from the actual route.
 	const activeKind = $derived(lensForPath(page.url.pathname) ?? osState.lens.kind);
-	const isMock = $derived(osDataSource.isMock);
 
 	// Superadmin gates the Yönetim rail entry — same flag the classic (app) nav
 	// uses, plumbed via /auth/whoami → session cookie → PageData.
@@ -43,11 +41,10 @@
 			page.route.id === '/(os)/os/department/[dept]'
 	);
 
-	// Toggle data source (mock demo ↔ live backend) and re-run the loaders.
-	async function toggleSource() {
-		osDataSource.toggle();
-		await invalidateAll();
-	}
+	// The rail used to carry an M/C badge that flipped the whole OS between a mock
+	// dataset and the live backend. There is only one data path now (the backend),
+	// so there is nothing to toggle — a demo tenant simply sees fixture data through
+	// its own session.
 
 	// Data-driven nav: activate the lens, then navigate to its canonical route.
 	// Platform lands on the overview index (/os/platform) — a specific channel is
@@ -73,7 +70,25 @@
 	}
 </script>
 
-<div class="grid h-screen overflow-hidden" style="grid-template-columns: 58px 1fr 384px;">
+<!-- Demo banner. Persistent and unmissable: a viewer must never take these numbers for a
+     real property's, and a presenter must never forget which mode they are in. It steals
+     32px from the grid, hence the h-[calc(...)] below. -->
+{#if data?.session?.isDemo}
+	<div
+		class="flex h-8 items-center justify-center gap-2 bg-talkwo text-xs font-medium text-white"
+	>
+		<span class="rounded bg-white/20 px-1.5 py-0.5 font-semibold tracking-wide">DEMO</span>
+		<span>{data.session.venueName} — anonimleştirilmiş örnek veri</span>
+		<a href="/demo/hub" class="ml-2 underline underline-offset-2 opacity-80 hover:opacity-100">
+			sunum hub'ı
+		</a>
+	</div>
+{/if}
+
+<div
+	class="grid overflow-hidden {data?.session?.isDemo ? 'h-[calc(100vh-2rem)]' : 'h-screen'}"
+	style="grid-template-columns: 58px 1fr 384px;"
+>
 	<!-- ── Rail ──────────────────────────────────────────────────────────── -->
 	<nav class="flex flex-col items-center gap-1 border-r border-border bg-surface-1 py-3.5">
 		<TalkwoMark size={24} class="mb-3" />
@@ -137,19 +152,6 @@
 			{/if}
 		</button>
 
-		<!-- Data source toggle: rich demo mock ↔ live backend. -->
-		<button
-			onclick={toggleSource}
-			title={isMock ? 'Veri: MOCK (demo) — canlıya geç' : 'Veri: CANLI — mock\'a geç'}
-			class="relative grid h-10 w-10 place-items-center rounded-xl transition-colors
-				{isMock ? 'bg-talkwo/15 text-talkwo' : 'text-text-3 hover:bg-surface-2 hover:text-text-1'}"
-		>
-			<Database size={19} strokeWidth={2} />
-			<span class="absolute -bottom-0.5 right-0.5 text-[8px] font-extrabold {isMock ? 'text-talkwo' : 'text-text-3'}">
-				{isMock ? 'M' : 'C'}
-			</span>
-		</button>
-
 		<!-- Ayarlar — venue settings. Lives at /settings for now; opened from the OS
 		     rail so the classic sidebar is no longer the only way in. -->
 		<button
@@ -202,7 +204,7 @@
 
 	<!-- ── Assistant (skeleton shell — A1 wires the radar brain) ─────────── -->
 	<aside class="overflow-hidden border-l border-border bg-surface-1 shadow-[-16px_0_40px_-24px_rgba(15,23,42,0.18)]">
-		<AssistantPanel venueName={data?.session?.venueName ?? 'Lago Hotel Sorgun'} />
+		<AssistantPanel venueName={data?.session?.venueName ?? ''} />
 	</aside>
 </div>
 

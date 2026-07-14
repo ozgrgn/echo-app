@@ -23,7 +23,6 @@
 		type ResponseStats,
 		type ResponseQueueItem
 	} from '@talkwo/echo-ui';
-	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 	import { PLATFORM_COLOR, responseSliceFor, platformTrendFor } from '$lib/mock/os';
 	import { Activity, Rocket, ChartBar, Globe, MessageSquare, Swords, MessageCircleReply, TrendingUp } from '@lucide/svelte';
 
@@ -81,12 +80,9 @@
 	let mentionsLoading = $state(false);
 
 	async function loadMentions() {
-		// Mock mode: derive a few rows from the platform's real topIssues/praises so
-		// the explorer isn't empty in demos. [MOCK→radar] for the full stream.
-		if (osDataSource.isMock) {
-			mentions = mockMentions(mentionFilter);
-			return;
-		}
+		// Always the real mention stream. The demo used to be fed by mockMentions(),
+		// which re-shaped this platform's own excerpts into fake rows; demo tenants now
+		// carry a session and read genuine (fixture-backed) mentions from the API.
 		mentionsLoading = true;
 		try {
 			const params = new URLSearchParams({ resource: 'mentions', limit: '60' });
@@ -122,10 +118,6 @@
 	let queueLoading = $state(false);
 
 	async function loadResponseStats() {
-		if (osDataSource.isMock) {
-			respStats = null; // Genel analytics falls back to the mock slice
-			return;
-		}
 		try {
 			const r = await fetch(
 				`/api/os/data?resource=responseStats&platform=${encodeURIComponent(data.platform)}`
@@ -143,10 +135,8 @@
 	});
 
 	async function loadQueue() {
-		if (osDataSource.isMock) {
-			queueItems = mockQueue();
-			return;
-		}
+		// Real queue only — the mockQueue() fabrication (rows invented from topIssues)
+		// is gone along with the mock mode that was its only caller.
 		queueLoading = true;
 		try {
 			const r = await fetch(
@@ -194,69 +184,6 @@
 	// Median hours reads better as days past 48h.
 	function formatHours(h: number): string {
 		return h >= 48 ? `${Math.round(h / 24)} gün` : `${h} sa`;
-	}
-
-	// Mock fallback: fabricate queue rows from the platform's real topIssues so
-	// the inbox isn't empty in demos. [MOCK→radar] only in demo mode.
-	function mockQueue(): ResponseQueueItem[] {
-		const rows: ResponseQueueItem[] = [];
-		let i = 0;
-		for (const cs of ps.categoryScores) {
-			for (const it of cs.topIssues ?? []) {
-				i += 1;
-				rows.push({
-					id: `mock-resp-${i}`,
-					platform: data.platform,
-					publishedDate: '',
-					rating: (i % 3) + 1,
-					rating5: (i % 3) + 1,
-					title: '',
-					text: it.sampleExcerpt,
-					lang: 'tr',
-					author: 'Misafir',
-					url: null,
-					ageDays: i * 4,
-					priority: Math.max(5, 92 - i * 13)
-				});
-			}
-		}
-		return rows.slice(0, 8);
-	}
-
-	// Mock fallback: build MentionRow[] from the platform score's real excerpts.
-	function mockMentions(f: 'all' | 'negative' | 'positive'): MentionRow[] {
-		const rows: MentionRow[] = [];
-		for (const cs of ps.categoryScores) {
-			for (const it of cs.topIssues ?? []) {
-				rows.push({
-					reviewId: `mock-${cs.category}-i-${it.subcategory}`,
-					platform: data.platform,
-					publishedDate: '',
-					category: cs.category,
-					subcategory: it.subcategory,
-					sentiment: 'negative',
-					polarity: -0.6,
-					excerpt: it.sampleExcerpt,
-					target_text: null
-				});
-			}
-			for (const it of cs.topPraises ?? []) {
-				rows.push({
-					reviewId: `mock-${cs.category}-p-${it.subcategory}`,
-					platform: data.platform,
-					publishedDate: '',
-					category: cs.category,
-					subcategory: it.subcategory,
-					sentiment: 'positive',
-					polarity: 0.7,
-					excerpt: it.sampleExcerpt,
-					target_text: null
-				});
-			}
-		}
-		if (f === 'negative') return rows.filter((r) => r.polarity <= -0.2);
-		if (f === 'positive') return rows.filter((r) => r.polarity >= 0.2);
-		return rows;
 	}
 
 	// Real categories sorted by score (worst first feeds the opportunity list).

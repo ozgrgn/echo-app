@@ -1,8 +1,8 @@
 <!--
   ECHO OS — Genel lens (the "Gündem" view). Real fields (gpi/rpi/categoryScores/
   history/platforms/impact/responses/segments) from the loader; departments from
-  GET /v1/departments/:slug. lib/mock/os supplies the demo-mode fallback set and
-  the platform color palette. Built from the shared primitives (StatTile/TrendChart/…).
+  GET /v1/departments/:slug. lib/mock/os now only supplies the platform color
+  palette. Built from the shared primitives (StatTile/TrendChart/…).
 -->
 <script lang="ts">
 	import { CATEGORIES, gpiZone, getSubcategoryLabel } from '@talkwo/echo-core';
@@ -10,7 +10,6 @@
 	import { goto } from '$app/navigation';
 	import { hidesCompetitors, parseOsWindow, windowParam } from '$lib/config/window';
 	import { osState } from '$lib/stores/osState.svelte';
-	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 
 	import StatTile from '$lib/components/StatTile.svelte';
 	import SectionCard from '$lib/components/SectionCard.svelte';
@@ -26,7 +25,6 @@
 	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert, CircleCheck, MessageCircleReply, PieChart, LineChart, Rocket } from '@lucide/svelte';
 
 	import {
-		MOCK_OS_DEPTS,
 		PLATFORM_COLOR,
 		type OsPlatform,
 		type OsDept
@@ -37,8 +35,14 @@
 
 	// ── GPI trend — REAL series from /v1/scores/:slug/history (backfilled snapshots).
 	// Falls back to a single point (today's GPI) when history is missing/empty, so
-	// the chart never invents a past. Target line is the only [MOCK→echo] piece.
-	const GPI_TARGET = 70;
+	// the chart never invents a past.
+	//
+	// The target comes from the backend (impact.target — scores/impact.ts DEFAULT_TARGET).
+	// It used to be a hard-coded 70 here while the backend computed every "lift to target"
+	// against 85: the chart drew one goal line and the "fastest route to target" card was
+	// solving for a different one, on the same screen. Read it from the data so the two
+	// can't drift again.
+	const GPI_TARGET = $derived(data.impact?.target ?? 85);
 	const historyGpi = $derived((data.history ?? []).map((p) => p.gpi));
 	const trendActual = $derived(historyGpi.length > 0 ? historyGpi : [hs.gpi]);
 	const trendYmin = $derived(Math.floor(Math.min(...trendActual, GPI_TARGET) - 4));
@@ -223,15 +227,12 @@
 
 	// ── Departments — REAL (GET /v1/departments/:slug via the OS data proxy) ────
 	// Mention-level scores routed by the granular catalog (granular_key → owner_key).
-	// The old MOCK_OS_DEPTS set stays as the demo-mode source only: it predates the
-	// routing map and its scores are invented.
+	// This is the ONLY source now: the MOCK_OS_DEPTS fallback (invented scores from
+	// before the routing map existed) is gone, so no data means the empty state below,
+	// not eight fake departments.
 	let realDepts = $state<DepartmentScore[] | null>(null);
 
 	async function loadDepts(window: string | undefined) {
-		if (osDataSource.isMock) {
-			realDepts = null;
-			return;
-		}
 		try {
 			const qs = new URLSearchParams({ resource: 'departments', ...(window ? { window } : {}) });
 			const r = await fetch(`/api/os/data?${qs}`);
@@ -259,8 +260,8 @@
 		};
 	}
 
-	// Real list when available; the mock set only in demo mode / before routing lands.
-	const depts = $derived<OsDept[]>(realDepts ? realDepts.map(toOsDept) : MOCK_OS_DEPTS);
+	// Real list only — empty until the departments endpoint answers.
+	const depts = $derived<OsDept[]>(realDepts ? realDepts.map(toOsDept) : []);
 </script>
 
 <!-- ── Venue hero: neutral band, same skeleton as PlatformHero so lenses align ── -->
@@ -270,7 +271,9 @@
 	</div>
 	<div class="min-w-0">
 		<div class="text-base font-extrabold tracking-tight text-text-1">{hs.venueName}</div>
-		<div class="mt-0.5 text-xs text-text-3">Manavgat · Sezon: Nis–Kas · {hs.reviewCount} yorum</div>
+		<!-- Region + season were hardcoded to one customer's venue and are not in the
+		     score payload; the subtitle now states only what the data actually says. -->
+		<div class="mt-0.5 text-xs text-text-3">{hs.reviewCount} yorum</div>
 	</div>
 
 	<div class="ml-auto flex items-end gap-4">

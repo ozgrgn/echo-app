@@ -1,57 +1,21 @@
 /**
- * lib/mock/os.ts — ECHO OS (Genel lens) mock data.
+ * lib/mock/os.ts — the last few OS values the backend does NOT serve yet.
  *
- * RULE (see ECHO_OS_DATA.md): real fields come from echo-ui's MOCK_HOTEL_SCORE /
- * MOCK_COMPETITORS (typed against echo-core). Fields that DON'T exist in the
- * backend yet (time-series, platform breakdown, department scores) are invented
- * HERE with explicit types and a `// [MOCK→radar]` / `// [MOCK→echo]` /
- * `// [MOCK→ops]` tag, so when the real source lands we know exactly what to swap.
+ * This file used to be a demo dataset. It isn't any more: the mock data-source mode
+ * (and the whole DEMO_* / KPI / trend / platform-list set that fed it) is gone —
+ * demo tenants now get a real, backend-issued session over fixture data and read the
+ * same live endpoints as everyone else.
  *
- * This keeps the "verileri görelim" promise: every mock value is labeled with its
- * future owner. Nothing here pretends a missing backend field is real.
+ * What's left is only what LIVE screens still need and no endpoint provides:
+ *   • PLATFORM_COLOR / PLATFORM_PALETTE — presentation tokens (never had a backend)
+ *   • MOCK_OS_COUNTERS — rail alert/goal badges           [MOCK→radar / MOCK→echo]
+ *   • MOCK_OS_RESPONSE.competitorAvgRate — market benchmark          [MOCK→radar]
+ *   • platformTrendFor / responseSliceFor — per-lens derivations     [MOCK→radar]
+ *   • OsDept / ResponseRateRow / OsPlatform — types the real adapters map into
+ *
+ * Every remaining invented value keeps its `[MOCK→owner]` tag, so when the real
+ * source lands we know exactly what to swap.
  */
-
-// ── Time-series (sparklines / trend / projection) — [MOCK→radar] ─────────────
-// echo-backend stores snapshots but serves no series; radar's DailySnapshot will.
-export interface KpiSpark {
-	/** oldest → newest. */
-	series: number[];
-	/** delta vs previous point (for the DeltaBadge). */
-	delta: number;
-}
-
-export interface OsKpis {
-	gpi: KpiSpark;        // [MOCK→radar] series; value itself is [REAL] from HotelScore
-	rpi: KpiSpark;        // [MOCK→radar]
-	reviewCount: KpiSpark; // [MOCK→radar]
-	responseRate: KpiSpark; // delta is [REAL] (rateTrend); series [MOCK→radar]
-	competitorGap: KpiSpark; // [MOCK→radar]
-}
-
-export const MOCK_OS_KPIS: OsKpis = {
-	gpi: { series: [66, 67, 69, 68, 70, 72, 71, 73, 72, 71, 70.6], delta: -1.2 },
-	rpi: { series: [70, 70, 71, 71, 72, 72, 72.3], delta: 0.8 },
-	reviewCount: { series: [240, 235, 228, 221, 210, 205, 196], delta: -18 },
-	responseRate: { series: [2, 1, 1, 0, 0, 0, 0], delta: 0 },
-	competitorGap: { series: [-2, -2.4, -2.8, -3, -3.1, -3.3, -3.4], delta: -0.6 }
-};
-
-// GPI trend with target line + dashed projection — [MOCK→radar] (proj = radar intel)
-export interface TrendSeries {
-	actual: number[];      // [MOCK→radar]
-	projection: number[];  // [MOCK→radar] — radar "gidişat" forecast
-	target: number;        // [MOCK→echo] — goal definition lives in echo
-	ymin: number;
-	ymax: number;
-}
-
-export const MOCK_OS_GPI_TREND: TrendSeries = {
-	actual: [66, 67, 69, 68, 70, 72, 71, 73, 72, 71, 70.6],
-	projection: [70.6, 70, 69.4, 69],
-	target: 75,
-	ymin: 60,
-	ymax: 80
-};
 
 // ── Platform breakdown — [MOCK→echo] (HotelScore is blended, no per-platform) ──
 export interface OsPlatform {
@@ -64,12 +28,6 @@ export interface OsPlatform {
 	enters: boolean;      // clickable → platform universe
 }
 
-export const MOCK_OS_PLATFORMS: OsPlatform[] = [
-	{ key: 'tripadvisor', label: 'TripAdvisor', score: '4.48', scale: '/5', sub: '196 yorum · GPI 70.6', trend: 'up', enters: true },
-	{ key: 'booking', label: 'Booking', score: '8.1', scale: '/10', sub: '48 yorum · %32↓', trend: 'down', enters: true },
-	{ key: 'google', label: 'Google', score: '4.3', scale: '/5', sub: '71 yorum · +0.2', trend: 'up', enters: true },
-	{ key: 'holidaycheck', label: 'HolidayCheck', score: '5.2', scale: '/6', sub: '15 yorum', trend: 'flat', enters: false }
-];
 
 // Platform brand colors — [MOCK→echo] presentational; lives in token layer later.
 // Single accent (used for chips, switcher, list rows).
@@ -97,9 +55,8 @@ export const PLATFORM_PALETTE: Record<OsPlatform['key'], PlatformPalette> = {
 	holidaycheck: { soft: '#e9f6fd', border: '#bce4f5', bright: '#0091d5', deep: '#0070a3', onBright: '#fff' }
 };
 
-// ── Department grid — [MOCK→ops] list, [MOCK→echo] scores ─────────────────────
-// dept list from ops-engine /config/departments; scores need a dept→category
-// responsibility map that does NOT exist yet (so scores are pure mock for now).
+// ── Department grid shape — the real GET /v1/departments/:slug rollup maps INTO
+// this type (see toOsDept in the OS lenses). Scores/labels/trends are all real now.
 export interface OsDept {
 	key: string;          // ops canonical key: 'hk','mnt','fnb','fo'...
 	label: string;        // [MOCK→ops]
@@ -113,16 +70,11 @@ export interface OsDept {
 	enters: boolean;
 }
 
-export const MOCK_OS_DEPTS: OsDept[] = [
-	{ key: 'hk', label: 'Housekeeping', score: 61, trend: 'down', scope: 'Temizlik · Oda · Havuz', enters: true },
-	{ key: 'fnb', label: 'F&B', score: 58, trend: 'down', scope: 'Yeme&İçme · Kahvaltı', enters: true },
-	{ key: 'fo', label: 'Resepsiyon', score: 64, trend: 'down', scope: 'Check-in · Yanıt', enters: true },
-	{ key: 'anm', label: 'Animasyon', score: 71, trend: 'up', scope: 'Animasyon · Çocuk', enters: true },
-	{ key: 'mnt', label: 'Teknik', score: 67, trend: 'up', scope: 'Klima · Bakım · Arıza', enters: true },
-	{ key: 'spa', label: 'SPA & Wellness', score: 85, trend: 'up', scope: 'Masaj · Hamam · Fitness', enters: true },
-	{ key: 'pnb', label: 'Havuz & Plaj', score: 74, trend: 'flat', scope: 'Havuz · Plaj · Cankurtaran', enters: true },
-	{ key: 'gr', label: 'Misafir İlişkileri', score: 70, trend: 'up', scope: 'Yanıt · Şikâyet · Memnuniyet', enters: true }
-];
+// MOCK_OS_DEPTS (eight invented department scores) is gone: the /os and
+// /os/departments cards now read the real rollup from GET /v1/departments/:slug via
+// /api/os/data?resource=departments, and show an empty state when it has nothing yet.
+// The OsDept TYPE stays — it's the shape the real DepartmentScore is adapted into.
+
 
 // ── Rail global counters — [MOCK→radar] (alerts) / [MOCK→echo] (goals) ─────────
 export const MOCK_OS_COUNTERS = {
@@ -226,85 +178,18 @@ export function responseSliceFor(key: string, overallRate: number): {
 	};
 }
 
-// ── Demo audience segments (language + tripType) — shape matches /v1/segments ──
-// Mirrors the real endpoint's response so the Genel lens renders the same way in
-// mock mode. Numbers are illustrative; live source: GET /v1/segments.
-export const DEMO_SEGMENTS = {
-	total: 2377,
-	languageKnown: 642,
-	byLanguage: [
-		{ key: 'unknown', count: 1735 },
-		{ key: 'en', count: 388 },
-		{ key: 'de', count: 121 },
-		{ key: 'tr', count: 73 },
-		{ key: 'ru', count: 40 },
-		{ key: 'pl', count: 20 }
-	],
-	tripTypeKnown: 461,
-	byTripType: [
-		{ key: 'unknown', count: 1916 },
-		{ key: 'FAMILY', count: 224 },
-		{ key: 'COUPLES', count: 132 },
-		{ key: 'FRIENDS', count: 71 },
-		{ key: 'SOLO', count: 34 }
-	]
-};
-
-// ── Demo GPI history (time-series) — shape matches /v1/scores/:slug/history ────
-// Mock-mode stand-in so the Genel lens trend chart renders without a backend.
-// Live source: the real backfilled score_snapshots series.
-export const DEMO_HISTORY = [
-	{ period: '2025-07', scoredAt: '2025-07-15T03:00:00.000Z', gpi: 68.6, reviewCount: 1920 },
-	{ period: '2025-08', scoredAt: '2025-08-15T03:00:00.000Z', gpi: 68.2, reviewCount: 2062 },
-	{ period: '2025-09', scoredAt: '2025-09-15T03:00:00.000Z', gpi: 67.7, reviewCount: 2157 },
-	{ period: '2025-10', scoredAt: '2025-10-15T03:00:00.000Z', gpi: 66.7, reviewCount: 2208 },
-	{ period: '2025-11', scoredAt: '2025-11-15T03:00:00.000Z', gpi: 66.7, reviewCount: 2221 },
-	{ period: '2025-12', scoredAt: '2025-12-15T03:00:00.000Z', gpi: 66.7, reviewCount: 2223 },
-	{ period: '2026-01', scoredAt: '2026-01-15T03:00:00.000Z', gpi: 66.5, reviewCount: 2225 },
-	{ period: '2026-02', scoredAt: '2026-02-15T03:00:00.000Z', gpi: 66.4, reviewCount: 2231 },
-	{ period: '2026-03', scoredAt: '2026-03-15T03:00:00.000Z', gpi: 66.5, reviewCount: 2232 },
-	{ period: '2026-04', scoredAt: '2026-04-15T03:00:00.000Z', gpi: 67.9, reviewCount: 2312 },
-	{ period: '2026-05', scoredAt: '2026-05-15T03:00:00.000Z', gpi: 67.3, reviewCount: 2362 },
-	{ period: '2026-06', scoredAt: '2026-06-15T03:00:00.000Z', gpi: 67.1, reviewCount: 2466 }
-];
-
-// ── Rich demo HotelScore (blended + per-platform) ────────────────────────────
-// For presentations: a believable, fully-populated dataset. Built from echo-ui's
-// MOCK_HOTEL_SCORE (already rich: 14 categories, real Turkish excerpts) and
-// shifted per platform so each universe reads distinctly. Returned by the OS
-// loaders when osDataSource = 'mock'.
-import type { HotelScore, CompetitorScore, CategoryScore } from '@talkwo/echo-core';
-import { MOCK_HOTEL_SCORE, MOCK_COMPETITORS } from '@talkwo/echo-ui';
-
-/** Shift every category/headline/gpi score by `delta`, clamped 0–100, so a
- *  platform variant looks distinct while keeping the rich category detail. */
-function shiftScore(base: HotelScore, delta: number, overrides: Partial<HotelScore> = {}): HotelScore {
-	const clamp = (n: number) => Math.max(0, Math.min(100, +(n + delta).toFixed(1)));
-	const categoryScores: CategoryScore[] = base.categoryScores.map((c) => ({
-		...c,
-		headlineScore: clamp(c.headlineScore),
-		aspectScore: c.aspectScore == null ? null : clamp(c.aspectScore),
-	}));
-	return {
-		...base,
-		gpi: clamp(base.gpi),
-		headlineScore: clamp(base.headlineScore),
-		aspectScore: base.aspectScore == null ? null : clamp(base.aspectScore),
-		categoryScores,
-		...overrides,
-	};
-}
-
-/** Blended ('all') demo score — the rich base as-is. */
-export const DEMO_HOTEL_SCORE: HotelScore = MOCK_HOTEL_SCORE;
-
-/** Per-platform demo scores — each shifted + own review count for a distinct feel. */
-export const DEMO_PLATFORM_SCORES: Record<string, HotelScore> = {
-	tripadvisor: shiftScore(MOCK_HOTEL_SCORE, -1.1, { reviewCount: 196, avgStarRating: 4.48 }),
-	booking: shiftScore(MOCK_HOTEL_SCORE, 1.9, { reviewCount: 255, avgStarRating: 4.58 }),
-	google: shiftScore(MOCK_HOTEL_SCORE, 3.1, { reviewCount: 314, avgStarRating: 4.68 }),
-	holidaycheck: shiftScore(MOCK_HOTEL_SCORE, 0.4, { reviewCount: 235, avgStarRating: 4.38 }),
-};
-
-/** Demo competitors for the RPI/Rakipler lens. */
-export const DEMO_COMPETITORS: CompetitorScore[] = MOCK_COMPETITORS;
+// ── Demo dataset — REMOVED ───────────────────────────────────────────────────
+// DEMO_SEGMENTS / DEMO_HISTORY / DEMO_HOTEL_SCORE / DEMO_PLATFORM_SCORES /
+// DEMO_COMPETITORS used to live here: a hand-built dataset (including real hotel
+// names via echo-ui's MOCK_COMPETITORS) that the OS loaders returned whenever the
+// client-writable `echo_os_source=mock` cookie was set — i.e. with no auth at all.
+// Both the cookie and the dataset are gone. The demo is now a backend-issued demo
+// session (signed /demo?t=… link) over fixture data, so it flows through the same
+// live loaders as any customer and there is no second code path to keep in sync.
+//
+// What remains in this file is genuinely still in use in LIVE mode:
+//   • PLATFORM_COLOR / PLATFORM_PALETTE — presentation tokens
+//   • MOCK_OS_COUNTERS — rail alert/goal badges (no backend source yet)
+//   • MOCK_OS_RESPONSE.competitorAvgRate — market response-rate benchmark [MOCK→radar]
+//   • platformTrendFor / responseSliceFor — per-lens derivations [MOCK→radar]
+//   • OsDept / ResponseRateRow — types used by real data adapters

@@ -28,8 +28,8 @@ function cat(
 }
 
 export const MOCK_HOTEL_SCORE: HotelScore = {
-  venueSlug: 'lago-hotel-sorgun',
-  venueName: 'Lago Hotel Sorgun',
+  venueSlug: 'aurelia-bay-resort',
+  venueName: 'Aurelia Bay Resort & Spa',
   period: '2025-05',
   avgStarRating: 4.3,
   aspectScore: 79.1,

@@ -2,10 +2,16 @@
   CategoryHistoryModal — historical score series for ONE granular key of a
   department, in a dialog. Opened from the department page's category rows.
 
-  The window tabs here are the MODAL's own horizon (Tümü/2Y/1Y), independent of
-  the page's global ?window= — switching them refetches only this series, never
-  the page. Only monthly-series windows are offered: 3mo/6mo history lives in the
-  DAILY store, which this per-key endpoint doesn't read.
+  IT OPENS ON THE PAGE'S WINDOW. It used to always open on 'max', on the theory that
+  "history is the point" — but the row you clicked showed a 24-month score and mention
+  count, and the dialog that opened showed a 3-year one. Same category, two different
+  numbers, seconds apart (33 vs 27; 18 mentions vs 1442). Whatever horizon you are
+  reading the department at, the drill-down starts there; the tabs then let you widen
+  it, and switching them refetches only this series, never the page.
+
+  Only monthly-series windows are offered: 3mo/6mo history lives in the DAILY store,
+  which this per-key endpoint doesn't read — so a page sitting on 6mo falls back to the
+  nearest monthly window it can actually plot.
 -->
 <script lang="ts">
 	import { Dialog } from 'bits-ui';
@@ -29,13 +35,36 @@
 		label: string;
 		/** Department accent color (same as the page's DEPT_COLOR). */
 		color?: string;
+		/** The window the PAGE is on. The modal opens here so its numbers match the row
+		 *  that was clicked; the user can widen it from the tabs. */
+		pageWindow?: OsWindow;
 	}
 
-	let { open, onOpenChange, deptKey, granularKey, label, color = 'var(--color-brand)' }: Props = $props();
+	let {
+		open,
+		onOpenChange,
+		deptKey,
+		granularKey,
+		label,
+		color = 'var(--color-brand)',
+		pageWindow = 'max'
+	}: Props = $props();
 
-	// Monthly-series windows only (see header note). 'max' first — history is the point.
+	// Monthly-series windows only (see header note).
 	const WINDOWS = OS_WINDOW_TABS.filter((t) => ['max', '24mo', '12mo'].includes(t.key));
+	const MONTHLY: OsWindow[] = ['max', '24mo', '12mo'];
+
+	/** The page may sit on a window this endpoint cannot plot (3mo/6mo are daily-store
+	 *  only). Fall back to the widest monthly window rather than fetching a series that
+	 *  comes back empty. */
+	const initialWindow = $derived(MONTHLY.includes(pageWindow) ? pageWindow : '24mo');
+
 	let histWindow = $state<OsWindow>('max');
+	// Re-seed each time the dialog opens for a new key, so it always starts on the page's
+	// horizon — but leave the user's tab choice alone while it stays open.
+	$effect(() => {
+		if (open && granularKey) histWindow = initialWindow;
+	});
 
 	let points = $state<TrendPoint[]>([]);
 	let loading = $state(false);

@@ -25,6 +25,7 @@ import { redirect } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import {
 	login,
+	loginDemo,
 	getHotelScore,
 	getCompetitorScores,
 	getScoreHistory,
@@ -53,7 +54,7 @@ import {
 	type VenueGranularPatch,
 	type OsLens
 } from '@talkwo/echo-ui';
-import { setJwtCookie, clearSession } from '$lib/server/session';
+import { setJwtCookie, clearSession, isDemoRefresh } from '$lib/server/session';
 
 class Unauthenticated extends Error {}
 
@@ -66,13 +67,28 @@ export function makeServerApi(event: RequestEvent) {
 
 	const fo = (): FetchOpts => ({ baseUrl, fetch });
 
+	/**
+	 * Re-auth after a 401. TWO paths, because a demo session has no password.
+	 *
+	 * A normal login stores {tenantKey, clientSecret} in the encrypted refresh cookie and
+	 * re-logs-in with it. A demo session stores {demoToken} — the 30-day link token — and
+	 * exchanges it for a fresh 1-hour staff JWT.
+	 *
+	 * WITHOUT THE DEMO BRANCH a presentation dies exactly one hour in: this function would
+	 * call login() with an undefined clientSecret, the backend would 401, and the viewer
+	 * would be bounced to /login mid-demo. The asymmetric lifetimes (long link, short JWT)
+	 * are what make the demo survive a long session — but only if we come back here with
+	 * the link token.
+	 */
 	async function refresh(): Promise<boolean> {
 		if (!locals.refresh) return false;
 		try {
-			const res = await login(
-				{ tenantKey: locals.refresh.tenantKey, clientSecret: locals.refresh.clientSecret },
-				fo()
-			);
+			const res = isDemoRefresh(locals.refresh)
+				? await loginDemo(locals.refresh.demoToken, fo())
+				: await login(
+						{ tenantKey: locals.refresh.tenantKey, clientSecret: locals.refresh.clientSecret },
+						fo()
+					);
 			token = res.accessToken;
 			setJwtCookie(cookies, res.accessToken, res.expiresIn);
 			return true;

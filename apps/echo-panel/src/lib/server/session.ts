@@ -35,11 +35,32 @@ export interface SessionIdentity {
 	/** Ecosystem superadmin (from /auth/whoami at login). Gates the Yönetim
 	 *  surface in the UI; the backend still enforces it via requireSuperadmin. */
 	isSuperadmin: boolean;
+	/** Marketing demo session (entered via /demo?t=…). Read-only, fixture-served,
+	 *  scoped to TEN_DEMO_AURELIA. Hides the write surfaces in the UI and shows the
+	 *  "sample data" banner; the backend enforces read-only regardless. */
+	isDemo?: boolean;
 }
 
-export interface RefreshCreds {
-	tenantKey: string;
-	clientSecret: string;
+/**
+ * What we can re-authenticate with when the 1-hour access token expires.
+ *
+ * Two shapes, because the demo has no password:
+ *   - a normal panel login stores {tenantKey, clientSecret}
+ *   - a demo session stores {demoToken} — the long-lived (30-day) link token, which
+ *     POST /v1/auth/demo-token exchanges for a fresh 1-hour staff JWT.
+ *
+ * Distinguished by which field is present, not by a discriminator: cookies minted
+ * before the demo existed carry clientSecret and must keep working.
+ *
+ * WHY THIS MATTERS: without the demo branch, a presentation dies exactly one hour in —
+ * refresh() would call login() with an undefined clientSecret, fail, and bounce the
+ * viewer to /login mid-demo. See echoApi.refresh().
+ */
+export type RefreshCreds = { tenantKey: string; clientSecret: string } | { demoToken: string };
+
+/** Type guard: is this a demo session's refresh credential? */
+export function isDemoRefresh(c: RefreshCreds): c is { demoToken: string } {
+	return 'demoToken' in c;
 }
 
 /** Base cookie attributes shared by all three session cookies. */
@@ -135,12 +156,13 @@ export function readIdentity(cookies: Cookies): SessionIdentity | null {
 	try {
 		const parsed = JSON.parse(raw) as Partial<SessionIdentity>;
 		if (!parsed.tenantKey || !parsed.venueSlug) return null;
-		// Back-compat: cookies minted before isSuperadmin existed default to false.
+		// Back-compat: cookies minted before isSuperadmin / isDemo existed default to false.
 		return {
 			tenantKey: parsed.tenantKey,
 			venueSlug: parsed.venueSlug,
 			venueName: parsed.venueName ?? '',
-			isSuperadmin: parsed.isSuperadmin ?? false
+			isSuperadmin: parsed.isSuperadmin ?? false,
+			isDemo: parsed.isDemo ?? false
 		};
 	} catch {
 		return null;

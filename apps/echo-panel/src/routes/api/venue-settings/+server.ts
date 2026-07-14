@@ -11,6 +11,10 @@ import type { RequestHandler } from './$types';
 
 export const PATCH: RequestHandler = async ({ request, locals, fetch }) => {
 	if (!locals.session) throw error(401, 'Not authenticated');
+	// Demo sessions are read-only. The backend enforces this too (demoGate 403s every
+	// mutating method for the demo tenant); this is the UI-side half, so the request never
+	// leaves the panel and the failure is immediate rather than a round-trip away.
+	if (locals.session.isDemo) throw error(403, 'Demo oturumu salt-okunurdur.');
 
 	let body: { venueSlug?: string; patch?: Parameters<typeof patchVenueSettings>[1] };
 	try {

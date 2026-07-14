@@ -320,7 +320,7 @@
 								<div class="flex-1 min-w-0">
 									<div class="font-medium text-text-1">{c.name}</div>
 									<div class="text-xs text-text-3">
-										{data.competitorRegions[c.slug] ?? c.region?.area ?? '—'}
+										{c.region?.area ?? '—'}
 									</div>
 								</div>
 								<div class="text-right text-xs text-text-3">

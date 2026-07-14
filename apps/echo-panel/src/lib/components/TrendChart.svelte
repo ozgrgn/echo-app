@@ -181,12 +181,25 @@
 	// Return an array of { text, emphasis? }. `emphasis: true` renders bold/brand.
 	// The renderer sizes the box from the longest line, so keep lines short.
 	// ────────────────────────────────────────────────────────────────────────
+	/**
+	 * Format a plotted value for display.
+	 *
+	 * Scores arrive as raw floats (a GPI is 81.551843782) and were being printed verbatim,
+	 * so the end-of-line label and the tooltip read "GPI 81.551843782" next to a KPI tile
+	 * showing "81.6". But this chart is generic — it also plots mention counts — so a blanket
+	 * toFixed(1) would render "1442.0 mention". Round fractions to one decimal, leave whole
+	 * numbers whole.
+	 */
+	function fmtValue(n: number): string {
+		return Number.isInteger(n) ? String(n) : n.toFixed(1);
+	}
+
 	function tooltipLines(i: number): { text: string; emphasis?: boolean }[] {
 		const lines: { text: string; emphasis?: boolean }[] = [];
 		// Date header first (muted), then the value (emphasized), then the optional
 		// per-point note (e.g. mention volume) so hover answers "kaç mention'dan?".
 		if (periods[i]) lines.push({ text: fmtPeriod(periods[i]) });
-		lines.push({ text: `${valueLabel} ${actual[i]}`, emphasis: true });
+		lines.push({ text: `${valueLabel} ${fmtValue(actual[i])}`, emphasis: true });
 		if (pointNotes[i]) lines.push({ text: pointNotes[i] as string });
 		return lines;
 	}
@@ -261,7 +274,7 @@
 		<circle cx={lastPt[0]} cy={lastPt[1]} r="4" fill={color} stroke="#fff" stroke-width="2" />
 		<circle cx={lastPt[0]} cy={lastPt[1]} r="4" fill="none" stroke={color} stroke-width="2" class="tc-pulse" />
 		<text x={lastPt[0]} y={lastPt[1] - 11} text-anchor="middle" font-size="11.5" font-weight="800" fill={color}>
-			{actual[actual.length - 1]}
+			{fmtValue(actual[actual.length - 1])}
 		</text>
 	{/if}
 

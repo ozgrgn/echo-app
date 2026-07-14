@@ -20,17 +20,22 @@ export interface AssistantThread {
 }
 
 // [MOCK→radar] topic threads — each issue is a thread, owned by a department.
+// The goal thread reads 85 because that is the target the rest of the product solves for
+// (scores/impact.ts DEFAULT_TARGET, and the /os chart's goal line). It used to say 75,
+// which put a third number on a screen that already had two.
 export const MOCK_THREADS: AssistantThread[] = [
 	{ id: 't-agenda', label: 'Gündem', status: 'tracking' },
 	{ id: 't-food', label: 'Yeme&İçme', ownerDept: 'fnb', status: 'tracking' },
 	{ id: 't-volume', label: 'Hacim', status: 'open', badge: '!' },
-	{ id: 't-goal75', label: 'Hedef 75', status: 'tracking' }
+	{ id: 't-goal85', label: 'Hedef 85', status: 'tracking' }
 ];
 
 // [MOCK→radar] today's brief — radar synthesizes this from snapshots + alerts.
+// Figures kept in the same neighbourhood as the real data the page shows; a brief quoting
+// "GPI 70.6" beside a tile reading 81.6 is the kind of detail a viewer notices.
 export const MOCK_BRIEF = {
 	title: 'Bugünün özeti',
-	body: 'Genel GPI 70.6 (▼1.2 bu hafta). 3 konu dikkat istiyor; en kritiği Booking’de yorum hacminin %32 düşmesi. İyi tarafta TripAdvisor Yeme&İçme görevin işe yarıyor.'
+	body: 'Genel GPI 81.6 (▲0.2 bu hafta) — hedef 85’e 3.4 puan kaldı. En kritik konu: Oda kategorisi 4 aydır düşüşte (70.5), şikâyetlerin çoğu banyo temizliği. İyi tarafta HolidayCheck 86.8 ile hedefin üzerinde.'
 };
 
 // [MOCK→radar] active topics in the stream.
@@ -47,41 +52,45 @@ export interface StreamTopic {
 	valueTone: 'good' | 'bad' | 'neutral';
 }
 
+// The figures here are drawn from the SAME data the page renders (GPI 80.2, Google 71.2 on
+// 794 reviews, Resepsiyon 75.5 falling, HolidayCheck 86.8). They used to be invented and
+// contradicted the tiles beside them — "GPI 70.6" next to a card reading 81.6 tells a
+// viewer the assistant is decoration. Keep these in step whenever the fixtures are refreshed.
 export const MOCK_STREAM: StreamTopic[] = [
 	{
-		id: 's-booking',
-		tag: 'B',
-		tagColor: '#003b95',
-		title: 'Yorum hacmi düşüşü',
+		id: 's-front',
+		tag: 'FO',
+		tagColor: '#d64545',
+		title: 'Resepsiyon düşüşte',
 		status: 'open',
 		statusLabel: 'kritik',
-		sub: 'Booking · 71→48 (%32↓), puan 8.4→8.1',
-		value: '−32%',
-		valueLabel: 'hacim',
+		sub: '159 mention · 4 aydır geriliyor · check-in kuyruğu',
+		value: '75.5',
+		valueLabel: '▼2.7',
 		valueTone: 'bad'
 	},
 	{
-		id: 's-food',
-		tag: 'TA',
-		tagColor: '#00865a',
-		title: 'Yeme&İçme toparlanıyor',
-		status: 'tracking',
-		statusLabel: 'izleniyor',
-		sub: 'TripAdvisor · görev 3 hafta önce · 53.7→56.4',
-		value: '+2.7',
-		valueLabel: '3 hafta',
-		valueTone: 'good'
+		id: 's-google',
+		tag: 'G',
+		tagColor: '#ea4335',
+		title: 'Google en zayıf kanal',
+		status: 'open',
+		statusLabel: 'kaldıraç',
+		sub: '794 yorum · GPI 71.2 · diğer kanalların 9–15 puan altında',
+		value: '71.2',
+		valueLabel: 'en düşük',
+		valueTone: 'bad'
 	},
 	{
 		id: 's-goal',
 		tag: '∑',
 		tagColor: '#6d5efc',
-		title: 'GPI hedefi 75',
+		title: 'Hedef 85’e 4.8 puan',
 		status: 'tracking',
 		statusLabel: 'izleniyor',
-		sub: 'Tüm platformlar · 70.6→75 · gidişat: risk',
-		value: '70.6',
-		valueLabel: '/75',
+		sub: 'Tüm platformlar · 80.2 → 85 · HolidayCheck (86.8) zaten üzerinde',
+		value: '80.2',
+		valueLabel: '/85',
 		valueTone: 'neutral'
 	}
 ];

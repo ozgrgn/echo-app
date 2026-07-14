@@ -2,21 +2,20 @@
   ECHO OS — Departmanlar (Departments) lens. Entry grid for the per-department
   detail lens (/os/department/[dept]). Department scores/trends are REAL: rolled
   up from the venue's per-category scores by taxonomy primaryOwner
-  (GET /v1/departments/:slug). Mock demo data is used only in osDataSource mock
-  mode. Clicking a card enters that department's detail lens.
+  (GET /v1/departments/:slug) — the single source; the old MOCK_OS_DEPTS fallback
+  is gone, so no data renders as an empty state. Clicking a card enters that
+  department's detail lens.
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { osState } from '$lib/stores/osState.svelte';
-	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 	import { windowParam, parseOsWindow } from '$lib/config/window';
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import DeptCard from '$lib/components/DeptCard.svelte';
 	import { Users, TrendingDown, TrendingUp, ArrowLeft } from '@lucide/svelte';
 	import { type DepartmentScore } from '@talkwo/echo-ui';
-	import { MOCK_OS_DEPTS } from '$lib/mock/os';
 	import { DEPARTMENTS } from '$lib/mock/departments';
 	import type { OsDept } from '$lib/mock/os';
 
@@ -26,16 +25,12 @@
 		goto('/os');
 	}
 
-	// ── Real department rollup (mock only in demo mode) ─────────────────────────
+	// ── Real department rollup — the only source ────────────────────────────────
 	let realDepts = $state<DepartmentScore[] | null>(null);
 	let loading = $state(false);
 	let errored = $state(false);
 
 	async function load(window: string | undefined) {
-		if (osDataSource.isMock) {
-			realDepts = null;
-			return;
-		}
 		loading = true;
 		errored = false;
 		try {
@@ -75,11 +70,9 @@
 		};
 	}
 
-	// Live list (real when available, mock otherwise). Worst-first is already the
-	// backend order; keep it. Departments with data only.
-	const depts = $derived<OsDept[]>(
-		realDepts ? realDepts.map(toOsDept) : MOCK_OS_DEPTS
-	);
+	// Worst-first is already the backend order; keep it. Empty until it answers —
+	// there is no invented fallback set any more.
+	const depts = $derived<OsDept[]>(realDepts ? realDepts.map(toOsDept) : []);
 
 	// Summary KPIs derived from whatever list is active.
 	const scored = $derived(depts.filter((d) => d.enters !== false));
@@ -87,7 +80,7 @@
 		scored.length ? scored.reduce((s, d) => s + d.score, 0) / scored.length : 0
 	);
 	// Rank the movement lists by the raw delta: steepest drop first (that's the
-	// priority), strongest gain first. Falls back to 0 for the mock set (no trendValue).
+	// priority), strongest gain first.
 	const declining = $derived(
 		depts.filter((d) => d.trend === 'down').sort((a, b) => (a.trendValue ?? 0) - (b.trendValue ?? 0))
 	);

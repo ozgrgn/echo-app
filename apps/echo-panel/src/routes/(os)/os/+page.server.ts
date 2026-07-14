@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
-import type { SegmentsResponse, HistoryPoint, ImpactResponse, ResponseStats } from '@talkwo/echo-ui';
+import type { ResponseStats } from '@talkwo/echo-ui';
 import type { ResponseRateRow } from '$lib/mock/os';
-import { DEMO_HOTEL_SCORE, DEMO_PLATFORM_SCORES, DEMO_COMPETITORS, DEMO_SEGMENTS, DEMO_HISTORY, MOCK_OS_RESPONSE } from '$lib/mock/os';
+import { MOCK_OS_RESPONSE } from '$lib/mock/os';
 import { error } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
 import { parseOsWindow, windowParam, windowChartMode } from '$lib/config/window';
@@ -43,62 +43,19 @@ function toResponseRows(stats: ResponseStats): {
 	return { byPlatform, bySentiment };
 }
 
-// SSR server load. Source is decided by the layout server load (echo_os_source
-// cookie): 'mock' → rich demo dataset (no auth); 'live' → real backend over the
-// private network (locals session token + request fetch).
-
-const CHANNELS = ['tripadvisor', 'booking', 'google', 'holidaycheck'] as const;
-
-// Demo impact for mock mode: derive a plausible leverage list from the demo
-// hotel's category scores. Real mode uses the backend's counterfactual GPI math.
-function demoImpact(): ImpactResponse {
-	const target = 85;
-	const cats = (DEMO_HOTEL_SCORE.categoryScores ?? [])
-		.filter((c) => c.aspectScore != null)
-		.map((c) => {
-			const score = c.aspectScore as number;
-			const lift = Math.max(0, ((target - score) / 100) * Math.log10(c.mentionCount + 1) * 3);
-			return {
-				category: c.category,
-				label: c.category,
-				aspectScore: Math.round(score * 10) / 10,
-				mentionCount: c.mentionCount,
-				liftToTarget: Math.round(lift * 10) / 10,
-				dragFromTop: Math.round((score - target) * 10) / 10
-			};
-		})
-		.sort((a, b) => b.liftToTarget - a.liftToTarget);
-	return { gpi: DEMO_HOTEL_SCORE.gpi, target, categories: cats, underMeasured: [] };
-}
+// SSR server load — ONE code path, always the real backend.
+//
+// This used to fork on `dataSource` (an `echo_os_source=mock` cookie set by the
+// browser) and serve a hand-built DEMO_* dataset with no auth at all. Both the
+// cookie and the demo constants are gone: the demo is now a real, backend-issued
+// demo session (signed /demo?t=… link → fixture-served tenant), so it flows through
+// this same loader. A demo user exercises the product, not a parallel mock that
+// could drift from it.
 
 export const load: PageServerLoad = async (event) => {
-	const { url, parent } = event;
-	const { dataSource } = await parent();
+	const { url } = event;
 
-	// ── MOCK source: rich demo data, no auth/backend needed ──────────────────
-	if (dataSource === 'mock') {
-		return {
-			hotelScore: DEMO_HOTEL_SCORE,
-			competitors: DEMO_COMPETITORS,
-			channels: CHANNELS.map((p) => ({ platform: p, score: DEMO_PLATFORM_SCORES[p] })),
-			period: DEMO_HOTEL_SCORE.period,
-			segments: DEMO_SEGMENTS as SegmentsResponse,
-			history: DEMO_HISTORY as HistoryPoint[],
-			platformHistories: CHANNELS.map((p, i) => ({
-				platform: p as string,
-				points: (DEMO_HISTORY as HistoryPoint[]).map((h) => ({ ...h, gpi: +(h.gpi + (i - 1.5) * 2).toFixed(1) }))
-			})),
-			impact: demoImpact(),
-			// Demo response breakdown — the mock constants (already in ResponseRateRow shape).
-			responseBreakdown: {
-				byPlatform: MOCK_OS_RESPONSE.byPlatform,
-				bySentiment: MOCK_OS_RESPONSE.bySentiment,
-				competitorAvgRate: MOCK_OS_RESPONSE.competitorAvgRate
-			}
-		};
-	}
-
-	// ── LIVE source: ONE bundle call over the private network ────────────────
+	// ── ONE bundle call over the private network ─────────────────────────────
 	// Perf: this whole lens used to make ~12 separate HTTP calls (11 parallel + 1
 	// serial getImpact). The backend now fans them out server-side; we make ONE
 	// round-trip. The window→chart decision stays here (windowChartMode) and is

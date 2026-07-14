@@ -5,19 +5,18 @@
   score trend are real; sentence-level mentions come from /v1/mentions filtered to
   this department's categories.
 
-  Fields the backend does NOT serve yet are kept in the layout but rendered empty
-  / zero (they fill in as more data lands — see ECHO_OS_GAP_PLAN Faz 5.3):
-    · Hedef (target) + ilerleme  → 0 (no Goal model yet)
-    · Aktif hedefler (goals)      → empty state
-    · Yanıt Yönetimi market rate  → [MOCK→radar]
-  Nothing is removed from the page; missing numbers show as 0 / "—".
+  The goal affordances are GONE, not empty. There is no Goal model yet, so the "Hedef —"
+  tile and the "Aktif hedefler → yakında gelecek" card were permanently blank: they
+  advertised a feature instead of showing one, which reads as an unfinished product.
+  Re-add them when the Goal model ships (ECHO_OS_GAP_PLAN Faz 5.3), not before.
+
+  Still placeholder-backed: Yanıt Yönetimi market rate → [MOCK→radar].
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { windowParam, parseOsWindow } from '$lib/config/window';
 	import { osState } from '$lib/stores/osState.svelte';
-	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import GoalProgress from '$lib/components/GoalProgress.svelte';
@@ -36,7 +35,7 @@
 	} from '@talkwo/echo-ui';
 	import { CATEGORIES, getSubcategoryLabel, type CategoryKey } from '@talkwo/echo-core';
 	import {
-		Target, TrendingDown, TrendingUp, ListTree, CircleAlert, Rocket,
+		TrendingDown, TrendingUp, ListTree, CircleAlert, Rocket,
 		ArrowLeft, MessageCircleReply, MessageSquare, History, X
 	} from '@lucide/svelte';
 
@@ -68,10 +67,8 @@
 	let errored = $state(false);
 
 	async function loadDetail(window: string | undefined) {
-		if (osDataSource.isMock) {
-			detail = null;
-			return;
-		}
+		// Always live: the mock short-circuit that blanked this lens in demo mode is gone
+		// (demo tenants now hit the same endpoint with a real session).
 		loading = true;
 		errored = false;
 		try {
@@ -187,7 +184,8 @@
 			? [mentionScope.key]
 			: breakdown.map((b) => b.granular_key).filter((k): k is string => !!k);
 		const cats = detail?.categories ?? [];
-		if (osDataSource.isMock || (gks.length === 0 && cats.length === 0)) {
+		// Nothing to scope by → nothing to fetch (the mock short-circuit is gone).
+		if (gks.length === 0 && cats.length === 0) {
 			mentions = [];
 			return;
 		}
@@ -266,10 +264,6 @@
 	let respStats = $state<ResponseStats | null>(null);
 	const respSlice = $derived(responseSliceFor(deptKey, 0.6));
 	async function loadResp() {
-		if (osDataSource.isMock) {
-			respStats = null;
-			return;
-		}
 		try {
 			// Venue-wide response stats (per-department response split is not modeled
 			// yet — market comparison stays [MOCK→radar]).
@@ -358,21 +352,18 @@
 				{detail.categories.length} kategoriden sorumlu · {detail.mentionCount} mention
 			</div>
 		</div>
-		<div class="ml-auto flex items-end gap-3">
-			<div class="flex flex-col items-end">
-				<span class="text-[10.5px] font-bold uppercase tracking-wide text-text-3">Departman skoru</span>
-				<span class="text-[42px] font-extrabold leading-none tracking-tight {scoreColor}">{score.toFixed(0)}</span>
-			</div>
-			<div class="flex min-w-[84px] flex-col gap-0.5 rounded-xl border bg-surface-1 px-3 py-2.5" style="border-color:{color}33">
-				<span class="text-[10px] font-bold uppercase tracking-wide text-text-3">Hedef</span>
-				<span class="text-[22px] font-extrabold leading-tight text-text-3">—</span>
-				<span class="text-[10px] text-text-3">hedef tanımlı değil</span>
-			</div>
+		<div class="ml-auto flex flex-col items-end">
+			<span class="text-[10.5px] font-bold uppercase tracking-wide text-text-3">Departman skoru</span>
+			<span class="text-[42px] font-extrabold leading-none tracking-tight {scoreColor}">{score.toFixed(0)}</span>
 		</div>
 	</div>
 
-	<!-- Score trend (REAL) + active goals (empty until Goal model) -->
-	<div class="mb-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-[1.55fr_1fr]">
+	<!-- Score trend. The goal affordances that used to sit here — a "Hedef —" tile in the
+	     hero and an "Aktif hedefler" card reading "yakında gelecek" — are gone. There is no
+	     Goal model yet, so both were permanently empty: they advertised a feature rather
+	     than showing one, which reads as an unfinished product. The trend now takes the
+	     full width. Bring them back with the Goal model, not before. -->
+	<div class="mb-3.5">
 		<SectionCard title="Departman skoru trendi" icon={trendDown ? TrendingDown : TrendingUp}>
 			{#snippet action()}
 				<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold {trendDown ? 'bg-danger-light text-danger' : 'bg-success-light text-success'}">
@@ -387,13 +378,6 @@
 					Trend, skorlama koştukça birikecek.
 				</p>
 			{/if}
-		</SectionCard>
-
-		<SectionCard title="Aktif hedefler" icon={Target} hint="ECHO takibi">
-			<!-- Goals model not built yet (Faz 5.3) — kept as an empty section, not removed. -->
-			<p class="py-8 text-center text-[13px] text-text-3">
-				Henüz hedef tanımlı değil.<br />Hedef belirleme yakında gelecek.
-			</p>
 		</SectionCard>
 	</div>
 
@@ -501,7 +485,9 @@
 		/>
 	</SectionCard>
 
-	<!-- Per-category history modal (own window tabs — independent of the page's). -->
+	<!-- Per-category history modal. It OPENS on the page's window so its score and mention
+	     count match the row that was clicked (they used to disagree — the row showed 24mo,
+	     the dialog always opened on 'max'). Its tabs then let you widen the horizon. -->
 	<CategoryHistoryModal
 		open={historyOpen}
 		onOpenChange={(o) => (historyOpen = o)}
@@ -509,5 +495,6 @@
 		granularKey={historyKey}
 		label={historyLabel}
 		{color}
+		pageWindow={parseOsWindow(page.url.searchParams.get('window'))}
 	/>
 {/if}

@@ -1,12 +1,11 @@
 import type { PageServerLoad } from './$types';
-import { DEMO_HOTEL_SCORE, DEMO_PLATFORM_SCORES } from '$lib/mock/os';
 import { error } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
 import { parseOsWindow, windowParam, windowChartMode } from '$lib/config/window';
 
-// Platform universe lens (SSR). Source decided by the layout server load.
-//   • 'mock' → rich per-platform demo score.
-//   • 'live' → real per-channel snapshot + blended 'all' for the hero comparison.
+// Platform universe lens (SSR). Always live: the real per-channel snapshot plus the
+// blended 'all' score for the hero comparison. The former mock branch (a demo score
+// picked by a client-writable cookie) is gone — demo sessions are real sessions now.
 
 const KNOWN = ['tripadvisor', 'booking', 'google', 'holidaycheck'];
 
@@ -15,15 +14,6 @@ export const load: PageServerLoad = async (event) => {
 	const platform = params.platform;
 	if (!KNOWN.includes(platform)) throw error(404, `Unknown platform: ${platform}`);
 
-	const { dataSource } = await event.parent();
-
-	// ── MOCK source ──
-	if (dataSource === 'mock') {
-		const platformScore = DEMO_PLATFORM_SCORES[platform] ?? DEMO_HOTEL_SCORE;
-		return { platform, platformScore, blended: DEMO_HOTEL_SCORE, period: platformScore.period, history: null };
-	}
-
-	// ── LIVE source ──
 	const session = event.locals.session;
 	if (!session) throw error(401, 'Not authenticated');
 	const api = makeServerApi(event);

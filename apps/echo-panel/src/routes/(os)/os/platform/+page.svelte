@@ -178,7 +178,17 @@
 		<p class="py-8 text-center text-[13px] text-text-3">Bu dönemde kanal bazlı kategori verisi yok.</p>
 	{:else}
 		<div class="overflow-x-auto">
-			<table class="w-full border-collapse text-[13px]">
+			<!-- table-fixed + an explicit colgroup: with auto layout the label column (long
+			     strings like "Animasyon & Eğlence") swallowed the slack and the numeric columns
+			     bunched up on the right, leaving the last channel visually detached from the
+			     other three. Fixed layout with equal channel widths spaces them evenly. -->
+			<table class="w-full table-fixed border-collapse text-[13px]">
+				<colgroup>
+					<col style="width:22%" />
+					{#each channels as ch (ch.platform)}
+						<col style="width:{78 / channels.length}%" />
+					{/each}
+				</colgroup>
 				<thead>
 					<tr class="text-text-3">
 						<th class="py-2 pr-3 text-left font-semibold">Kategori</th>
