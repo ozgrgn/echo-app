@@ -16,17 +16,33 @@
 	// The time window comes from the global rail selector (?window=, shared across
 	// every lens); this page just consumes data.window that the SSR load resolved.
 
-	// ── Market average + CQI (derived live, not mocked) ──────────────────────
+	// ── Market average ────────────────────────────────────────────────────────
 	const competitorAvg = $derived(
 		data.competitors.length === 0
 			? 0
 			: data.competitors.reduce((s, c) => s + c.gpi, 0) / data.competitors.length
 	);
-	// CQI = own GPI normalized to market average (100 = market par; >100 ahead).
-	const cqi = $derived(competitorAvg === 0 ? null : (data.hotelScore.gpi / competitorAvg) * 100);
 
 	type Tone = 'neutral' | 'success' | 'warning' | 'danger';
-	const cqiTone = $derived<Tone>(cqi === null ? 'neutral' : cqi >= 100 ? 'success' : cqi >= 95 ? 'warning' : 'danger');
+
+	// The headline tile is the venue's own GPI, coloured by the standard zones
+	// (echo-core gpiZone: ≥85 good, 70–84 warn, <70 bad) so it reads the same here as
+	// everywhere else in the product.
+	const gpiTone = $derived<Tone>(
+		(({ green: 'success', yellow: 'warning', red: 'danger' }) as Record<string, Tone>)[
+			gpiZone(data.hotelScore.gpi)
+		] ?? 'neutral'
+	);
+
+	// Caption says where that score sits relative to the market — which is the question
+	// this whole lens exists to answer.
+	const rpiCaption = $derived(
+		competitorAvg === 0
+			? 'rakip yok'
+			: data.hotelScore.gpi >= competitorAvg
+				? `pazarın ${(data.hotelScore.gpi - competitorAvg).toFixed(1)} puan önünde`
+				: `pazarın ${(competitorAvg - data.hotelScore.gpi).toFixed(1)} puan gerisinde`
+	);
 
 	// ── Sortable rows: own hotel + competitors, GPI descending ───────────────
 	// Every row is a real, scored venue now. The loader no longer ships mockSlugs /
@@ -143,19 +159,27 @@
 	</div>
 {/if}
 
-<!-- ── KPI strip ─────────────────────────────────────────────────────────── -->
+<!-- ── KPI strip ───────────────────────────────────────────────────────────
+     Reads as a sentence: my score → where that puts me → what rank → what the
+     market looks like.
+
+     The first tile used to be "CQI", computed here as (own GPI ÷ market avg) × 100.
+     That is the SAME quantity the backend already ships as `rpi` — so the strip led
+     with two tiles showing 95 and 95.1, one index under two names, and the venue's
+     own GPI (the number every bar below is ranked by) appeared nowhere. Dropped the
+     local duplicate; lead with the score itself. -->
 <div class="mb-3.5 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
 	<StatTile
-		label="CQI"
-		value={cqi !== null ? cqi.toFixed(0) : '—'}
-		tone={cqiTone}
+		label="Genel GPI"
+		value={data.hotelScore.gpi.toFixed(1)}
+		tone={gpiTone}
 		emphasis="primary"
-		caption={cqi === null ? 'rakip yok' : cqi >= 100 ? 'pazarın önünde' : 'pazarın gerisinde'}
+		caption={rpiCaption}
 	/>
 	<StatTile
 		label="RPI"
 		value={data.hotelScore.rpi?.toFixed(1) ?? '—'}
-		caption="rakip endeksi"
+		caption="100 = pazar ortalaması"
 	/>
 	<StatTile
 		label="Sıralama"
