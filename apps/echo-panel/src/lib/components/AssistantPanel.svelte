@@ -13,7 +13,14 @@
 	// Active venue name for the scope header (from the SSR session, via the OS layout).
 	// Required, not defaulted: the old default hardcoded one real customer's hotel name,
 	// which would silently render on every other tenant if the session name went missing.
-	let { venueName }: { venueName: string } = $props();
+	//
+	// `demo` decides whether the PLACEHOLDER CONTENT renders. The brief and the topic
+	// cards quote concrete numbers, and those numbers are the demo venue's — pulled from
+	// its fixtures so the demo hangs together. Put them in front of a real customer and
+	// they sit next to that customer's own tiles saying something else: a placeholder that
+	// looks real and belongs to another hotel. Worse than an obvious one. So a real tenant
+	// gets an honest empty shell until the radar brain (A1) is wired.
+	let { venueName, demo = false }: { venueName: string; demo?: boolean } = $props();
 
 	// Scope label tracks the active lens (the assistant's identity shifts per lens).
 	const scopeLabel = $derived(
@@ -58,6 +65,18 @@
 		</button>
 	</header>
 
+{#if !demo}
+	<!-- Real tenant: no placeholder figures. See the note on the `demo` prop. -->
+	<div class="flex flex-1 flex-col items-center justify-center px-6 text-center">
+		<div class="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface-2 text-text-3">
+			<Sparkles size={20} />
+		</div>
+		<p class="text-[13px] font-semibold text-text-1">Asistan yakında</p>
+		<p class="mt-1.5 text-[12px] leading-relaxed text-text-3">
+			Skorlarınızı okuyup ne yapmanız gerektiğini söyleyen asistan üzerinde çalışıyoruz.
+		</p>
+	</div>
+{:else}
 	<!-- Thread tabs (horizontal, scrollable) -->
 	<div class="flex items-center gap-1.5 overflow-x-auto border-b border-border bg-surface-2/40 px-3 py-2.5 [scrollbar-width:none]">
 		{#each MOCK_THREADS as t (t.id)}
@@ -142,4 +161,5 @@
 		</div>
 		<p class="mt-1.5 px-0.5 text-[10px] text-text-3">A1'de radar beynine bağlanacak · şu an önizleme</p>
 	</div>
+{/if}
 </div>

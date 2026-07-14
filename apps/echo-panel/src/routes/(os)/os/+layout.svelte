@@ -32,6 +32,9 @@
 	// Superadmin gates the Yönetim rail entry — same flag the classic (app) nav
 	// uses, plumbed via /auth/whoami → session cookie → PageData.
 	const isSuperadmin = $derived(data?.session?.isSuperadmin ?? false);
+	// Gates the placeholder content (assistant copy, rail badges) that quotes invented
+	// figures. A real tenant must not be shown numbers that are not theirs.
+	const isDemo = $derived(data?.session?.isDemo ?? false);
 
 	// These lenses carry their own back button + in-page switcher row, so the
 	// global LensTabs would stack a second button row. Hide it on them.
@@ -128,24 +131,28 @@
 
 		<div class="flex-1"></div>
 
-		<!-- Global counters: at-risk goals + open alerts (reachable from any lens) -->
+		<!-- Global counters: at-risk goals + open alerts (reachable from any lens).
+		     The BADGES are demo-only. There is no Goal or Alert model yet, so the numbers
+		     are invented — and a real tenant seeing a red "3" they cannot click through to
+		     is being told something false about their own hotel. The buttons stay (the
+		     shell is real, the counts are not); the badges appear once the models land. -->
 		<button
-			title="{MOCK_OS_COUNTERS.atRiskGoals} risk altındaki hedef"
+			title="Hedefler"
 			class="relative grid h-10 w-10 place-items-center rounded-xl text-text-3 transition-colors hover:bg-surface-2 hover:text-text-1"
 		>
 			<Target size={19} strokeWidth={2} />
-			{#if MOCK_OS_COUNTERS.atRiskGoals > 0}
+			{#if isDemo && MOCK_OS_COUNTERS.atRiskGoals > 0}
 				<span class="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-warning px-1 text-[10px] font-bold text-white">
 					{MOCK_OS_COUNTERS.atRiskGoals}
 				</span>
 			{/if}
 		</button>
 		<button
-			title="{MOCK_OS_COUNTERS.openAlerts} açık uyarı"
+			title="Uyarılar"
 			class="relative grid h-10 w-10 place-items-center rounded-xl text-text-3 transition-colors hover:bg-surface-2 hover:text-text-1"
 		>
 			<Bell size={19} strokeWidth={2} />
-			{#if MOCK_OS_COUNTERS.openAlerts > 0}
+			{#if isDemo && MOCK_OS_COUNTERS.openAlerts > 0}
 				<span class="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">
 					{MOCK_OS_COUNTERS.openAlerts}
 				</span>
@@ -202,9 +209,19 @@
 		{@render children()}
 	</main>
 
-	<!-- ── Assistant (skeleton shell — A1 wires the radar brain) ─────────── -->
+	<!-- ── Assistant (skeleton shell — A1 wires the radar brain) ───────────
+	     `demo` gates the placeholder CONTENT, not the panel. The mock brief and topic
+	     cards quote concrete figures (GPI 81.6, Resepsiyon 75.5, Google 794 reviews) —
+	     they are the DEMO venue's, drawn from its fixtures so the demo reads coherently.
+	     Shown to a real customer they would sit beside that customer's own tiles saying
+	     something different, which is worse than an obvious placeholder: it looks real
+	     and it is another hotel's. Until the radar brain lands, a real tenant sees an
+	     honest "coming soon" shell instead. -->
 	<aside class="overflow-hidden border-l border-border bg-surface-1 shadow-[-16px_0_40px_-24px_rgba(15,23,42,0.18)]">
-		<AssistantPanel venueName={data?.session?.venueName ?? ''} />
+		<AssistantPanel
+			venueName={data?.session?.venueName ?? ''}
+			demo={data?.session?.isDemo ?? false}
+		/>
 	</aside>
 </div>
 
