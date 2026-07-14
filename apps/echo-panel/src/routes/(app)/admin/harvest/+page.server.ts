@@ -13,7 +13,23 @@ export const load: PageServerLoad = async (event) => {
 
 	const days = Number(event.url.searchParams.get('days') ?? 14);
 	const api = makeServerApi(event);
-	const report = await api.getHarvestRuns(Number.isFinite(days) ? days : 14);
 
-	return { report };
+	// Name the failure instead of letting it surface as a bare 500. The most common
+	// cause is a backend that predates this endpoint (404) — e.g. a dev server that
+	// was already running before the route landed, or a panel deployed ahead of the
+	// API. "Internal Error" sends you hunting; this tells you where to look.
+	try {
+		const report = await api.getHarvestRuns(Number.isFinite(days) ? days : 14);
+		return { report };
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : String(e);
+		if (msg.includes('404')) {
+			throw error(
+				503,
+				'echo-api bu uç noktayı tanımıyor (404). Backend, /v1/admin/harvest/runs ' +
+					"rotasını içeren sürümden eski — API'yi yeniden başlatın/deploy edin."
+			);
+		}
+		throw error(502, `Harvest raporu alınamadı: ${msg}`);
+	}
 };
