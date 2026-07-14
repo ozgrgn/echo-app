@@ -8,7 +8,7 @@
  * network with locals.session.token.
  *
  * GET /api/os/data?resource=<name>&venueSlug=<slug>&...params
- *   resources: departments | departmentDetail | responseStats | responseQueue
+ *   resources: departments | departmentDetail | departmentKeyTrend | responseStats | responseQueue | mentions
  */
 
 import { json, error } from '@sveltejs/kit';
@@ -38,6 +38,17 @@ export const GET: RequestHandler = async (event) => {
 				if (!deptKey) throw error(400, 'deptKey required');
 				return json(await api.getDepartmentDetail(venueSlug, deptKey, { platform, period, window }));
 			}
+			case 'departmentKeyTrend': {
+				// Per-granular-key historical series (category-history modal). `window`
+				// here is the MODAL's own horizon, independent of the page's global one.
+				const deptKey = url.searchParams.get('deptKey');
+				const granularKey = url.searchParams.get('granularKey');
+				if (!deptKey) throw error(400, 'deptKey required');
+				if (!granularKey) throw error(400, 'granularKey required');
+				return json(
+					await api.getDepartmentKeyTrend(venueSlug, deptKey, granularKey, { platform, window })
+				);
+			}
 			case 'responseStats':
 				return json(await api.getResponseStats(venueSlug, platform));
 			case 'responseQueue':
@@ -46,10 +57,14 @@ export const GET: RequestHandler = async (event) => {
 				const polarity = url.searchParams.get('polarity') as 'negative' | 'positive' | null;
 				const category = url.searchParams.get('category') ?? undefined;
 				const subcategory = url.searchParams.get('subcategory') ?? undefined;
+				// v2: comma-separated granular_keys — the only correct department scope
+				// (a category spans several departments in the granular taxonomy).
+				const granularKey = url.searchParams.get('granularKey') ?? undefined;
 				return json(
 					await api.getMentions(venueSlug, {
 						limit,
 						...(polarity ? { polarity } : {}),
+						...(granularKey ? { granularKey } : {}),
 						...(category ? { category } : {}),
 						...(subcategory ? { subcategory } : {})
 					})

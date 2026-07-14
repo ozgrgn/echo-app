@@ -400,6 +400,12 @@ export interface MentionRow {
   publishedDate: string;
   category: string;
   subcategory: string;
+  /** v2 granular routing key (absent on pre-v2 aspects). */
+  granular_key?: string;
+  /** v2 granular display label (label_tr) — prefer this over the legacy subcategory label. */
+  granular_label?: string;
+  /** v2 parent_key (the old 107-key rollup). */
+  parent_key?: string;
   sentiment: string;
   /** -1..+1, signed. */
   polarity: number;
@@ -410,6 +416,13 @@ export interface MentionRow {
 export interface MentionFilters {
   category?: string;
   subcategory?: string;
+  /**
+   * v2: comma-separated granular_keys. THE correct way to scope mentions to a
+   * department — a category spans several departments in the granular taxonomy
+   * (ROOM feeds hk + fo + mnt + tesis), so `category` alone leaks other
+   * departments' mentions into the list.
+   */
+  granularKey?: string;
   /** 'negative' → polarity ≤ -0.2, 'positive' → polarity ≥ +0.2. */
   polarity?: 'negative' | 'positive';
   limit?: number;
@@ -593,6 +606,46 @@ export async function getDepartmentDetail(
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!res.ok) throw new Error(`getDepartmentDetail failed: ${res.status}`);
+  return res.json();
+}
+
+// Per-granular-key historical series (category-history modal). The window here is
+// the MODAL's own horizon (Tümü/2Y/1Y tabs), independent of the page's global ?window=.
+
+export interface DepartmentKeyTrendPoint {
+  period: string;
+  /** Key score for that period; null when the key had no scoreable mentions. */
+  score: number | null;
+  /** RAW mention count for the key in that period (0 when absent). */
+  mentions: number;
+}
+
+export interface DepartmentKeyTrendResponse {
+  deptKey: string;
+  granular_key: string;
+  window: string;
+  points: DepartmentKeyTrendPoint[];
+}
+
+export async function getDepartmentKeyTrend(
+  venueSlug: string,
+  deptKey: string,
+  granularKey: string,
+  token: string,
+  opts: { platform?: string; window?: string } = {},
+  fetchOpts?: FetchOpts
+): Promise<DepartmentKeyTrendResponse> {
+  const { base, f } = resolveFetch(fetchOpts);
+  const params = new URLSearchParams({
+    granularKey,
+    ...(opts.platform ? { platform: opts.platform } : {}),
+    ...(opts.window ? { window: opts.window } : {})
+  });
+  const res = await f(
+    `${base}/departments/${encodeURIComponent(venueSlug)}/${encodeURIComponent(deptKey)}/key-trend?${params}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) throw new Error(`getDepartmentKeyTrend failed: ${res.status}`);
   return res.json();
 }
 

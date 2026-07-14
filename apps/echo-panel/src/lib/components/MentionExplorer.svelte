@@ -60,7 +60,7 @@
 	<p class="px-1 py-6 text-center text-sm text-text-3">Bu filtreye uyan mention yok.</p>
 {:else}
 	<ul class="flex flex-col">
-		{#each items as m, i (m.reviewId + ':' + m.subcategory + ':' + i)}
+		{#each items as m, i (m.reviewId + ':' + (m.granular_key ?? m.subcategory) + ':' + i)}
 			{@const neg = isNeg(m.polarity)}
 			{@const pos = isPos(m.polarity)}
 			{@const seg = parts(m.excerpt, m.target_text)}
@@ -77,7 +77,11 @@
 						>{seg.post}"
 					</p>
 					<div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-text-3">
-						<span class="font-semibold capitalize text-text-2">{getSubcategoryLabel(m.subcategory, 'tr')}</span>
+						<!-- v2: the granular label comes from the granular catalog (always present).
+						     Legacy fallback: the old 107-key subcategory label. -->
+						<span class="font-semibold capitalize text-text-2"
+							>{m.granular_label ?? getSubcategoryLabel(m.subcategory, 'tr')}</span
+						>
 						<span>·</span>
 						<span class="uppercase tracking-wide">{m.platform}</span>
 						{#if m.publishedDate}

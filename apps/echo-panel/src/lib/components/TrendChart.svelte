@@ -25,6 +25,10 @@
 		periods?: string[];
 		/** Periods are daily ('YYYY-MM-DD') → tick labels read 'DD/MM' not 'MM/YY'. */
 		daily?: boolean;
+		/** What the plotted value is called in the tooltip (default 'GPI'). */
+		valueLabel?: string;
+		/** Optional muted tooltip line per actual point (e.g. '12 mention'). */
+		pointNotes?: (string | null)[];
 	}
 
 	let {
@@ -38,7 +42,9 @@
 		color = 'var(--color-brand)',
 		height = 260,
 		periods = [],
-		daily = false
+		daily = false,
+		valueLabel = 'GPI',
+		pointNotes = []
 	}: Props = $props();
 
 	const W = 740;
@@ -177,9 +183,11 @@
 	// ────────────────────────────────────────────────────────────────────────
 	function tooltipLines(i: number): { text: string; emphasis?: boolean }[] {
 		const lines: { text: string; emphasis?: boolean }[] = [];
-		// Date header first (muted), then the GPI value (emphasized).
+		// Date header first (muted), then the value (emphasized), then the optional
+		// per-point note (e.g. mention volume) so hover answers "kaç mention'dan?".
 		if (periods[i]) lines.push({ text: fmtPeriod(periods[i]) });
-		lines.push({ text: `GPI ${actual[i]}`, emphasis: true });
+		lines.push({ text: `${valueLabel} ${actual[i]}`, emphasis: true });
+		if (pointNotes[i]) lines.push({ text: pointNotes[i] as string });
 		return lines;
 	}
 

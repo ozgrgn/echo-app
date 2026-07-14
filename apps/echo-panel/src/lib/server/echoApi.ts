@@ -33,6 +33,7 @@ import {
 	getImpact,
 	getDepartments,
 	getDepartmentDetail,
+	getDepartmentKeyTrend,
 	getResponseStats,
 	getResponseQueue,
 	getReviews,
@@ -142,6 +143,12 @@ export function makeServerApi(event: RequestEvent) {
 			deptKey: string,
 			opts: { platform?: string; period?: string; window?: string } = {}
 		) => withRetry((t) => getDepartmentDetail(venueSlug, deptKey, t, opts, fo())),
+		getDepartmentKeyTrend: (
+			venueSlug: string,
+			deptKey: string,
+			granularKey: string,
+			opts: { platform?: string; window?: string } = {}
+		) => withRetry((t) => getDepartmentKeyTrend(venueSlug, deptKey, granularKey, t, opts, fo())),
 		getResponseQueue: (venueSlug: string, opts: { platform?: string; limit?: number } = {}) =>
 			withRetry((t) => getResponseQueue(venueSlug, t, opts, fo())),
 

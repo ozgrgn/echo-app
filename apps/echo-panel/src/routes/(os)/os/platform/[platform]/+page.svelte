@@ -25,7 +25,7 @@
 	} from '@talkwo/echo-ui';
 	import { osDataSource } from '$lib/stores/osDataSource.svelte';
 	import { PLATFORM_COLOR, responseSliceFor, platformTrendFor } from '$lib/mock/os';
-	import { Activity, Rocket, ChartBar, ArrowLeft, MessageSquare, Swords, MessageCircleReply, TrendingUp } from '@lucide/svelte';
+	import { Activity, Rocket, ChartBar, Globe, MessageSquare, Swords, MessageCircleReply, TrendingUp } from '@lucide/svelte';
 
 	let { data } = $props();
 	const ps = $derived(data.platformScore);
@@ -317,17 +317,19 @@
 
 </script>
 
-<!-- Back to Genel + platform switcher on one row (replaces the global LensTabs). -->
+<!-- Channel switcher (replaces the global LensTabs) — the SAME row the overview page
+     shows: 'Genel' returns to the platform overview, then a pill per channel (active one
+     highlighted). Consistent nav across overview + detail; 'Geri' arrow dropped in favor
+     of the explicit 'Genel' pill. -->
 <div class="mb-3.5 flex flex-wrap items-center gap-2">
-	<!-- Back button — sits first, same row as the switcher pills. -->
+	<!-- 'Genel' = back to the platform OVERVIEW (index). -->
 	<button
 		onclick={backToOverview}
 		class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2"
 	>
-		<ArrowLeft size={15} strokeWidth={2} />
-		Geri
+		<Globe size={14} strokeWidth={2} />
+		Genel
 	</button>
-	<!-- Thin divider between back and the platform pills. -->
 	<span class="mx-0.5 h-5 w-px bg-border"></span>
 	{#each ALL_PLATFORMS as p (p)}
 		{@const isActive = p === data.platform}

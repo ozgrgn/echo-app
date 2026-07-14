@@ -28,6 +28,11 @@
 	const colorFor = (p: string) => PLATFORM_COLOR[p as keyof typeof PLATFORM_COLOR] ?? '#64748b';
 	const labelFor = (p: string) => PLATFORM_LABEL[p] ?? p;
 
+	// Channel switcher pills — the SAME control the detail page shows, mirrored here so
+	// the "click a channel" affordance is explicit (the tiles alone read as non-clickable).
+	// 'all' is this overview page itself (active); the four channels deep-link into detail.
+	const ALL_PLATFORMS = ['tripadvisor', 'booking', 'google', 'holidaycheck'];
+
 	// ── Channel tiles — REAL per-channel snapshot (blended shown first for context).
 	const channels = $derived(data.channels);
 
@@ -99,6 +104,35 @@
 			Tüm kanalların karşılaştırması · genel GPI <b class="text-text-1">{data.blended.gpi.toFixed(1)}</b>
 		</p>
 	</div>
+</div>
+
+<!-- Channel switcher — 'Genel' (this overview, active) + a pill per channel that
+     deep-links into its universe. Mirrors the detail page's switcher so navigation is
+     obvious and consistent; the tiles below stay clickable as a secondary path. -->
+<div class="mb-3.5 flex flex-wrap items-center gap-2">
+	<!-- 'Genel' = the overview itself (active on this page). -->
+	<span
+		class="inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-text-1 px-2.5 py-1.5 text-[12.5px] font-semibold text-white"
+	>
+		<Globe size={14} strokeWidth={2} />
+		Genel
+	</span>
+	<span class="mx-0.5 h-5 w-px bg-border"></span>
+	{#each ALL_PLATFORMS as p (p)}
+		{@const c = colorFor(p)}
+		<button
+			onclick={() => enterPlatform(p)}
+			class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2"
+		>
+			<span
+				class="grid h-4 w-4 place-items-center rounded text-[9px] font-extrabold"
+				style="background:{c}1a;color:{c}"
+			>
+				{labelFor(p).slice(0, 1)}
+			</span>
+			{labelFor(p)}
+		</button>
+	{/each}
 </div>
 
 <!-- Channel tiles — click a channel to enter its universe. -->

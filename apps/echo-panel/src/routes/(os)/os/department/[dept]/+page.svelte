@@ -24,6 +24,7 @@
 	import TrendChart from '$lib/components/TrendChart.svelte';
 	import MentionList from '$lib/components/MentionList.svelte';
 	import MentionExplorer from '$lib/components/MentionExplorer.svelte';
+	import CategoryHistoryModal from '$lib/components/CategoryHistoryModal.svelte';
 	import OpportunityList from '$lib/components/OpportunityList.svelte';
 	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
 	import { responseSliceFor } from '$lib/mock/os';
@@ -36,7 +37,7 @@
 	import { CATEGORIES, getSubcategoryLabel, type CategoryKey } from '@talkwo/echo-core';
 	import {
 		Target, TrendingDown, TrendingUp, ListTree, CircleAlert, Rocket,
-		ArrowLeft, MessageCircleReply, MessageSquare
+		ArrowLeft, MessageCircleReply, MessageSquare, History, X
 	} from '@lucide/svelte';
 
 	let { data } = $props();
@@ -99,9 +100,16 @@
 	const score = $derived(detail?.score ?? 0);
 	const scoreColor = $derived(score >= 70 ? 'text-success' : score >= 55 ? 'text-warning' : 'text-danger');
 
-	// Real trend series → chart. Filter out null points (periods with no mentions);
-	// need ≥2 real points to draw a line, else show the "yeterli geçmiş yok" note.
-	const trendActual = $derived((detail?.trend_series ?? []).map((p) => p.score).filter((s): s is number => s != null));
+	// Real trend series → chart. Filter out null points (periods with no mentions)
+	// in ONE pass so scores and their period labels stay aligned; need ≥2 real
+	// points to draw a line, else show the "yeterli geçmiş yok" note.
+	const trendPts = $derived(
+		(detail?.trend_series ?? []).filter((p): p is { period: string; score: number } => p.score != null)
+	);
+	const trendActual = $derived(trendPts.map((p) => p.score));
+	const trendPeriods = $derived(trendPts.map((p) => p.period));
+	// Snapshot periods are monthly 'YYYY-MM'; a longer key means a daily series.
+	const trendDaily = $derived((trendPeriods[0]?.length ?? 7) > 7);
 	const trendHasHistory = $derived(trendActual.length > 1);
 	const trendYmin = $derived(trendActual.length ? Math.floor(Math.min(...trendActual) - 6) : 0);
 	const trendYmax = $derived(trendActual.length ? Math.ceil(Math.max(...trendActual) + 6) : 100);
@@ -111,15 +119,34 @@
 	);
 
 	// Category breakdown ("alt kırılım") → MentionList-free simple rows.
-	const breakdown = $derived(detail?.breakdown ?? []);
+	// v2 granular fields (granular_key/granular_label/score) aren't in echo-ui's
+	// DepartmentCategoryBreakdown type yet; the backend sends them. Widen locally
+	// so we can prefer the granular fields and fall back to the v1 aliases.
+	type V2Breakdown = NonNullable<typeof detail>['breakdown'][number] & {
+		granular_key?: string;
+		granular_label?: string;
+		score?: number | null;
+		/** Legacy alias (== granular_key on post-Step-4 snapshots) — key fallback. */
+		subcategory?: string;
+	};
+	const breakdown = $derived((detail?.breakdown ?? []) as V2Breakdown[]);
 
 	// Complaints → MentionList shape (category/subcategory display labels).
+	// Complaints are keyed by GRANULAR key (v0.3 catalog) — the only granularity that
+	// attributes a complaint to one department. Their Turkish label ships from the
+	// backend as `granular_label`; getSubcategoryLabel() must NOT be used here, as it
+	// only knows the 107-key parent taxonomy and would echo the raw key back
+	// ("Room_general_assignment_expectation"). echo-ui's DepartmentDetail type predates
+	// this, so widen locally.
+	type V2Issue = { category: string; subcategory: string; sampleExcerpt: string; count: number } & {
+		granular_label?: string;
+	};
 	const issues = $derived(
-		(detail?.topIssues ?? []).map((it) => ({
+		((detail?.topIssues ?? []) as V2Issue[]).map((it) => ({
 			// Display label, not the raw enum ("FOOD") — MentionList's pill expects a label.
 			// `category` is typed as string by echo-ui but is always a taxonomy key.
 			category: CATEGORIES[it.category as CategoryKey]?.label ?? it.category,
-			subcategory: getSubcategoryLabel(it.subcategory, 'tr'),
+			subcategory: it.granular_label ?? getSubcategoryLabel(it.subcategory, 'tr'),
 			excerpt: it.sampleExcerpt,
 			count: it.count
 		}))
@@ -128,15 +155,16 @@
 	// Opportunities: lowest-score × highest-mention among this dept's categories.
 	const opportunities = $derived(
 		[...breakdown]
-			.filter((b) => b.mentionCount > 0)
-			.map((b) => ({ b, leverage: (85 - b.headlineScore) * Math.log10(b.mentionCount + 1) }))
+			.map((b) => ({ b, s: b.score ?? b.headlineScore ?? null }))
+			.filter((x) => x.b.mentionCount > 0 && x.s != null)
+			.map((x) => ({ b: x.b, s: x.s as number, leverage: (85 - (x.s as number)) * Math.log10(x.b.mentionCount + 1) }))
 			.sort((a, b) => b.leverage - a.leverage)
 			.slice(0, 3)
 			.map((x, i) => ({
 				rank: i + 1,
-				label: x.b.label,
+				label: x.b.granular_label ?? x.b.label,
 				mentions: x.b.mentionCount,
-				score: x.b.headlineScore,
+				score: x.s,
 				lift: `+${(x.leverage / 10).toFixed(1)}`
 			}))
 	);
@@ -145,25 +173,47 @@
 	let mentions = $state<MentionRow[]>([]);
 	let mentionFilter = $state<'all' | 'negative' | 'positive'>('all');
 	let mentionsLoading = $state(false);
+	// Optional single-category narrowing: set by clicking a breakdown row's mention
+	// count (accuracy spot-checks — "bu 18 mention hangi cümleler?"). Null = whole dept.
+	let mentionScope = $state<{ key: string; label: string } | null>(null);
 
 	async function loadMentions() {
+		// Scope by the department's GRANULAR KEYS, not its categories. A category no
+		// longer belongs to one department (ROOM feeds hk + fo + mnt + tesis), so a
+		// category filter pulled in other departments' mentions ("Manzara & Balkon"
+		// under Kat Hizmetleri). breakdown[] is exactly this department's granular set.
+		// An active mentionScope narrows the whole-dept set to ONE granular key.
+		const gks = mentionScope
+			? [mentionScope.key]
+			: breakdown.map((b) => b.granular_key).filter((k): k is string => !!k);
 		const cats = detail?.categories ?? [];
-		if (osDataSource.isMock || cats.length === 0) {
+		if (osDataSource.isMock || (gks.length === 0 && cats.length === 0)) {
 			mentions = [];
 			return;
 		}
 		mentionsLoading = true;
 		try {
-			// One fetch per category (mentions API filters by a single category),
-			// then merge. Kept small (limit 40 each) — this dept has ≤5 categories.
-			const results = await Promise.all(
-				cats.map(async (category) => {
-					const params = new URLSearchParams({ resource: 'mentions', category, limit: '40' });
-					if (mentionFilter !== 'all') params.set('polarity', mentionFilter);
-					const r = await fetch(`/api/os/data?${params}`);
-					return r.ok ? await r.json() : { items: [] };
-				})
-			);
+			// v2: one call, filtered to this department's granular keys. Legacy fallback
+			// (pre-v2 snapshot with no granular_key): the old per-category fan-out.
+			const results = gks.length
+				? await (async () => {
+						const params = new URLSearchParams({
+							resource: 'mentions',
+							granularKey: gks.join(','),
+							limit: '60'
+						});
+						if (mentionFilter !== 'all') params.set('polarity', mentionFilter);
+						const r = await fetch(`/api/os/data?${params}`);
+						return [r.ok ? await r.json() : { items: [] }];
+					})()
+				: await Promise.all(
+						cats.map(async (category) => {
+							const params = new URLSearchParams({ resource: 'mentions', category, limit: '40' });
+							if (mentionFilter !== 'all') params.set('polarity', mentionFilter);
+							const r = await fetch(`/api/os/data?${params}`);
+							return r.ok ? await r.json() : { items: [] };
+						})
+					);
 			mentions = results
 				.flatMap((r) => r.items)
 				.sort((a, b) => Math.abs(b.polarity) - Math.abs(a.polarity))
@@ -177,10 +227,39 @@
 	$effect(() => {
 		void deptKey;
 		void mentionFilter;
+		void mentionScope;
 		if (detail) loadMentions();
 	});
 	function setMentionFilter(f: 'all' | 'negative' | 'positive') {
 		mentionFilter = f;
+	}
+	// Another department's keys make the scope stale — drop it on switch.
+	$effect(() => {
+		void deptKey;
+		mentionScope = null;
+	});
+
+	/** Row's mention count clicked → narrow the Mentions section to that key and
+	 *  bring it into view (clicking the active scope again clears it). */
+	function toggleMentionScope(b: V2Breakdown) {
+		const key = b.granular_key ?? b.subcategory;
+		if (!key) return;
+		mentionScope = mentionScope?.key === key ? null : { key, label: b.granular_label ?? b.label };
+		if (mentionScope) {
+			document.getElementById('dept-mentions')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}
+	}
+
+	// ── Category history modal (per-granular-key trend, own window tabs) ────────
+	let historyOpen = $state(false);
+	let historyKey = $state<string | null>(null);
+	let historyLabel = $state('');
+	function openHistory(b: V2Breakdown) {
+		const key = b.granular_key ?? b.subcategory;
+		if (!key) return;
+		historyKey = key;
+		historyLabel = b.granular_label ?? b.label;
+		historyOpen = true;
 	}
 
 	// ── Response analytics scoped to this department — market rate [MOCK→radar] ──
@@ -301,7 +380,7 @@
 				</span>
 			{/snippet}
 			{#if trendHasHistory}
-				<TrendChart actual={trendActual} ymin={trendYmin} ymax={trendYmax} color={color} height={210} />
+				<TrendChart actual={trendActual} periods={trendPeriods} daily={trendDaily} valueLabel="Skor" ymin={trendYmin} ymax={trendYmax} color={color} height={210} />
 			{:else}
 				<p class="py-14 text-center text-[13px] text-text-3">
 					Bu departman için yeterli geçmiş yok — güncel skor <b class="text-text-1">{score.toFixed(1)}</b>.<br />
@@ -325,20 +404,47 @@
 				<p class="py-6 text-center text-[13px] text-text-3">Bu departman için kategori skoru yok.</p>
 			{:else}
 				<div class="flex flex-col">
-					{#each breakdown as b (b.category)}
-						{@const tone = b.headlineScore >= 70 ? 'text-success' : b.headlineScore >= 55 ? 'text-warning' : 'text-danger'}
+					{#each breakdown as b (b.granular_key ?? b.category)}
+						{@const bScore = b.score ?? b.headlineScore ?? null}
+						{@const tone = bScore == null ? 'text-text-3' : bScore >= 70 ? 'text-success' : bScore >= 55 ? 'text-warning' : 'text-danger'}
+						{@const rowKey = b.granular_key ?? b.subcategory}
+						{@const scoped = mentionScope?.key === rowKey}
 						<div class="grid grid-cols-[1fr_auto] items-center gap-3 border-t border-surface-2 py-2.5 first:border-t-0">
-							<div class="min-w-0">
-								<span class="text-[13px] font-semibold text-text-1">{b.label}</span>
-								<span class="ml-2 text-[11px] text-text-3">{b.mentionCount} mention</span>
+							<div class="flex min-w-0 items-center">
+								<!-- Category name opens the history modal (same as the row's chart icon —
+								     the icon exists because plain text doesn't read as clickable). -->
+								<button
+									onclick={() => openHistory(b)}
+									class="min-w-0 truncate text-left text-[13px] font-semibold text-text-1 transition-colors hover:text-brand hover:underline"
+									title="Tarihsel grafiği aç"
+								>
+									{b.granular_label ?? b.label}
+								</button>
+								<!-- Mention count narrows the Mentions section to this key (accuracy checks). -->
+								<button
+									onclick={() => toggleMentionScope(b)}
+									class="ml-2 shrink-0 rounded-md px-1.5 py-0.5 text-[11px] transition-colors
+										{scoped ? 'bg-brand-light font-semibold text-brand' : 'text-text-3 hover:bg-surface-2 hover:text-text-1'}"
+									title={scoped ? 'Mention filtresini kaldır' : 'Bu kategorinin mention’larını göster'}
+								>
+									{b.mentionCount} mention
+								</button>
 							</div>
 							<div class="flex items-center gap-2">
-								{#if b.trend !== 0}
+								{#if b.trend != null && b.trend !== 0}
 									<span class="text-[11px] font-bold {b.trend > 0 ? 'text-success' : 'text-danger'}">
 										{b.trend > 0 ? '+' : ''}{b.trend.toFixed(1)}
 									</span>
 								{/if}
-								<span class="text-[15px] font-extrabold {tone}">{b.headlineScore.toFixed(0)}</span>
+								<span class="text-[15px] font-extrabold {tone}">{bScore != null ? bScore.toFixed(0) : '—'}</span>
+								<button
+									onclick={() => openHistory(b)}
+									class="rounded-md p-1 text-text-3 transition-colors hover:bg-surface-2 hover:text-text-1"
+									title="Tarihsel grafik"
+									aria-label="{b.granular_label ?? b.label} tarihsel grafiği"
+								>
+									<History size={14} strokeWidth={2} />
+								</button>
 							</div>
 						</div>
 					{/each}
@@ -357,15 +463,32 @@
 		</SectionCard>
 	</div>
 
-	<!-- Sentence-level mentions across this department's categories — REAL -->
-	<SectionCard title="Mentions · {detail.label}" icon={MessageSquare} hint="cümle düzeyi · ABSA" class="mb-3.5">
-		<MentionExplorer
-			items={mentions}
-			filter={mentionFilter}
-			onfilter={setMentionFilter}
-			loading={mentionsLoading}
-		/>
-	</SectionCard>
+	<!-- Sentence-level mentions across this department's categories — REAL.
+	     The id is the scroll anchor for the breakdown rows' mention-count buttons. -->
+	<div id="dept-mentions" class="scroll-mt-4">
+		<SectionCard title="Mentions · {detail.label}" icon={MessageSquare} class="mb-3.5">
+			{#snippet action()}
+				{#if mentionScope}
+					<button
+						onclick={() => (mentionScope = null)}
+						class="inline-flex items-center gap-1 rounded-full bg-brand-light px-2.5 py-1 text-[11px] font-semibold text-brand transition-colors hover:opacity-80"
+						title="Kategori filtresini kaldır"
+					>
+						{mentionScope.label}
+						<X size={12} strokeWidth={2.5} />
+					</button>
+				{:else}
+					<span class="text-[11.5px] text-text-3">Cümle düzeyi · ABSA</span>
+				{/if}
+			{/snippet}
+			<MentionExplorer
+				items={mentions}
+				filter={mentionFilter}
+				onfilter={setMentionFilter}
+				loading={mentionsLoading}
+			/>
+		</SectionCard>
+	</div>
 
 	<!-- Response analytics — real venue-wide rates; market rate [MOCK→radar]. -->
 	<SectionCard title="Yanıt Yönetimi · {detail.label}" icon={MessageCircleReply} hint="duygu · pazar">
@@ -377,4 +500,14 @@
 			overallLabel="{detail.label} yanıt oranı"
 		/>
 	</SectionCard>
+
+	<!-- Per-category history modal (own window tabs — independent of the page's). -->
+	<CategoryHistoryModal
+		open={historyOpen}
+		onOpenChange={(o) => (historyOpen = o)}
+		{deptKey}
+		granularKey={historyKey}
+		label={historyLabel}
+		{color}
+	/>
 {/if}
