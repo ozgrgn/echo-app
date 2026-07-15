@@ -123,7 +123,7 @@
 				const offset = n - s.values.length;
 				const vi = hoverI! - offset;
 				if (vi < 0 || vi >= s.values.length) return null;
-				return { label: s.label, color: s.color, value: s.values[vi], emphasis: s.emphasis };
+				return { label: s.label, color: s.color, value: s.values[vi], count: s.count, emphasis: s.emphasis };
 			})
 			.filter((r): r is NonNullable<typeof r> => r !== null)
 			.sort((a, b) => b.value - a.value); // highest GPI first
@@ -136,12 +136,24 @@
 		return daily ? `${d}.${m}.${y}` : `${m}/${y}`;
 	}
 
-	// Tooltip box geometry (header + one row per series).
+	// Tooltip box geometry (header + one row per series). Each row lays out three
+	// right-anchored columns: label (left), review-count (middle, e.g. "· 174"),
+	// GPI value (right). ttValW/ttCountW reserve width so columns never overlap.
 	const ttRows = $derived(hoverDate ? hoverRows.length + 1 : hoverRows.length);
-	const ttW = $derived(Math.max(96, ...hoverRows.map((r) => (r.label.length + 6) * 6.4 + 22)));
+	const ttValW = 30; // GPI value column ("91.5"), right edge of the box
+	const ttCountW = $derived(
+		hoverRows.some((r) => r.count !== undefined)
+			? Math.max(...hoverRows.map((r) => (r.count !== undefined ? (`· ${r.count.toLocaleString('tr-TR')}`).length : 0))) * 5.6 + 8
+			: 0
+	);
+	const ttW = $derived(Math.max(96, ...hoverRows.map((r) => (r.label.length + 6) * 6.4 + 22)) + ttCountW);
 	const ttH = $derived(ttRows * 15 + 10);
-	const ttX = $derived(hoverX + 12 + ttW > W - pR ? hoverX - ttW - 12 : hoverX + 12);
-	const ttY = $derived(Math.max(pT, Math.min(H - pB - ttH, 10)));
+	// Anchor the tooltip to a fixed top corner instead of following the cursor
+	// horizontally — a cursor-tracked box flips sides mid-chart and reads as jitter.
+	// Only the crosshair tracks the pointer. When the pointer is on the right half
+	// we park the box top-left (and vice-versa) so it never sits under the cursor.
+	const ttX = $derived(hoverX > W / 2 ? pL + 6 : W - pR - ttW - 6);
+	const ttY = $derived(pT + 4);
 </script>
 
 <svg bind:this={svgEl} viewBox="0 0 {W} {H}" class="w-full" style="height:{H}px" role="img" aria-label="Platform GPI karşılaştırması" onpointermove={onMove} onpointerleave={onLeave}>
@@ -209,6 +221,9 @@
 				{@const ry = ttY + (hoverDate ? 15 : 0) + 15 + ri * 15}
 				<circle cx={ttX + 12} cy={ry - 3.5} r="3.5" fill={r.color} />
 				<text x={ttX + 21} y={ry} font-size="10.5" font-weight={r.emphasis ? '800' : '500'} fill="var(--color-text-2)">{r.label}</text>
+				{#if r.count !== undefined}
+					<text x={ttX + ttW - 9 - ttValW} y={ry} text-anchor="end" font-size="10" font-weight="500" fill="var(--color-text-3)">· {r.count.toLocaleString('tr-TR')}</text>
+				{/if}
 				<text x={ttX + ttW - 9} y={ry} text-anchor="end" font-size="10.5" font-weight="800" fill="var(--color-text-1)">{r.value.toFixed(1)}</text>
 			{/each}
 		</g>
