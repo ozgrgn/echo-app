@@ -128,6 +128,9 @@ export interface HotelScore {
   headlineScore: number;
   // Legacy alias — equals headlineScore; kept so display helpers compile
   gpi: number;
+  /** Cohort GPI trend: recent-30d minus prior-30d gpi (published, window-independent).
+   *  0 = flat/below floor. The GPI KPI card's "son 30 gün" delta. */
+  gpiTrend?: number;
   rpi: number | null;      // null if no competitors configured
   reviewCount: number;
   categoryScores: CategoryScore[];

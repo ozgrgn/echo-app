@@ -82,38 +82,16 @@
 	const spark = <T,>(arr: T[]): T[] => arr.slice(-8);
 	// Per-period NEW reviews (published in the gap since the previous point) — always ≥0.
 	const historyNewReviews = $derived((data.history ?? []).map((p) => p.newReviews ?? 0));
-	const historyPeriods = $derived((data.history ?? []).map((p) => p.period));
 
 	// ────────────────────────────────────────────────────────────────────────
-	// GPI delta — 30 DAYS AGO vs NOW, never "last two points".
-	//
-	// Every history point is now a complete rolling-window measurement stamped with a
-	// real date ('YYYY-MM-DD'), so we can ask a question with a fixed meaning: how much
-	// has the score moved in the last 30 days? The old code diffed the last two points,
-	// which meant something different per window (month-over-month at 2Y, day-over-day
-	// at 3M) and — worse — compared a half-finished calendar month against completed
-	// ones, manufacturing a drop out of nothing. There is no partial period any more,
-	// so dropPartialMonth() is gone with it.
-	//
-	// Picks the newest point at or before the cutoff (points are thinned to month-end
-	// anchors on wide windows, so an exact 30-days-ago point rarely exists).
-	// ────────────────────────────────────────────────────────────────────────
-	function deltaOverDays(values: number[], periods: string[], days: number): number {
-		if (values.length < 2 || values.length !== periods.length) return 0;
-		const cutoff = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
-		let baseIdx = -1;
-		for (let i = periods.length - 1; i >= 0; i--) {
-			if (periods[i] <= cutoff) { baseIdx = i; break; }
-		}
-		// Series shorter than the lookback → oldest point we have (an honest "since we
-		// started measuring" rather than a silent 0).
-		if (baseIdx === -1) baseIdx = 0;
-		if (baseIdx === values.length - 1) return 0; // only one point at/before cutoff
-		return +(values[values.length - 1] - values[baseIdx]).toFixed(1);
-	}
-
+	// GPI delta — the COHORT trend from the backend (recent-30d vs prior-30d PUBLISHED
+	// reviews), window-independent, the SAME signal as every category/department arrow.
+	// Not a series diff: the old deltaOverDays compared today's rolling average to the
+	// one 30 days ago, whose change mostly reflected OLD reviews leaving the window, not
+	// new sentiment — and it varied by window. hs.gpiTrend is stamped by scoring's
+	// injectCohortTrend so all arrows answer one question. See COHORT_TREND_TASARIM.md.
 	const gpiSpark = $derived(spark(historyGpi));
-	const gpiDelta = $derived(deltaOverDays(historyGpi, historyPeriods, 30));
+	const gpiDelta = $derived(hs.gpiTrend ?? 0);
 	const reviewSpark = $derived(spark(historyNewReviews));
 	// "This period" = new reviews in the newest point's gap (not a delta).
 	const reviewDelta = $derived(historyNewReviews.length > 0 ? historyNewReviews[historyNewReviews.length - 1] : 0);
@@ -181,16 +159,13 @@
 	// Category movement — [REAL] top categories by mention.
 	// Category movement — declining categories first (most actionable), then by
 	// mention volume. Shows more rows so the column matches the left stack's height.
+	// "Kategori hareketi" — rank by MAGNITUDE of movement (biggest change first, up OR
+	// down), so a real rise (BEACH/FRONT) is as visible as a drop. The old sort forced
+	// decliners to the top and slice(0,10) then HID the risers, making a seasonally-down
+	// month read as "everything red". Flat/below-floor (trend 0) sort last.
 	const topCategories = $derived(
 		[...hs.categoryScores]
-			.sort((a, b) => {
-				// Declining (trend < 0) bubble to the top, ranked by how sharp the drop is.
-				const aDown = a.trend < 0, bDown = b.trend < 0;
-				if (aDown !== bDown) return aDown ? -1 : 1;
-				if (aDown && bDown) return a.trend - b.trend; // steeper drop first
-				return b.mentionCount - a.mentionCount;
-			})
-			.slice(0, 10)
+			.sort((a, b) => Math.abs(b.trend) - Math.abs(a.trend) || b.mentionCount - a.mentionCount)
 			.map((cs) => ({ label: CATEGORIES[cs.category].label, score: cs.headlineScore, trend: cs.trend }))
 	);
 
