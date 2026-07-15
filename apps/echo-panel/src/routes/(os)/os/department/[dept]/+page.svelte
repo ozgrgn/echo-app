@@ -26,7 +26,6 @@
 	import CategoryHistoryModal from '$lib/components/CategoryHistoryModal.svelte';
 	import OpportunityList from '$lib/components/OpportunityList.svelte';
 	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
-	import { responseSliceFor } from '$lib/mock/os';
 	import {
 		type DepartmentDetail,
 		type DepartmentScore,
@@ -260,14 +259,15 @@
 		historyOpen = true;
 	}
 
-	// ── Response analytics scoped to this department — market rate [MOCK→radar] ──
+	// ── Response analytics (venue-wide; per-department split is not modeled yet) ──
+	// REAL stats only. Unreachable → null → the card shows an honest empty state
+	// instead of the old fabricated responseSliceFor() slice.
 	let respStats = $state<ResponseStats | null>(null);
-	const respSlice = $derived(responseSliceFor(deptKey, 0.6));
 	async function loadResp() {
 		try {
-			// Venue-wide response stats (per-department response split is not modeled
-			// yet — market comparison stays [MOCK→radar]).
-			const r = await fetch('/api/os/data?resource=responseStats');
+			// Same window as the page's other numbers (backend defaults to 24mo).
+			const w = parseOsWindow(page.url.searchParams.get('window'));
+			const r = await fetch(`/api/os/data?resource=responseStats&window=${encodeURIComponent(w)}`);
 			respStats = r.ok ? await r.json() : null;
 		} catch {
 			respStats = null;
@@ -289,14 +289,9 @@
 						responded: s.responded,
 						total: s.total
 					})),
-					competitorAvgRate: respSlice.competitorAvgRate
+					competitorAvgRate: null
 				}
-			: {
-					overallRate: respSlice.overallRate,
-					medianHours: null,
-					bySentiment: respSlice.bySentiment,
-					competitorAvgRate: respSlice.competitorAvgRate
-				}
+			: null
 	);
 
 	// Back to the Departments list lens — replaces the global LensTabs row.
@@ -440,7 +435,9 @@
 	<!-- Complaints + leverage — REAL -->
 	<div class="mb-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-2">
 		<SectionCard title="Skoru düşüren şikâyetler" icon={CircleAlert} hint="en sık">
-			<MentionList items={issues} tone="issue" total={detail.reviewCount} emptyText="Şikâyet kaydı yok." />
+			<!-- detail.reviewCount IS the department's mentionCount (departments.ts) —
+			     label the share denominator honestly as mentions, not reviews. -->
+			<MentionList items={issues} tone="issue" total={detail.reviewCount} unit="mention" emptyText="Şikâyet kaydı yok." />
 		</SectionCard>
 		<SectionCard title="Hedefe en hızlı yol" icon={Rocket} hint="kaldıraç sıralı">
 			<OpportunityList items={opportunities} />
@@ -474,15 +471,21 @@
 		</SectionCard>
 	</div>
 
-	<!-- Response analytics — real venue-wide rates; market rate [MOCK→radar]. -->
-	<SectionCard title="Yanıt Yönetimi · {detail.label}" icon={MessageCircleReply} hint="duygu · pazar">
-		<ResponseAnalytics
-			overallRate={respAnalytics.overallRate}
-			medianHours={respAnalytics.medianHours}
-			bySentiment={respAnalytics.bySentiment}
-			competitorAvgRate={respAnalytics.competitorAvgRate}
-			overallLabel="{detail.label} yanıt oranı"
-		/>
+	<!-- Response analytics — real venue-wide rates only; unreachable → empty state. -->
+	<SectionCard title="Yanıt Yönetimi · {detail.label}" icon={MessageCircleReply} hint="duygu">
+		{#if respAnalytics}
+			<ResponseAnalytics
+				overallRate={respAnalytics.overallRate}
+				medianHours={respAnalytics.medianHours}
+				bySentiment={respAnalytics.bySentiment}
+				competitorAvgRate={respAnalytics.competitorAvgRate}
+				overallLabel="{detail.label} yanıt oranı"
+			/>
+		{:else}
+			<p class="py-6 text-center text-[12px] text-text-3">
+				Yanıt istatistikleri şu anda yüklenemedi — sayfayı yenileyin.
+			</p>
+		{/if}
 	</SectionCard>
 
 	<!-- Per-category history modal. It OPENS on the page's window so its score and mention

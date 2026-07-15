@@ -1,6 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { CATEGORY_LIST, type CategoryKey } from '@talkwo/echo-core';
-import { filterMockReviews } from '@talkwo/echo-ui';
+import { CATEGORY_LIST, type CategoryKey, type Review } from '@talkwo/echo-core';
 import { error } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
 
@@ -19,14 +18,18 @@ export const load: PageServerLoad = async (event) => {
 		throw error(404, `Geçersiz kategori: ${params.category}`);
 	}
 
-	const hotelScore = await api.getHotelScore(session.venueSlug, '2025-05');
+	// No period → the backend returns the venue's LATEST snapshot (was pinned to
+	// '2025-05', which 404'd every tenant without a snapshot for that exact month).
+	const hotelScore = await api.getHotelScore(session.venueSlug, undefined);
 	const categoryScore = hotelScore.categoryScores.find((cs) => cs.category === upperKey);
 	if (!categoryScore) {
 		throw error(404, `Kategori verisi bulunamadı: ${upperKey}`);
 	}
 
-	// Mock-only: pull reviews mentioning this category
-	const reviews = filterMockReviews({ category: upperKey });
-
+	// Review feed: EMPTY until wired to the real reviews API. It used to serve
+	// filterMockReviews() — fabricated reviews rendered to real tenants as if they
+	// were the hotel's own. The page's empty state ("yorum bulunamadı") is honest;
+	// category-scoped browsing lives in the OS mention explorer meanwhile.
+	const reviews: Review[] = [];
 	return { hotelScore, categoryScore, reviews, categoryKey: upperKey };
 };

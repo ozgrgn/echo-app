@@ -31,6 +31,9 @@
 		criticalLabel?: string;
 		/** Sparkline series (oldest → newest). */
 		trend?: number[];
+		/** Smallest y-range the sparkline may cover — see Sparkline's minSpan. Pass it for
+		 *  metrics whose meaningful moves are small relative to their value (GPI ≈ 2). */
+		trendMinSpan?: number;
 		/** href makes the whole tile a link. */
 		href?: string;
 		title?: string;
@@ -49,6 +52,7 @@
 		critical = false,
 		criticalLabel = 'kritik',
 		trend,
+		trendMinSpan,
 		href,
 		title
 	}: Props = $props();
@@ -108,7 +112,7 @@
 
 	{#if trend && trend.length >= 2}
 		<div class="mt-auto pt-3">
-			<Sparkline data={trend} color={sparkColor[tone]} width={220} height={30} fill={!isPrimary ? false : true} />
+			<Sparkline data={trend} color={sparkColor[tone]} width={220} height={30} fill={!isPrimary ? false : true} minSpan={trendMinSpan} />
 		</div>
 	{/if}
 </Card>

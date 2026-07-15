@@ -1,7 +1,6 @@
 import type { PageServerLoad } from './$types';
 import type { ResponseStats } from '@talkwo/echo-ui';
 import type { ResponseRateRow } from '$lib/mock/os';
-import { MOCK_OS_RESPONSE } from '$lib/mock/os';
 import { error } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
 import { parseOsWindow, windowParam, windowChartMode } from '$lib/config/window';
@@ -73,7 +72,9 @@ export const load: PageServerLoad = async (event) => {
 
 	// The OS bundle drives the whole page; the response-stats endpoint feeds ONLY the
 	// "Yanıt Yönetimi" breakdown. Run them in parallel, but never let a response-stats
-	// failure 404 the whole lens — the card degrades to the mock breakdown instead.
+	// failure 404 the whole lens — the card renders its empty state instead. (It used
+	// to degrade to a MOCK breakdown: a transient backend error would silently show a
+	// real tenant fabricated per-platform numbers. Honest absence beats invented data.)
 	const [b, responseStats] = await Promise.all([
 		api.getOsBundle(venueSlug, {
 			lens: 'genel',
@@ -82,22 +83,27 @@ export const load: PageServerLoad = async (event) => {
 			chartDaily: chart.daily,
 			chartFrom: chart.from
 		}),
-		api.getResponseStats(venueSlug).catch(() => null)
+		// Same window as everything else on the page, so the card's rows and the
+		// headline "%X" beside them count the same universe of reviews.
+		api.getResponseStats(venueSlug, undefined, w).catch(() => null)
 	]);
 
 	// The bundle 404s when there's no snapshot, so a 200 always carries a blended
 	// score. Narrow the type (and guard the edge case) before handing it to the page.
 	if (!b.blended) throw error(404, 'No score snapshot for this venue');
 
-	// Real per-platform / per-sentiment response rates (replaces the old mock). The
-	// competitor/market average is not served yet → keep the mock benchmark for now.
+	// Market benchmark = the REAL mean of the competitors' own response rates (their
+	// snapshots carry responseStats, same can't-reply exclusions as our venue). It was
+	// a hardcoded 0.69 mock shown to every tenant. No competitors → null → row hidden.
+	const rivalRates = (b.competitors ?? [])
+		.map((c) => c.responseRate)
+		.filter((r): r is number => typeof r === 'number');
+	const competitorAvgRate =
+		rivalRates.length > 0 ? rivalRates.reduce((a, r) => a + r, 0) / rivalRates.length : null;
+
 	const responseBreakdown = responseStats
-		? { ...toResponseRows(responseStats), competitorAvgRate: MOCK_OS_RESPONSE.competitorAvgRate }
-		: {
-				byPlatform: MOCK_OS_RESPONSE.byPlatform,
-				bySentiment: MOCK_OS_RESPONSE.bySentiment,
-				competitorAvgRate: MOCK_OS_RESPONSE.competitorAvgRate
-			};
+		? { ...toResponseRows(responseStats), competitorAvgRate }
+		: null;
 
 	return {
 		hotelScore: b.blended,

@@ -19,8 +19,11 @@
 		quietHoursEnabled: boolean;
 	}
 
+	// Defaults are EMPTY, not invented: there is no per-tenant settings source yet
+	// (Phase 2), and a pre-filled recipient (this used to ship a Talkwo staff email
+	// to every tenant) would silently misroute a real customer's alerts.
 	let notifications = $state<NotificationsState>({
-		emails: ['ozgur@talkwo.com'],
+		emails: [],
 		whatsappNumbers: [],
 		channels: { email: true, whatsapp: false, inApp: true },
 		weeklyDigest: { enabled: true, dayOfWeek: 1, sendHour: 9 },
@@ -43,14 +46,10 @@
 		notifications.emails = notifications.emails.filter((e) => e !== email);
 	}
 
-	let saveStatus = $state<'idle' | 'saving' | 'saved'>('idle');
-	async function saveNotifications() {
-		saveStatus = 'saving';
-		// TODO Phase 2: PATCH /v1/tenants/me/settings { notifications }
-		await new Promise((r) => setTimeout(r, 400));
-		saveStatus = 'saved';
-		setTimeout(() => (saveStatus = 'idle'), 2000);
-	}
+	// No persistence endpoint exists yet (Phase 2: PATCH /v1/tenants/me/settings).
+	// The button is disabled and says so — the old handler faked a 400ms save and
+	// showed "✓ Kaydedildi" while writing nothing, so a real tenant would edit their
+	// alert recipients, see success, and lose the change on reload.
 
 	const dayNames = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
 
@@ -563,24 +562,17 @@
 				</label>
 			</section>
 
-			<!-- Save -->
+			<!-- Save — disabled until the persistence endpoint exists; never fake success. -->
 			<div class="flex items-center justify-end gap-3 sticky bottom-4 bg-surface-1 border border-border rounded-lg p-3 shadow-md">
-				{#if saveStatus === 'saved'}
-					<span class="text-sm text-success">✓ Ayarlar kaydedildi</span>
-				{/if}
+				<span class="text-xs text-text-3">Bildirim ayarlarının kaydı yakında etkinleşecek.</span>
 				<button
-					onclick={saveNotifications}
-					disabled={saveStatus === 'saving'}
-					class="px-5 py-2 rounded-md bg-brand text-white text-sm font-medium hover:bg-brand-dark disabled:opacity-50"
+					disabled
+					title="Kaydetme Phase 2'de etkinleşecek (PATCH /v1/tenants/me/settings)"
+					class="cursor-not-allowed px-5 py-2 rounded-md bg-brand text-white text-sm font-medium opacity-50"
 				>
-					{saveStatus === 'saving' ? 'Kaydediliyor…' : 'Ayarları kaydet'}
+					Ayarları kaydet
 				</button>
 			</div>
-
-			<p class="text-xs text-text-3 text-center">
-				Phase 1 not: kaydet butonu mock veriyle çalışır.
-				<code class="font-mono">PATCH /v1/tenants/me/settings</code> endpoint'i Phase 2'de bağlanacak.
-			</p>
 		</Tabs.Content>
 		<!-- ── Hoops Notifications tab ───────────────────────────────────── -->
 		<Tabs.Content value="hoops" class="space-y-4">

@@ -161,6 +161,10 @@ export interface CompetitorScore {
   gpi: number;             // headlineScore — used for RPI computation
   avgStarRating: number;
   reviewCount: number;
+  /** Owner response rate (0..1) from the competitor snapshot's responseStats — feeds
+   *  the REAL market benchmark on the response card (replaces the mocked 0.69).
+   *  Optional: pre-responseStats snapshots simply omit it. */
+  responseRate?: number;
   categoryScores: Pick<CategoryScore, 'category' | 'headlineScore' | 'aspectScore'>[];
 }
 

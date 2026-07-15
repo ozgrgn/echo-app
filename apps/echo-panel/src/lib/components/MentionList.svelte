@@ -15,16 +15,26 @@
 		items: MentionItem[];
 		/** 'issue' → red, 'praise' → green */
 		tone: 'issue' | 'praise';
-		/** total reviews, to compute the share % */
+		/** denominator for the share % — REVIEWS or MENTIONS, per `unit` */
 		total: number;
+		/** What `total` counts. The department pages only track mention volume
+		 *  (DepartmentScore.reviewCount IS mentionCount) — labeling that "yorum"
+		 *  presented mention shares as review shares. Default stays 'yorum' for the
+		 *  callers that pass a real review count (Genel). */
+		unit?: 'yorum' | 'mention';
 		emptyText?: string;
 	}
 
-	let { items, tone, total, emptyText = 'Bu dönemde belirgin bir kayıt yok.' }: Props = $props();
+	let { items, tone, total, unit = 'yorum', emptyText = 'Bu dönemde belirgin bir kayıt yok.' }: Props = $props();
 
 	const pillClass = $derived(tone === 'issue' ? 'bg-danger-light text-danger' : 'bg-success-light text-success');
 	const countClass = $derived(tone === 'issue' ? 'text-danger' : 'text-success');
 	const pct = (n: number) => Math.round((n / total) * 100);
+	const shareTitle = $derived((n: number) =>
+		unit === 'mention'
+			? `${total} mention içinde %${pct(n)} pay`
+			: `${total} yorumun %${pct(n)}'inde geçti`
+	);
 </script>
 
 {#if items.length === 0}
@@ -40,7 +50,7 @@
 					<div class="text-[13px] font-semibold capitalize text-text-1">{item.subcategory}</div>
 					<div class="truncate text-[11.5px] italic text-text-3">"{item.excerpt}"</div>
 				</div>
-				<span class="whitespace-nowrap text-right text-[13.5px] font-extrabold {countClass}" title="{total} yorumun %{pct(item.count)}'inde geçti">
+				<span class="whitespace-nowrap text-right text-[13.5px] font-extrabold {countClass}" title={shareTitle(item.count)}>
 					×{item.count}
 					<small class="block text-[10px] font-semibold text-text-3">%{pct(item.count)}</small>
 				</span>

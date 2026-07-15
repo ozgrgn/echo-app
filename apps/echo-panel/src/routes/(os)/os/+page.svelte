@@ -8,7 +8,7 @@
 	import { CATEGORIES, gpiZone, getSubcategoryLabel } from '@talkwo/echo-core';
 	import { type DepartmentScore } from '@talkwo/echo-ui';
 	import { goto } from '$app/navigation';
-	import { hidesCompetitors, parseOsWindow, windowParam } from '$lib/config/window';
+	import { hidesCompetitors, parseOsWindow, windowParam, OS_WINDOW_TABS } from '$lib/config/window';
 	import { osState } from '$lib/stores/osState.svelte';
 
 	import StatTile from '$lib/components/StatTile.svelte';
@@ -76,49 +76,46 @@
 	// Period labels (x-axis) from the blended history — the longest, canonical axis.
 	const comparePeriods = $derived((data.history ?? []).map((p) => p.period));
 
-	// Real KPI sparklines + deltas from history (GPI, review count). Last-vs-previous
-	// point = the delta. Series capped to the trailing 8 points for a compact spark.
+	// Real KPI sparklines + deltas from history (GPI, review count).
 	// Trailing-8 slice. Generic because the same window must be applied to the value
 	// series AND to its period labels, so the two stay index-aligned.
 	const spark = <T,>(arr: T[]): T[] => arr.slice(-8);
-	const lastDelta = (arr: number[]) =>
-		arr.length >= 2 ? +(arr[arr.length - 1] - arr[arr.length - 2]).toFixed(1) : 0;
-	// Per-period NEW reviews (published that month) — window-independent, always ≥0.
-	// The spark shows the monthly new-review trend (never dips like the cumulative,
-	// window-scoped reviewCount did); the caption shows the newest period's count.
+	// Per-period NEW reviews (published in the gap since the previous point) — always ≥0.
 	const historyNewReviews = $derived((data.history ?? []).map((p) => p.newReviews ?? 0));
+	const historyPeriods = $derived((data.history ?? []).map((p) => p.period));
 
 	// ────────────────────────────────────────────────────────────────────────
-	// CONTRIBUTION POINT — proRateCurrentMonth()
+	// GPI delta — 30 DAYS AGO vs NOW, never "last two points".
 	//
-	// The last history point is the CURRENT calendar month, which is only partway
-	// through (e.g. today is the 8th → the month has barely started). Its raw
-	// new-review count is naturally low, so the spark dips at the end even though
-	// nothing is wrong. Rather than estimate it, we simply DROP that partial month
-	// from the spark so the line ends on the last COMPLETE month.
+	// Every history point is now a complete rolling-window measurement stamped with a
+	// real date ('YYYY-MM-DD'), so we can ask a question with a fixed meaning: how much
+	// has the score moved in the last 30 days? The old code diffed the last two points,
+	// which meant something different per window (month-over-month at 2Y, day-over-day
+	// at 3M) and — worse — compared a half-finished calendar month against completed
+	// ones, manufacturing a drop out of nothing. There is no partial period any more,
+	// so dropPartialMonth() is gone with it.
 	//
-	// "Partial" = the newest period equals the running calendar month AND we're not
-	// near its end (< 90% elapsed). A near-complete month is kept as-is.
+	// Picks the newest point at or before the cutoff (points are thinned to month-end
+	// anchors on wide windows, so an exact 30-days-ago point rarely exists).
 	// ────────────────────────────────────────────────────────────────────────
-	function dropPartialMonth(counts: number[], periods: string[]): number[] {
-		if (counts.length === 0 || counts.length !== periods.length) return counts;
-		const now = new Date();
-		const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-		if (periods[periods.length - 1] !== curKey) return counts; // ends on a past month
-
-		const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-		const elapsed = now.getDate() / daysInMonth;
-		if (elapsed >= 0.9) return counts; // month basically done — keep it
-		return counts.slice(0, -1); // drop the unfinished trailing month
+	function deltaOverDays(values: number[], periods: string[], days: number): number {
+		if (values.length < 2 || values.length !== periods.length) return 0;
+		const cutoff = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+		let baseIdx = -1;
+		for (let i = periods.length - 1; i >= 0; i--) {
+			if (periods[i] <= cutoff) { baseIdx = i; break; }
+		}
+		// Series shorter than the lookback → oldest point we have (an honest "since we
+		// started measuring" rather than a silent 0).
+		if (baseIdx === -1) baseIdx = 0;
+		if (baseIdx === values.length - 1) return 0; // only one point at/before cutoff
+		return +(values[values.length - 1] - values[baseIdx]).toFixed(1);
 	}
 
 	const gpiSpark = $derived(spark(historyGpi));
-	const gpiDelta = $derived(lastDelta(historyGpi));
-	// Drop the running (partial) month so the spark doesn't show a false end-dip.
-	const reviewSpark = $derived(
-		dropPartialMonth(spark(historyNewReviews), spark((data.history ?? []).map((p) => p.period)))
-	);
-	// "This period" = new reviews published in the latest period (not a delta).
+	const gpiDelta = $derived(deltaOverDays(historyGpi, historyPeriods, 30));
+	const reviewSpark = $derived(spark(historyNewReviews));
+	// "This period" = new reviews in the newest point's gap (not a delta).
 	const reviewDelta = $derived(historyNewReviews.length > 0 ? historyNewReviews[historyNewReviews.length - 1] : 0);
 
 	type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'brand';
@@ -173,6 +170,13 @@
 	// history isn't comparable to a competitor's ~2 analyzed years (owner decision).
 	// Drop the RPI + Rakip Farkı KPI cards; the strip collapses 5→3.
 	const hideComp = $derived(hidesCompetitors(parseOsWindow(data.window)));
+
+	// Honest volume label: reviewCount is WINDOW-scoped (reviews published in the
+	// lookback), not a lifetime total. Calling it "Toplam Yorum" at 3mo would present
+	// ~500 as the hotel's total. Only 'max' is a true lifetime count.
+	const curWindow = $derived(parseOsWindow(data.window));
+	const windowLabel = $derived(OS_WINDOW_TABS.find((t) => t.key === curWindow)?.label ?? '');
+	const reviewCountLabel = $derived(curWindow === 'max' ? 'Toplam Yorum' : `Yorum (${windowLabel})`);
 
 	// Category movement — [REAL] top categories by mention.
 	// Category movement — declining categories first (most actionable), then by
@@ -247,12 +251,11 @@
 		loadDepts(windowParam(parseOsWindow(data.window)));
 	});
 
-	// A null score (no mentions yet) renders as 0 and cannot be entered.
 	function toOsDept(d: DepartmentScore): OsDept {
 		return {
 			key: d.key,
 			label: d.label,
-			score: d.score ?? 0,
+			score: d.score,
 			trend: d.trend > 0 ? 'up' : d.trend < 0 ? 'down' : 'flat',
 			trendValue: d.trend,
 			scope: d.categories.join(' · '),
@@ -260,8 +263,12 @@
 		};
 	}
 
-	// Real list only — empty until the departments endpoint answers.
-	const depts = $derived<OsDept[]>(realDepts ? realDepts.map(toOsDept) : []);
+	// Real list only — empty until the departments endpoint answers. A department with a
+	// null score (not enough mentions to score) is DROPPED from the grid entirely: a "—"
+	// tile is noise on the overview, and a coerced 0 read as a catastrophic red zero.
+	const depts = $derived<OsDept[]>(
+		realDepts ? realDepts.filter((d) => d.score != null).map(toOsDept) : []
+	);
 </script>
 
 <!-- ── Venue hero: neutral band, same skeleton as PlatformHero so lenses align ── -->
@@ -272,8 +279,11 @@
 	<div class="min-w-0">
 		<div class="text-base font-extrabold tracking-tight text-text-1">{hs.venueName}</div>
 		<!-- Region + season were hardcoded to one customer's venue and are not in the
-		     score payload; the subtitle now states only what the data actually says. -->
-		<div class="mt-0.5 text-xs text-text-3">{hs.reviewCount} yorum</div>
+		     score payload; the subtitle now states only what the data actually says.
+		     The count is window-scoped, so say which window it covers. -->
+		<div class="mt-0.5 text-xs text-text-3">
+			{hs.reviewCount.toLocaleString('tr-TR')} yorum{curWindow === 'max' ? '' : ` · ${windowLabel.toLocaleLowerCase('tr-TR')}`}
+		</div>
 	</div>
 
 	<div class="ml-auto flex items-end gap-4">
@@ -295,6 +305,8 @@
 		delta={gpiDelta}
 		deltaPolarity="higher-better"
 		trend={gpiSpark}
+		trendMinSpan={2}
+		title="Değişim: son 30 gün"
 	/>
 	{#if !hideComp}
 		<StatTile
@@ -305,20 +317,20 @@
 		/>
 	{/if}
 	<StatTile
-		label="Toplam Yorum"
+		label={reviewCountLabel}
 		value={hs.reviewCount.toLocaleString('tr-TR')}
 		caption={reviewDelta > 0 ? `bu dönem +${reviewDelta.toLocaleString('tr-TR')} yeni` : 'bu dönem'}
 		trend={reviewSpark}
 	/>
+	<!-- No delta badge: responseStats.rateTrend is hardcoded 0 in scoring (score.ts,
+	     "0 until that lands") — a permanently frozen "0.0pp" reads as a real signal.
+	     Re-add the delta when the trend is actually computed. -->
 	<StatTile
 		label="Yanıt Oranı"
 		value="%{responseRatePct}"
 		tone={responseRatePct === 0 ? 'danger' : responseRatePct >= 60 ? 'success' : 'warning'}
 		caption="hedef %80"
 		critical={responseRatePct === 0}
-		delta={hs.responseStats.rateTrend}
-		deltaUnit="pp"
-		deltaPolarity="higher-better"
 	/>
 	{#if !hideComp}
 		<StatTile
@@ -402,14 +414,22 @@
 </SectionCard>
 
 <!-- ── Management response analytics ──────────────────────────────────────── -->
+<!-- responseBreakdown is null when /v1/responses/stats is unreachable — show an honest
+     empty state, never a fabricated breakdown (the old fallback served mock rows). -->
 <SectionCard title="Yanıt Yönetimi" icon={MessageCircleReply} hint="platform · duygu · pazar" class="mb-3.5">
-	<ResponseAnalytics
-		overallRate={hs.responseStats.rate}
-		medianHours={hs.responseStats.medianResponseTimeHours}
-		byPlatform={data.responseBreakdown.byPlatform}
-		bySentiment={data.responseBreakdown.bySentiment}
-		competitorAvgRate={data.responseBreakdown.competitorAvgRate}
-	/>
+	{#if data.responseBreakdown}
+		<ResponseAnalytics
+			overallRate={hs.responseStats.rate}
+			medianHours={hs.responseStats.medianResponseTimeHours}
+			byPlatform={data.responseBreakdown.byPlatform}
+			bySentiment={data.responseBreakdown.bySentiment}
+			competitorAvgRate={data.responseBreakdown.competitorAvgRate}
+		/>
+	{:else}
+		<p class="py-6 text-center text-[12px] text-text-3">
+			Yanıt istatistikleri şu anda yüklenemedi — sayfayı yenileyin.
+		</p>
+	{/if}
 </SectionCard>
 
 <!-- ── Audience segments: who is reviewing you (language + trip type) ──────── -->

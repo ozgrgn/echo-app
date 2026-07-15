@@ -14,8 +14,12 @@
 
 	let { dept, onenter }: Props = $props();
 
+	// A null score means "not enough mentions to score" — render it neutral ('—'),
+	// never as a red 0: a department with insufficient data is unknown, not failing.
 	const scoreColor = $derived(
-		dept.score >= 70 ? 'text-success' : dept.score >= 55 ? 'text-warning' : 'text-danger'
+		dept.score == null
+			? 'text-text-3'
+			: dept.score >= 70 ? 'text-success' : dept.score >= 55 ? 'text-warning' : 'text-danger'
 	);
 	const TrendIcon = $derived(dept.trend === 'up' ? ArrowUp : dept.trend === 'down' ? ArrowDown : Minus);
 	const arrowClass = $derived(
@@ -29,7 +33,7 @@
 >
 	<span class="text-[12.5px] font-bold text-text-1">{dept.label}</span>
 	<span class="mt-0.5 flex items-center gap-1.5 text-lg font-extrabold {scoreColor}">
-		{dept.score}<span class="flex {arrowClass}"><TrendIcon size={14} strokeWidth={2.5} /></span>
+		{dept.score ?? '—'}{#if dept.score != null}<span class="flex {arrowClass}"><TrendIcon size={14} strokeWidth={2.5} /></span>{/if}
 	</span>
-	<span class="mt-0.5 text-[10.5px] text-text-3">{dept.scope}</span>
+	<span class="mt-0.5 text-[10.5px] text-text-3">{dept.score == null ? 'yeterli veri yok' : dept.scope}</span>
 </button>

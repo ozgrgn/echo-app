@@ -23,23 +23,17 @@
 		type ResponseStats,
 		type ResponseQueueItem
 	} from '@talkwo/echo-ui';
-	import { PLATFORM_COLOR, responseSliceFor, platformTrendFor } from '$lib/mock/os';
+	import { PLATFORM_COLOR } from '$lib/mock/os';
 	import { Activity, Rocket, ChartBar, Globe, MessageSquare, Swords, MessageCircleReply, TrendingUp } from '@lucide/svelte';
 
 	let { data } = $props();
 	const ps = $derived(data.platformScore);
 
-	// Response analytics scoped to this platform — [MOCK→radar]. Overall rate seeds
-	// from the blended responseStats; the sentiment split is derived per platform.
-	const respSlice = $derived(responseSliceFor(data.platform, ps.responseStats?.rate ?? 0.7));
-
-	// GPI trend — REAL per-platform series from /v1/scores/:slug/history. Falls back
-	// to the synthetic generator only in mock mode (data.history null), so live never
-	// invents a past.
+	// GPI trend — REAL per-platform series only. No history → the chart shows its
+	// empty state (trendHasHistory guard); the old synthetic-series fallback
+	// (platformTrendFor) could fabricate a past for a real tenant and is gone.
 	const trendActual = $derived(
-		data.history && data.history.length > 0
-			? data.history.map((p) => p.gpi)
-			: platformTrendFor(data.platform, ps.gpi).actual
+		data.history && data.history.length > 0 ? data.history.map((p) => p.gpi) : [ps.gpi]
 	);
 	const trendHasHistory = $derived((data.history?.length ?? 0) > 1);
 	// Period labels for the x-axis (present only from real history, monthly or daily).
@@ -120,7 +114,7 @@
 	async function loadResponseStats() {
 		try {
 			const r = await fetch(
-				`/api/os/data?resource=responseStats&platform=${encodeURIComponent(data.platform)}`
+				`/api/os/data?resource=responseStats&platform=${encodeURIComponent(data.platform)}&window=${encodeURIComponent(data.window)}`
 			);
 			respStats = r.ok ? await r.json() : null;
 		} catch {
@@ -156,8 +150,10 @@
 		}
 	});
 
-	// Genel tab analytics: real stats when live; the mock slice only in demo mode.
-	// competitorAvgRate has no real source yet — stays [MOCK→radar] in both paths.
+	// Genel tab analytics: REAL stats only. Stats unreachable → null → the card shows
+	// its empty state. (The old fallback rendered responseSliceFor() — a char-hash
+	// fabrication — to real tenants on any transient stats failure.) A per-platform
+	// market response rate has no source yet, so the Pazar row stays hidden here.
 	const SENT_LABEL = { negative: 'Olumsuz', neutral: 'Nötr', positive: 'Olumlu' } as const;
 	const respAnalytics = $derived(
 		respStats
@@ -171,14 +167,9 @@
 						responded: s.responded,
 						total: s.total
 					})),
-					competitorAvgRate: respSlice.competitorAvgRate
+					competitorAvgRate: null
 				}
-			: {
-					overallRate: respSlice.overallRate,
-					medianHours: ps.responseStats?.medianResponseTimeHours ?? null,
-					bySentiment: respSlice.bySentiment,
-					competitorAvgRate: respSlice.competitorAvgRate
-				}
+			: null
 	);
 
 	// Median hours reads better as days past 48h.
@@ -330,16 +321,22 @@
 		<OpportunityList items={opportunities} />
 	</SectionCard>
 
-	<!-- Response analytics scoped to this platform — REAL via /v1/responses/stats
-	     when live (mock slice only in demo mode; market rate stays [MOCK→radar]). -->
-	<SectionCard title="Yanıt Yönetimi · {label}" icon={MessageCircleReply} hint="duygu · pazar">
-		<ResponseAnalytics
-			overallRate={respAnalytics.overallRate}
-			medianHours={respAnalytics.medianHours}
-			bySentiment={respAnalytics.bySentiment}
-			competitorAvgRate={respAnalytics.competitorAvgRate}
-			overallLabel="{label} yanıt oranı"
-		/>
+	<!-- Response analytics scoped to this platform — REAL via /v1/responses/stats only;
+	     unreachable → honest empty state (never a fabricated slice). -->
+	<SectionCard title="Yanıt Yönetimi · {label}" icon={MessageCircleReply} hint="duygu">
+		{#if respAnalytics}
+			<ResponseAnalytics
+				overallRate={respAnalytics.overallRate}
+				medianHours={respAnalytics.medianHours}
+				bySentiment={respAnalytics.bySentiment}
+				competitorAvgRate={respAnalytics.competitorAvgRate}
+				overallLabel="{label} yanıt oranı"
+			/>
+		{:else}
+			<p class="py-6 text-center text-[12px] text-text-3">
+				Yanıt istatistikleri şu anda yüklenemedi — sayfayı yenileyin.
+			</p>
+		{/if}
 	</SectionCard>
 {:else if activeTab === 'kategoriler'}
 	<!-- Kategoriler — full 14-category list, mention-sorted. -->

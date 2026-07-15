@@ -60,7 +60,9 @@ export const PLATFORM_PALETTE: Record<OsPlatform['key'], PlatformPalette> = {
 export interface OsDept {
 	key: string;          // ops canonical key: 'hk','mnt','fnb','fo'...
 	label: string;        // [MOCK→ops]
-	score: number;        // [MOCK→echo] — needs responsibility map
+	/** null = not enough mentions to score. Renders '—' (neutral), NEVER a red 0 —
+	 *  an unscored department is unknown, not failing. */
+	score: number | null;
 	trend: 'up' | 'down' | 'flat'; // [MOCK→radar]
 	/** Raw signed trend delta (period-over-period). Used to RANK the movement lists
 	 *  (most-negative first) and to show the exact ± value — a threshold only bucketed
