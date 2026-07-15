@@ -50,7 +50,9 @@ export const GET: RequestHandler = async (event) => {
 				);
 			}
 			case 'responseStats':
-				return json(await api.getResponseStats(venueSlug, platform));
+				// Window forwarded so the card's breakdown covers the same lookback as the
+				// page's other numbers (backend defaults to 24mo when absent).
+				return json(await api.getResponseStats(venueSlug, platform, window));
 			case 'responseQueue':
 				return json(await api.getResponseQueue(venueSlug, { platform, limit }));
 			case 'mentions': {

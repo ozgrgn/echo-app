@@ -6,6 +6,8 @@ export const load: PageServerLoad = async (event) => {
 	const session = event.locals.session;
 	if (!session) throw error(401, 'Not authenticated');
 	const api = makeServerApi(event);
-	const hotelScore = await api.getHotelScore(session.venueSlug, '2025-05');
+	// No period → the backend returns the venue's LATEST snapshot. This used to pin
+	// '2025-05', which 404'd every tenant without a snapshot for that exact month.
+	const hotelScore = await api.getHotelScore(session.venueSlug, undefined);
 	return { hotelScore };
 };

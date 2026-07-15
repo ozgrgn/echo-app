@@ -52,7 +52,9 @@
 	});
 
 	// Adapt a real DepartmentScore into the OsDept shape DeptCard/switcher expect.
-	// A null score (no mentions) sorts last and renders as 0 with a flat trend.
+	// A null score (no mentions) stays null — DeptCard renders it as a neutral '—'
+	// ("yeterli veri yok"). It used to be coerced to 0 here, which painted an
+	// insufficient-data department as a catastrophic red zero on the grid.
 	//
 	// Direction is threshold-FREE: any non-zero movement counts (a mature venue moves
 	// ±0.1/month, and a 0.5 threshold made "Düşüşte/Yükselişte olanlar" permanently
@@ -62,7 +64,7 @@
 		return {
 			key: d.key,
 			label: d.label,
-			score: d.score ?? 0,
+			score: d.score,
 			trend: d.trend > 0 ? 'up' : d.trend < 0 ? 'down' : 'flat',
 			trendValue: d.trend,
 			scope: d.categories.join(' · '),
@@ -74,8 +76,11 @@
 	// there is no invented fallback set any more.
 	const depts = $derived<OsDept[]>(realDepts ? realDepts.map(toOsDept) : []);
 
-	// Summary KPIs derived from whatever list is active.
-	const scored = $derived(depts.filter((d) => d.enters !== false));
+	// Summary KPIs and the grid both use the SCORED departments only (null = no data,
+	// not 0). An unscored department is dropped from the grid rather than shown as '—'.
+	const scored = $derived(
+		depts.filter((d): d is OsDept & { score: number } => d.score != null)
+	);
 	const avgScore = $derived(
 		scored.length ? scored.reduce((s, d) => s + d.score, 0) / scored.length : 0
 	);
@@ -105,7 +110,7 @@
 		Geri
 	</button>
 	<span class="mx-0.5 h-5 w-px bg-border"></span>
-	{#each depts as d (d.key)}
+	{#each scored as d (d.key)}
 		{@const color = DEPARTMENTS[d.key]?.color ?? 'var(--color-text-3)'}
 		<button
 			onclick={() => enterDept(d.key)}
@@ -174,7 +179,7 @@
 	<!-- ── Department grid ───────────────────────────────────────────────────── -->
 	<SectionCard title="Departmanlar" icon={Users} hint="tıkla → ekip detayı" class="mb-3.5">
 		<div class="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4">
-			{#each depts as d (d.key)}
+			{#each scored as d (d.key)}
 				<DeptCard dept={d} onenter={enterDept} />
 			{/each}
 		</div>
@@ -195,7 +200,7 @@
 									{#if d.trendValue != null}
 										<span class="text-[11px] font-semibold text-danger">▼ {Math.abs(d.trendValue).toFixed(2)}</span>
 									{/if}
-									<span class="text-[13px] font-extrabold text-danger">{d.score.toFixed(0)}</span>
+									<span class="text-[13px] font-extrabold text-danger">{d.score?.toFixed(0) ?? '—'}</span>
 								</span>
 							</button>
 						</li>
@@ -217,7 +222,7 @@
 									{#if d.trendValue != null}
 										<span class="text-[11px] font-semibold text-success">▲ {Math.abs(d.trendValue).toFixed(2)}</span>
 									{/if}
-									<span class="text-[13px] font-extrabold text-success">{d.score.toFixed(0)}</span>
+									<span class="text-[13px] font-extrabold text-success">{d.score?.toFixed(0) ?? '—'}</span>
 								</span>
 							</button>
 						</li>

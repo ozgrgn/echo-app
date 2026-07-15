@@ -12,10 +12,12 @@ export const load: PageServerLoad = async (event) => {
 	if (!session) throw error(401, 'Not authenticated');
 	const api = makeServerApi(event);
 
-	const period = '2025-05';
+	// No period → the backend returns the LATEST snapshot for the venue and each
+	// competitor. This used to pin '2025-05', which 404'd every tenant without a
+	// snapshot for that exact month.
 	const [hotelScore, competitors] = await Promise.all([
-		api.getHotelScore(session.venueSlug, period),
-		api.getCompetitorScores(session.venueSlug, period)
+		api.getHotelScore(session.venueSlug, undefined),
+		api.getCompetitorScores(session.venueSlug, undefined)
 	]);
 
 	return {

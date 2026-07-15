@@ -122,8 +122,8 @@ export function makeServerApi(event: RequestEvent) {
 			withRetry((t) => getCompetitorScores(venueSlug, period, t, window, platform, fo())),
 		getSegments: (venueSlug: string, platform?: string, window?: string) =>
 			withRetry((t) => getSegments(venueSlug, t, platform, window, fo())),
-		getResponseStats: (venueSlug: string, platform?: string) =>
-			withRetry((t) => getResponseStats(venueSlug, t, platform, fo())),
+		getResponseStats: (venueSlug: string, platform?: string, window?: string) =>
+			withRetry((t) => getResponseStats(venueSlug, t, platform, fo(), window)),
 		getPortfolioScore: (period: string) => withRetry((t) => getPortfolioScore(period, t, fo())),
 		// OS bundle: one call feeding a whole /os page (perf). 401-refresh comes free via withRetry.
 		getOsBundle: (

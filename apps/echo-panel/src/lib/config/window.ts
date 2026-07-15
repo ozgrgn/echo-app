@@ -49,28 +49,41 @@ export function windowParam(w: OsWindow): string | undefined {
 	return w === DEFAULT_OS_WINDOW ? undefined : w;
 }
 
-/** Whole-month lookback per window (mirrors the backend's WINDOW_MONTHS). 'max' = 0
- *  (no lookback); it's always rendered as a monthly series, never daily. */
-const WINDOW_MONTHS: Record<OsWindow, number> = { max: 0, '24mo': 24, '12mo': 12, '6mo': 6, '3mo': 3 };
+/**
+ * How far BACK the chart draws — a different axis from the window itself. The window
+ * says how much history each POINT summarizes ("this day's score over the last 24
+ * months"); this says how many points to show. They coincide for 12mo/6mo/3mo. 'max'
+ * scores over all time but still needs a finite chart horizon, so it draws the same
+ * 24 months as the default — a lifetime line would be a decade of points, most of them
+ * from before we had data.
+ */
+const CHART_MONTHS: Record<OsWindow, number> = { max: 24, '24mo': 24, '12mo': 12, '6mo': 6, '3mo': 3 };
 
 /**
- * How a trend chart should render for a window:
- *   - wide windows (max/24mo/12mo) → MONTHLY series (/history), clean long view.
- *   - narrow windows (6mo/3mo) → DAILY series (/daily) from the window lower bound,
- *     so a short horizon reads at day resolution instead of 3–6 sparse month points.
- * `from` is an ISO 'YYYY-MM-DD' lower bound for the daily fetch (undefined for monthly).
- * `window` is the daily series to read (the SAME horizon as the KPI) — the daily points
- * for a narrow window are scored over that rolling window, so the chart's last point
- * equals the windowed KPI. Only set when `daily`.
+ * How a trend chart should render for a window. EVERY window now reads the same store
+ * (score_snapshots_daily) — `daily` no longer picks a COLLECTION, only a RESOLUTION:
+ *   - narrow (6mo/3mo) → `daily: true`, raw day points; a short horizon deserves day detail.
+ *   - wide (max/24mo/12mo) → `daily: false`, the backend thins the same daily series to
+ *     one point per month-end (plus today), so a 1–2 year chart stays readable.
+ *
+ * The old wide path read the monthly score_snapshots collection instead, which grouped
+ * by calendar month and therefore ended on a HALF-FINISHED month — the phantom "GPI is
+ * dropping" the KPI delta was reading. Every daily point is a complete rolling-window
+ * measurement, so that whole class of bug is gone.
+ *
+ * `from` bounds the fetch (CHART_MONTHS back — the chart's horizon, not the window's).
+ * `window` names the series to read: the SAME horizon as the KPI, so the chart's last
+ * point equals the headline number.
  */
 export function windowChartMode(
 	w: OsWindow,
 	now: Date
 ): { daily: boolean; from?: string; window?: OsWindow } {
-	// 'max' is the widest — always monthly (a lifetime daily line would be thousands
-	// of points). 24mo/12mo also monthly. Only the short windows go daily.
-	if (w === 'max' || w === '24mo' || w === '12mo') return { daily: false };
 	const d = new Date(now);
-	d.setUTCMonth(d.getUTCMonth() - WINDOW_MONTHS[w]);
-	return { daily: true, from: d.toISOString().slice(0, 10), window: w };
+	d.setUTCMonth(d.getUTCMonth() - CHART_MONTHS[w]);
+	return {
+		daily: w === '6mo' || w === '3mo',
+		from: d.toISOString().slice(0, 10),
+		window: w
+	};
 }

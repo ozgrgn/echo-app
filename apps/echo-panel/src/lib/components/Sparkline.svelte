@@ -13,6 +13,16 @@
 		height?: number;
 		/** Fill the area under the line with a faint wash. */
 		fill?: boolean;
+		/**
+		 * Smallest span the y-axis may cover. Without it the line auto-scales to its own
+		 * min/max, so a series that barely moves gets magnified until noise looks like a
+		 * cliff — a GPI wobbling 79.4→79.5 rendered as a full-height plunge next to a big
+		 * trend chart that (correctly) drew the same tail as flat. Pass the smallest
+		 * change that MEANS something for this metric (≈2 points for GPI); anything
+		 * smaller then shows as a proportionally small wiggle. Omit for series whose own
+		 * range is already meaningful (review counts, percentages).
+		 */
+		minSpan?: number;
 	}
 
 	let {
@@ -20,7 +30,8 @@
 		color = 'var(--color-brand)',
 		width = 120,
 		height = 36,
-		fill = true
+		fill = true,
+		minSpan = 0
 	}: Props = $props();
 
 	const pad = 2; // keep the stroke + end dot from clipping at the edges
@@ -29,12 +40,17 @@
 		if (data.length < 2) return [];
 		const min = Math.min(...data);
 		const max = Math.max(...data);
-		const span = max - min || 1; // avoid /0 when the series is flat
+		const raw = max - min;
+		// Widen a too-narrow range to minSpan, centred on the data so the line sits mid-box
+		// instead of hugging an edge.
+		const span = Math.max(raw, minSpan) || 1; // || 1 avoids /0 on a flat series
+		const mid = (min + max) / 2;
+		const lo = mid - span / 2;
 		const stepX = (width - pad * 2) / (data.length - 1);
 		return data.map((v, i) => {
 			const x = pad + i * stepX;
 			// invert Y (SVG origin top-left) and inset by pad
-			const y = pad + (1 - (v - min) / span) * (height - pad * 2);
+			const y = pad + (1 - (v - lo) / span) * (height - pad * 2);
 			return { x, y };
 		});
 	});

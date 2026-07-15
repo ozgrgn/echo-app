@@ -1,9 +1,9 @@
 <!--
   ResponseAnalytics — management-response breakdown: response rate per platform
-  and per sentiment, benchmarked against the market average. The blended rate +
-  median time and the per-platform / per-sentiment breakdowns are all [REAL]
-  (/v1/responses/stats). Only competitorAvgRate ("Pazar") is still [MOCK→radar]
-  until radar serves a market response-rate benchmark.
+  and per sentiment, benchmarked against the market average. Everything is [REAL]:
+  the rate + breakdowns from /v1/responses/stats, and "Pazar" from the mean of the
+  competitors' own snapshot response rates (was a hardcoded 0.69 mock). No
+  competitors configured → competitorAvgRate null → the Pazar row is hidden.
 -->
 <script lang="ts">
 	import type { ResponseRateRow } from '$lib/mock/os';
@@ -16,8 +16,9 @@
 		/** Per-platform breakdown — omit on a single-platform lens. */
 		byPlatform?: ResponseRateRow[];
 		bySentiment: ResponseRateRow[];
-		/** Market average rate, 0..1 — [MOCK→radar]. */
-		competitorAvgRate: number;
+		/** Market average rate, 0..1 — mean of competitor snapshots' response rates.
+		 *  null (no competitors / no data) hides the Pazar row entirely. */
+		competitorAvgRate: number | null;
 		/** Left-column label over the headline rate (default "Genel yanıt oranı"). */
 		overallLabel?: string;
 	}
@@ -42,8 +43,10 @@
 	}
 	const pct = (r: number) => Math.round(r * 100);
 
-	// vs market: positive = ahead of competitors.
-	const vsMarket = $derived(Math.round((overallRate - competitorAvgRate) * 100));
+	// vs market: positive = ahead of competitors. null when there is no market rate.
+	const vsMarket = $derived(
+		competitorAvgRate !== null ? Math.round((overallRate - competitorAvgRate) * 100) : null
+	);
 </script>
 
 <div class="grid grid-cols-1 gap-4 {byPlatform ? 'lg:grid-cols-[auto_1fr_1fr]' : 'lg:grid-cols-[auto_1fr]'}">
@@ -55,12 +58,14 @@
 		</div>
 		<div class="flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-text-2">
 			<span>Medyan: <b class="text-text-1">{medianHours !== null ? `${medianHours} sa` : '—'}</b></span>
-			<span>
-				Pazar: <b class="text-text-1">%{pct(competitorAvgRate)}</b>
-				<span class="font-semibold {vsMarket >= 0 ? 'text-success' : 'text-danger'}">
-					({vsMarket >= 0 ? '+' : ''}{vsMarket}pp)
+			{#if competitorAvgRate !== null && vsMarket !== null}
+				<span>
+					Pazar: <b class="text-text-1">%{pct(competitorAvgRate)}</b>
+					<span class="font-semibold {vsMarket >= 0 ? 'text-success' : 'text-danger'}">
+						({vsMarket >= 0 ? '+' : ''}{vsMarket}pp)
+					</span>
 				</span>
-			</span>
+			{/if}
 		</div>
 	</div>
 
