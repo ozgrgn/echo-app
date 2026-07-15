@@ -5,7 +5,7 @@
   scope header · thread tabs · daily brief · stream of active topics · composer.
 -->
 <script lang="ts">
-	import { Sparkles, Ellipsis, Plus, ArrowUp, GitCompare } from '@lucide/svelte';
+	import { Sparkles, Ellipsis, Plus, ArrowUp, GitCompare, Bell, Target, MessagesSquare, ListTodo, TrendingDown, TrendingUp, Minus } from '@lucide/svelte';
 	import { osState } from '$lib/stores/osState.svelte';
 	import { MOCK_THREADS, MOCK_BRIEF, MOCK_STREAM, type ThreadStatus } from '$lib/mock/assistant';
 	import TalkwoMark from './TalkwoMark.svelte';
@@ -47,6 +47,94 @@
 	};
 
 	let composer = $state('');
+
+	// ── Faz 1 (real tenant): 4 sections fed by /api/agenda (SvelteKit proxy → radar).
+	// Shapes mirror lib/server/radarApi.ts; kept loose on purpose — the panel renders
+	// what radar sends and must not crash on fields it doesn't know yet.
+	type AlertCard = {
+		fingerprint: string;
+		ruleId?: string;
+		title?: string;
+		detail?: string;
+		severity?: string;
+		category?: string;
+		categoryLabel?: string;
+		sendCount?: number;
+		lastSentAt?: string;
+	};
+	type GoalReport = {
+		goal: { goalId: string; label?: string; metricPath: string; target: number; deadline?: string | null };
+		progress?: { now: number | null; gap: number | null; weeklyDelta: number | null; trend: string; reached: boolean };
+		feasibility?: { verdict: string; verdictTr?: string; evidence?: string };
+	};
+	type Thread = { threadId?: string; title?: string; source?: string; status?: string };
+
+	type SectionKey = 'agenda' | 'alerts' | 'goals' | 'chat';
+	let section = $state<SectionKey>('agenda');
+	let loading = $state(true);
+	let loadError = $state<string | null>(null);
+	let alerts = $state<AlertCard[]>([]);
+	let goals = $state<GoalReport[]>([]);
+	let threads = $state<Thread[]>([]);
+
+	$effect(() => {
+		if (demo) return; // demo branch renders fixtures, never fetches
+		let cancelled = false;
+		(async () => {
+			try {
+				const res = await fetch('/api/agenda?resource=all');
+				if (!res.ok) throw new Error(`agenda ${res.status}`);
+				const data = await res.json();
+				if (cancelled) return;
+				// ECHO panel is the REPUTATION lens of the shared radar store: PMS-domain
+				// cards (occupancy dips, meter gaps) stay in Atlas — only reputation here.
+				alerts = (data.alerts ?? []).filter((a: AlertCard) => a.category === 'reputation');
+				goals = data.goals ?? [];
+				threads = data.threads ?? [];
+				loadError = data.partial ? 'Bazı bölümler yüklenemedi' : null;
+			} catch (e) {
+				if (!cancelled) loadError = e instanceof Error ? e.message : 'Gündem yüklenemedi';
+			} finally {
+				if (!cancelled) loading = false;
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	const criticalCount = $derived(alerts.filter((a) => a.severity === 'critical').length);
+	const goalsAtRisk = $derived(
+		goals.filter((g) => g.progress && !g.progress.reached && g.progress.trend === 'worsening').length
+	);
+
+	const sections: { key: SectionKey; label: string }[] = [
+		{ key: 'agenda', label: 'Gündem' },
+		{ key: 'alerts', label: 'Uyarılar' },
+		{ key: 'goals', label: 'Hedefler' },
+		{ key: 'chat', label: 'Sohbet' }
+	];
+
+	const sevChip = (s?: string) =>
+		s === 'critical' ? 'bg-danger-light text-danger' : 'bg-warning-light text-warning';
+	const sevLabel = (s?: string) => (s === 'critical' ? 'KRİTİK' : 'UYARI');
+
+	// Goal card badge: the mock's "gidişat" chip. A warming-up series must read as
+	// "still filling", not as a flat trend or a failed target; then reached wins;
+	// then weekly direction.
+	const goalTone = (g: GoalReport) =>
+		g.feasibility?.verdict === 'warming_up'
+			? { label: 'veri birikiyor', cls: 'bg-surface-2 text-text-3' }
+			: g.progress?.reached
+				? { label: 'ulaşıldı', cls: 'bg-success-light text-success' }
+				: g.progress?.trend === 'worsening'
+					? { label: 'gidişat: risk', cls: 'bg-danger-light text-danger' }
+					: g.progress?.trend === 'improving'
+						? { label: 'yolunda', cls: 'bg-success-light text-success' }
+						: { label: 'yatay', cls: 'bg-warning-light text-warning' };
+
+	const fmt = (n: number | null | undefined, digits = 1) =>
+		typeof n === 'number' ? n.toFixed(digits).replace(/\.0$/, '') : '—';
 </script>
 
 <div class="flex h-full flex-col overflow-hidden">
@@ -66,15 +154,156 @@
 	</header>
 
 {#if !demo}
-	<!-- Real tenant: no placeholder figures. See the note on the `demo` prop. -->
-	<div class="flex flex-1 flex-col items-center justify-center px-6 text-center">
-		<div class="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface-2 text-text-3">
-			<Sparkles size={20} />
+	<!-- Faz 1 (SAG_PANEL_FAZ1 §1.1): 4 sections over live radar data. Tab layout (owner
+	     decision 2026-07-16). "Analiz et" stays HIDDEN until A1 (K4); composer visible
+	     but passive (K6). -->
+	<nav class="flex items-center gap-1 border-b border-border bg-surface-2/40 px-2 py-2">
+		{#each sections as s (s.key)}
+			<button
+				onclick={() => (section = s.key)}
+				class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition-colors
+					{section === s.key ? 'bg-text-1 text-white' : 'text-text-2 hover:bg-surface-2 hover:text-text-1'}"
+			>
+				{s.label}
+				{#if s.key === 'alerts' && alerts.length}
+					<span class="rounded-full px-1.5 text-[10px] font-bold {section === s.key ? 'bg-white/20 text-white' : criticalCount ? 'bg-danger text-white' : 'bg-warning text-white'}">{alerts.length}</span>
+				{:else if s.key === 'goals' && goalsAtRisk}
+					<span class="rounded-full px-1.5 text-[10px] font-bold {section === s.key ? 'bg-white/20 text-white' : 'bg-danger text-white'}">{goalsAtRisk}</span>
+				{/if}
+			</button>
+		{/each}
+	</nav>
+
+	<div class="flex-1 overflow-y-auto p-3 [scrollbar-width:none]">
+		{#if loading}
+			<div class="flex flex-col gap-2.5">
+				{#each [0, 1, 2] as i (i)}
+					<div class="h-16 animate-pulse rounded-xl bg-surface-2"></div>
+				{/each}
+			</div>
+		{:else if loadError && !alerts.length && !goals.length && !threads.length}
+			<div class="flex h-full flex-col items-center justify-center px-4 text-center">
+				<p class="text-[13px] font-semibold text-text-1">Gündem yüklenemedi</p>
+				<p class="mt-1.5 text-[12px] leading-relaxed text-text-3">{loadError}</p>
+			</div>
+		{:else if section === 'agenda'}
+			{#if threads.length === 0}
+				<div class="flex h-full flex-col items-center justify-center px-4 text-center">
+					<div class="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface-2 text-text-3">
+						<ListTodo size={20} />
+					</div>
+					<p class="text-[13px] font-semibold text-text-1">Henüz konu yok</p>
+					<p class="mt-1.5 text-[12px] leading-relaxed text-text-3">
+						Uyarılardan ve hedeflerden doğan konular burada birikecek.
+						{#if criticalCount}Şu an <b class="text-danger">{criticalCount} kritik uyarı</b> Uyarılar sekmesinde.{/if}
+					</p>
+				</div>
+			{:else}
+				<div class="flex flex-col gap-2.5">
+					{#each threads as t (t.threadId ?? t.title)}
+						<button class="flex items-center gap-3 rounded-xl border border-border bg-surface-1 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-hover">
+							<span class="grid h-7 w-7 flex-none place-items-center rounded-lg bg-talkwo/10 text-talkwo">
+								<MessagesSquare size={14} />
+							</span>
+							<span class="min-w-0 flex-1">
+								<span class="block truncate text-[12.5px] font-bold text-text-1">{t.title ?? 'Konu'}</span>
+								<span class="mt-0.5 block text-[11px] text-text-3">{t.source === 'alert' ? 'uyarıdan' : t.source === 'goal' ? 'hedeften' : 'manuel'}</span>
+							</span>
+						</button>
+					{/each}
+				</div>
+			{/if}
+		{:else if section === 'alerts'}
+			{#if alerts.length === 0}
+				<div class="flex h-full flex-col items-center justify-center px-4 text-center">
+					<div class="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-success-light text-success">
+						<Bell size={20} />
+					</div>
+					<p class="text-[13px] font-semibold text-text-1">Aktif uyarı yok</p>
+					<p class="mt-1.5 text-[12px] text-text-3">Kurallar her sabah taze veriyle çalışıyor.</p>
+				</div>
+			{:else}
+				<div class="flex flex-col gap-2.5">
+					{#each alerts as a (a.fingerprint)}
+						<div class="rounded-xl border border-border bg-surface-1 p-3 {a.severity === 'critical' ? 'border-l-2 border-l-danger' : ''}">
+							<div class="flex items-start gap-2">
+								<span class="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase {sevChip(a.severity)}">{sevLabel(a.severity)}</span>
+								{#if (a.sendCount ?? 1) > 1}
+									<span class="rounded-full bg-surface-2 px-1.5 py-0.5 text-[9px] font-bold text-text-3">{a.sendCount}×</span>
+								{/if}
+							</div>
+							<p class="mt-1.5 text-[12.5px] font-bold leading-snug text-text-1">{a.title}</p>
+							{#if a.detail}
+								<p class="mt-1 line-clamp-2 text-[11.5px] leading-relaxed text-text-3">{a.detail}</p>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+		{:else if section === 'goals'}
+			{#if goals.length === 0}
+				<div class="flex h-full flex-col items-center justify-center px-4 text-center">
+					<div class="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface-2 text-text-3">
+						<Target size={20} />
+					</div>
+					<p class="text-[13px] font-semibold text-text-1">Henüz hedef yok</p>
+				</div>
+			{:else}
+				<div class="flex flex-col gap-2.5">
+					{#each goals as g (g.goal.goalId)}
+						{@const tone = goalTone(g)}
+						<div class="rounded-xl border border-border bg-surface-1 p-3">
+							<div class="flex items-center justify-between gap-2">
+								<span class="truncate text-[12.5px] font-bold text-text-1">{g.goal.label ?? g.goal.metricPath}</span>
+								<span class="flex-none rounded-full px-2 py-0.5 text-[9px] font-bold uppercase {tone.cls}">{tone.label}</span>
+							</div>
+							<div class="mt-2 flex items-baseline gap-1.5">
+								<span class="text-[17px] font-extrabold text-text-1">{fmt(g.progress?.now)}</span>
+								<span class="text-[12px] text-text-3">→ {g.goal.target}</span>
+								{#if g.progress?.weeklyDelta != null && g.progress.weeklyDelta !== 0}
+									<span class="ml-auto inline-flex items-center gap-0.5 text-[11px] font-semibold {g.progress.trend === 'improving' ? 'text-success' : g.progress.trend === 'worsening' ? 'text-danger' : 'text-text-3'}">
+										{#if g.progress.weeklyDelta > 0}<TrendingUp size={12} />{:else}<TrendingDown size={12} />{/if}
+										{fmt(Math.abs(g.progress.weeklyDelta))}/hafta
+									</span>
+								{/if}
+							</div>
+							{#if g.feasibility?.evidence}
+								<p class="mt-1.5 text-[11px] leading-relaxed text-text-3">{g.feasibility.evidence}</p>
+							{/if}
+							{#if g.goal.deadline}
+								<p class="mt-1 text-[10px] text-text-3">son tarih {g.goal.deadline}</p>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+		{:else}
+			<!-- Sohbet — passive until A1 (K6): the space is claimed, the promise visible. -->
+			<div class="flex h-full flex-col items-center justify-center px-6 text-center">
+				<div class="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface-2 text-text-3">
+					<Sparkles size={20} />
+				</div>
+				<p class="text-[13px] font-semibold text-text-1">Asistan yakında</p>
+				<p class="mt-1.5 text-[12px] leading-relaxed text-text-3">
+					Gündemi, uyarıları ve hedefleri konuşabileceğiniz asistan bu alana bağlanacak.
+				</p>
+			</div>
+		{/if}
+	</div>
+
+	<!-- Composer: visible but passive (K6 — "disabled input + yakında"). -->
+	<div class="border-t border-border p-3">
+		<div class="flex items-end gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2.5 opacity-60">
+			<textarea
+				rows="1"
+				disabled
+				placeholder="Sor… (yakında)"
+				class="max-h-20 flex-1 resize-none bg-transparent text-[13px] leading-snug text-text-1 outline-none placeholder:text-text-3"
+			></textarea>
+			<button disabled class="grid h-8 w-8 flex-none cursor-not-allowed place-items-center rounded-lg bg-talkwo/40 text-white" title="Yakında">
+				<ArrowUp size={16} />
+			</button>
 		</div>
-		<p class="text-[13px] font-semibold text-text-1">Asistan yakında</p>
-		<p class="mt-1.5 text-[12px] leading-relaxed text-text-3">
-			Skorlarınızı okuyup ne yapmanız gerektiğini söyleyen asistan üzerinde çalışıyoruz.
-		</p>
 	</div>
 {:else}
 	<!-- Thread tabs (horizontal, scrollable) -->
