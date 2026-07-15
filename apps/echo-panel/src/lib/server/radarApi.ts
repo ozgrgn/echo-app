@@ -125,6 +125,27 @@ async function radarGet<T>(scope: RadarScope, path: string, fetchFn: typeof fetc
 	return res.json() as Promise<T>;
 }
 
+async function radarPost<T>(
+	scope: RadarScope,
+	path: string,
+	body: unknown,
+	fetchFn: typeof fetch
+): Promise<T> {
+	const res = await fetchFn(`${baseUrl()}${path}`, {
+		method: 'POST',
+		headers: {
+			Authorization: `Bearer ${mintRadarToken(scope)}`,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify(body)
+	});
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		throw new Error(`radar ${res.status} on ${path}: ${text.slice(0, 200)}`);
+	}
+	return res.json() as Promise<T>;
+}
+
 /** Active alert cards (assist surface — session token passes its requireAdmin). */
 export async function listRadarAlerts(scope: RadarScope, fetchFn: typeof fetch = fetch) {
 	const t = encodeURIComponent(scope.tenantKey);
@@ -139,6 +160,20 @@ export async function listRadarGoals(scope: RadarScope, fetchFn: typeof fetch = 
 	const v = encodeURIComponent(scope.venueSlug);
 	const data = await radarGet<{ goals: RadarGoalReport[] }>(scope, `/api/os/venues/${t}/${v}/goals`, fetchFn);
 	return data.goals ?? [];
+}
+
+/** Upsert a goal (panel CRUD, P2). Radar computes and returns the full goalReport
+ * (definition + progress + feasibility) so the panel can render the new card
+ * without a second round-trip. metricPath validation is the PROXY's job — this
+ * client forwards what it is given. */
+export async function setRadarGoal(
+	scope: RadarScope,
+	body: { metricPath: string; target: number; label?: string; deadline?: string },
+	fetchFn: typeof fetch = fetch
+) {
+	const t = encodeURIComponent(scope.tenantKey);
+	const v = encodeURIComponent(scope.venueSlug);
+	return radarPost<RadarGoalReport>(scope, `/api/os/venues/${t}/${v}/goals`, body, fetchFn);
 }
 
 /** Reputation-domain topic threads (Gündem). */

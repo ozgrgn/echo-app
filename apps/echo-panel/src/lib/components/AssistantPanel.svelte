@@ -135,6 +135,119 @@
 
 	const fmt = (n: number | null | undefined, digits = 1) =>
 		typeof n === 'number' ? n.toFixed(digits).replace(/\.0$/, '') : '—';
+
+	// ── "Yeni hedef" formu (P2). Metrik seçenekleri EK B'nin hedef haritası — proxy'nin
+	// beyaz listesiyle birebir; form başka path üretemez.
+	const METRIC_KINDS = [
+		{ kind: 'gpi', label: 'Genel GPI', unit: '0-100' },
+		{ kind: 'rpi', label: 'RPI (rakip kıyası)', unit: '100 = parite' },
+		{ kind: 'dept', label: 'Departman GPI', unit: '0-100' },
+		{ kind: 'platformRating', label: 'Platform puanı', unit: '1-5' },
+		{ kind: 'platformGpi', label: 'Platform GPI', unit: '0-100' },
+		{ kind: 'responseRate', label: 'Yorumlara yanıt oranı', unit: '%0-100' },
+		{ kind: 'avgStarRating', label: 'Ortalama yıldız', unit: '1-5' }
+	] as const;
+	type MetricKind = (typeof METRIC_KINDS)[number]['kind'];
+	const PLATFORMS: [string, string][] = [
+		['booking', 'Booking'],
+		['tripadvisor', 'TripAdvisor'],
+		['google', 'Google'],
+		['holidaycheck', 'HolidayCheck']
+	];
+
+	let showGoalForm = $state(false);
+	let gKind = $state<MetricKind>('gpi');
+	let gDept = $state('');
+	let gPlatform = $state('booking');
+	let gTarget = $state('');
+	let gDeadline = $state('');
+	let gSaving = $state(false);
+	let gError = $state<string | null>(null);
+	// Venue's REAL departments (own keys + labels + current score) from the existing
+	// echo proxy — the picker shows "Teknik — şu an 24.6" so the target is set in context.
+	let deptOpts = $state<{ key: string; label: string; score?: number }[]>([]);
+
+	async function openGoalForm() {
+		showGoalForm = true;
+		gError = null;
+		if (deptOpts.length) return;
+		try {
+			const res = await fetch('/api/os/data?resource=departments');
+			const data = await res.json();
+			const list = Array.isArray(data) ? data : (data.departments ?? []);
+			deptOpts = list.map((d: { key: string; label: string; score?: number }) => ({
+				key: d.key,
+				label: d.label,
+				score: d.score
+			}));
+			if (deptOpts.length && !gDept) gDept = deptOpts[0].key;
+		} catch {
+			/* dept picker degrades to empty — other metric kinds still work */
+		}
+	}
+
+	const goalDraft = $derived.by(() => {
+		const p = PLATFORMS.find(([k]) => k === gPlatform) ?? PLATFORMS[0];
+		const d = deptOpts.find((x) => x.key === gDept);
+		switch (gKind) {
+			case 'gpi':
+				return { metricPath: 'reviews.gpi', label: 'Genel GPI' };
+			case 'rpi':
+				return { metricPath: 'reviews.rpi', label: 'Rakip konumu (RPI)' };
+			case 'dept':
+				return d
+					? { metricPath: `reviews.departments.${d.key}.gpi`, label: `${d.label} GPI` }
+					: null;
+			case 'platformRating':
+				return { metricPath: `reviews.platforms.${p[0]}.rating`, label: `${p[1]} puanı` };
+			case 'platformGpi':
+				return { metricPath: `reviews.platforms.${p[0]}.gpi`, label: `${p[1]} GPI` };
+			case 'responseRate':
+				return { metricPath: 'reviews.responseRate', label: 'Yorumlara yanıt oranı' };
+			case 'avgStarRating':
+				return { metricPath: 'reviews.avgStarRating', label: 'Ortalama yıldız' };
+		}
+	});
+	const gUnit = $derived(METRIC_KINDS.find((m) => m.kind === gKind)?.unit ?? '');
+
+	async function submitGoal() {
+		const draft = goalDraft;
+		const target = Number(gTarget.replace(',', '.'));
+		if (!draft) return;
+		if (!gTarget.trim() || !Number.isFinite(target)) {
+			gError = 'Hedef değeri gerekli';
+			return;
+		}
+		gSaving = true;
+		gError = null;
+		try {
+			const res = await fetch('/api/agenda', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'setGoal',
+					metricPath: draft.metricPath,
+					target,
+					label: draft.label,
+					...(gDeadline ? { deadline: gDeadline } : {})
+				})
+			});
+			if (!res.ok) {
+				const err = await res.json().catch(() => null);
+				throw new Error(err?.message ?? `HTTP ${res.status}`);
+			}
+			const report: GoalReport = await res.json();
+			// Upsert semantics mirror radar's goalStore.set: same metric → same goal.
+			goals = [report, ...goals.filter((g) => g.goal.metricPath !== report.goal.metricPath)];
+			showGoalForm = false;
+			gTarget = '';
+			gDeadline = '';
+		} catch (e) {
+			gError = e instanceof Error ? e.message : 'Hedef kaydedilemedi';
+		} finally {
+			gSaving = false;
+		}
+	}
 </script>
 
 <div class="flex h-full flex-col overflow-hidden">
@@ -241,12 +354,71 @@
 				</div>
 			{/if}
 		{:else if section === 'goals'}
-			{#if goals.length === 0}
-				<div class="flex h-full flex-col items-center justify-center px-4 text-center">
+			{#if !showGoalForm}
+				<button
+					onclick={openGoalForm}
+					class="mb-2.5 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-2 text-[12px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1"
+				>
+					<Plus size={14} />Yeni hedef
+				</button>
+			{:else}
+				<div class="mb-2.5 rounded-xl border border-talkwo/30 bg-surface-1 p-3">
+					<div class="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-talkwo">Yeni hedef</div>
+					<div class="flex flex-col gap-2">
+						<select bind:value={gKind} class="w-full rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[12px] text-text-1 outline-none">
+							{#each METRIC_KINDS as m (m.kind)}
+								<option value={m.kind}>{m.label}</option>
+							{/each}
+						</select>
+						{#if gKind === 'dept'}
+							<select bind:value={gDept} class="w-full rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[12px] text-text-1 outline-none">
+								{#each deptOpts as d (d.key)}
+									<option value={d.key}>{d.label}{typeof d.score === 'number' ? ` — şu an ${d.score}` : ''}</option>
+								{/each}
+							</select>
+						{:else if gKind === 'platformRating' || gKind === 'platformGpi'}
+							<select bind:value={gPlatform} class="w-full rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[12px] text-text-1 outline-none">
+								{#each PLATFORMS as [key, label] (key)}
+									<option value={key}>{label}</option>
+								{/each}
+							</select>
+						{/if}
+						<div class="flex items-center gap-2">
+							<input
+								bind:value={gTarget}
+								type="number"
+								step="0.1"
+								placeholder="Hedef ({gUnit})"
+								class="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[12px] text-text-1 outline-none placeholder:text-text-3"
+							/>
+							<input
+								bind:value={gDeadline}
+								type="date"
+								title="Son tarih (opsiyonel)"
+								class="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[12px] text-text-1 outline-none"
+							/>
+						</div>
+						{#if gError}
+							<p class="text-[11px] text-danger">{gError}</p>
+						{/if}
+						<div class="flex justify-end gap-2">
+							<button onclick={() => (showGoalForm = false)} class="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-text-3 hover:text-text-1">Vazgeç</button>
+							<button
+								onclick={submitGoal}
+								disabled={gSaving}
+								class="rounded-lg bg-talkwo px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+							>{gSaving ? 'Kaydediliyor…' : 'Kaydet'}</button>
+						</div>
+					</div>
+				</div>
+			{/if}
+			{#if goals.length === 0 && !showGoalForm}
+				<div class="flex flex-col items-center justify-center px-4 py-14 text-center">
 					<div class="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface-2 text-text-3">
 						<Target size={20} />
 					</div>
 					<p class="text-[13px] font-semibold text-text-1">Henüz hedef yok</p>
+					<p class="mt-1.5 text-[12px] text-text-3">"Yeni hedef" ile ilk hedefini koy — gidişatı her sabah taze veriyle izleriz.</p>
 				</div>
 			{:else}
 				<div class="flex flex-col gap-2.5">

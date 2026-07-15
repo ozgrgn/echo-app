@@ -12,7 +12,7 @@
  */
 
 import { json, error } from '@sveltejs/kit';
-import { listRadarAlerts, listRadarGoals, listRadarThreads } from '$lib/server/radarApi';
+import { listRadarAlerts, listRadarGoals, listRadarThreads, setRadarGoal } from '$lib/server/radarApi';
 import type { RadarScope, RadarAlertCard } from '$lib/server/radarApi';
 import type { RequestHandler } from './$types';
 
@@ -63,6 +63,49 @@ export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 	} catch (e) {
 		if (e && typeof e === 'object' && 'status' in e) throw e; // re-throw SvelteKit errors
 		const msg = e instanceof Error ? e.message : 'Agenda fetch failed';
+		const m = /\b(4\d\d|5\d\d)\b/.exec(msg);
+		throw error(m ? Number(m[1]) : 502, msg);
+	}
+};
+
+/** Goal-able metricPath whitelist (SAG_PANEL_FAZ1 EK B). Everything the form can
+ * produce and NOTHING else — granular key scores stay alert-only (EK B #8), and a
+ * crafted path must not reach radar through this proxy. Mirrors radar's
+ * metric-catalog reviews entries. */
+const GOALABLE_PATHS = [
+	/^reviews\.(gpi|rpi|responseRate|avgStarRating)$/,
+	/^reviews\.departments\.[a-z][a-z0-9_]{1,23}\.gpi$/,
+	/^reviews\.platforms\.(booking|tripadvisor|google|holidaycheck|check24)\.(rating|gpi)$/
+];
+
+// POST /api/agenda — body { action: 'setGoal', metricPath, target, label?, deadline? }
+export const POST: RequestHandler = async ({ request, locals, fetch }) => {
+	if (!locals.session) throw error(401, 'Not authenticated');
+	const scope: RadarScope = {
+		tenantKey: locals.session.tenantKey,
+		venueSlug: locals.session.venueSlug
+	};
+
+	const body = await request.json().catch(() => null);
+	if (!body || body.action !== 'setGoal') throw error(400, 'Unknown action');
+
+	const metricPath = String(body.metricPath ?? '');
+	if (!GOALABLE_PATHS.some((re) => re.test(metricPath))) {
+		throw error(400, `Bu metriğe hedef konamaz: ${metricPath}`);
+	}
+	const target = Number(body.target);
+	if (!Number.isFinite(target)) throw error(400, 'Hedef değeri sayı olmalı');
+	const label = body.label ? String(body.label).slice(0, 60) : undefined;
+	const deadline = body.deadline ? String(body.deadline) : undefined;
+	if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
+		throw error(400, 'Son tarih YYYY-AA-GG biçiminde olmalı');
+	}
+
+	try {
+		const report = await setRadarGoal(scope, { metricPath, target, label, deadline }, fetch);
+		return json(report);
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Hedef kaydedilemedi';
 		const m = /\b(4\d\d|5\d\d)\b/.exec(msg);
 		throw error(m ? Number(m[1]) : 502, msg);
 	}
