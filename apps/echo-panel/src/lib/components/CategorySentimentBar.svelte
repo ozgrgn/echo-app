@@ -26,11 +26,16 @@
 	const arrowClass = $derived(trend > 0 ? 'text-success' : trend < 0 ? 'text-danger' : 'text-text-3');
 </script>
 
-<div class="flex items-center gap-3 py-1.5">
-	<span class="w-[74px] truncate text-xs font-semibold text-text-1">{label}</span>
+<!--
+  CSS grid so every column sits on shared vertical guides across all rows.
+  Tracks: label (74px) · ratio bar (elastic 1fr) · percent (40px) · counts (72px) · arrow (20px).
+  Only the ratio bar flexes; the four fixed tracks keep %/counts/arrow aligned down every row.
+-->
+<div class="grid items-center gap-3 py-1.5" style="grid-template-columns: 74px 1fr 40px 72px 20px;">
+	<span class="truncate text-xs font-semibold text-text-1">{label}</span>
 
 	<!-- Split ratio bar: green (positive) then red (negative), sharing one track. -->
-	<span class="flex h-[7px] flex-1 overflow-hidden rounded-full bg-surface-2">
+	<span class="flex h-[7px] overflow-hidden rounded-full bg-surface-2">
 		<span
 			class="block h-full transition-all duration-500"
 			style="width:{posPct}%;background:var(--color-success)"
@@ -44,18 +49,18 @@
 	<!-- Positive share as a % — the "how satisfied" number the bar visualizes; muted when
 	     there are no scored mentions (nothing to divide). Centred in its box so the spacing to
 	     the bar and to the counts reads even. -->
-	<span class="w-10 text-center text-xs font-bold tabular-nums {total > 0 ? 'text-text-1' : 'text-text-3'}">
+	<span class="text-center text-xs font-bold tabular-nums {total > 0 ? 'text-text-1' : 'text-text-3'}">
 		{total > 0 ? `%${Math.round(posPct)}` : '—'}
 	</span>
 
-	<!-- Raw counts pos · neg — aligned on the centre dot so it sits on one vertical line
-	     across every row (pos right-aligned, neg left-aligned, dot fixed), regardless of digit
-	     count (494·22 vs 7·10 line up on the ·). -->
-	<span class="flex w-[80px] items-center pl-2 text-xs font-bold tabular-nums">
-		<span class="flex-1 text-right text-success">{pos}</span>
+	<!-- Raw counts pos · neg. Inner 3-track grid (pos | · | neg) locks the centre dot
+	     onto one vertical line across every row, regardless of digit count (494·22 and
+	     7·10 line up on the ·). -->
+	<span class="grid items-center text-xs font-bold tabular-nums" style="grid-template-columns: 1fr auto 1fr">
+		<span class="text-right text-success">{pos}</span>
 		<span class="px-1 text-text-3">·</span>
-		<span class="flex-1 text-left text-danger">{neg}</span>
+		<span class="text-left text-danger">{neg}</span>
 	</span>
 
-	<span class="flex w-5 justify-end {arrowClass}"><TrendIcon size={13} strokeWidth={2.5} /></span>
+	<span class="flex justify-end {arrowClass}"><TrendIcon size={13} strokeWidth={2.5} /></span>
 </div>

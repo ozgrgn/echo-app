@@ -1,11 +1,11 @@
 <!--
   PlatformHero — the hero band atop a platform-universe lens (prototype .phero).
-  Left: platform logo + name + review count. Right: the big GPI number for this
-  channel, plus a small reference tile comparing to the blended ('all') GPI.
+  Left: platform logo + name + review count + the platform's NATIVE OTA star. Right:
+  the big GPI number for this channel, plus a small reference tile vs the blended GPI.
 
-  REAL: gpi, reviewCount (from the per-platform snapshot). The platform-native
-  star score (e.g. 4.48/5) and area-rank (#12/89) from the prototype are NOT in
-  the backend, so they're omitted rather than faked.
+  REAL: gpi, reviewCount, nativeStar (from the per-platform snapshot; the star is that
+  OTA's own scale — Booking /10, HolidayCheck /6, TA/Google /5). Area-rank (#12/89) is
+  still not in the backend, so it's omitted rather than faked.
 -->
 <script lang="ts">
 	import { PLATFORM_PALETTE } from '$lib/mock/os';
@@ -17,9 +17,13 @@
 		reviewCount: number;
 		/** blended 'all' GPI for the reference tile */
 		blendedGpi: number;
+		/** platform's native OTA star in its own scale (e.g. 4.4) */
+		nativeStar?: number;
+		/** top of the native scale (5 | 6 | 10) */
+		nativeMax?: number;
 	}
 
-	let { platform, label, gpi, reviewCount, blendedGpi }: Props = $props();
+	let { platform, label, gpi, reviewCount, blendedGpi, nativeStar, nativeMax } = $props();
 
 	// Three-tone palette per platform, copied from the prototype (.phero):
 	// soft hero bg / bright logo / deep GPI text. Each universe = that brand's space.
@@ -46,9 +50,17 @@
 			{label}
 			<span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide" style="background:{pal.soft};color:{pal.deep}">canlı veri</span>
 		</div>
-		<!-- Region + season were hardcoded to one customer's venue; neither is in the
-		     score payload, so the subtitle now carries only what we actually know. -->
-		<div class="mt-0.5 text-xs text-text-3">{reviewCount} yorum</div>
+		<!-- Review count + the platform's NATIVE OTA star (its own scale) — what the guest
+		     sees on that site (Booking 7.5/10, HolidayCheck 5.5/6, TA/Google 4.4/5). -->
+		<div class="mt-0.5 flex items-center gap-1.5 text-xs text-text-3">
+			<span>{reviewCount} yorum</span>
+			{#if nativeStar != null && nativeMax != null}
+				<span>·</span>
+				<span class="inline-flex items-center gap-0.5 font-bold text-text-2">
+					<span style="color:#f5a623">★</span>{nativeStar.toFixed(1)}<span class="font-normal text-text-3">/{nativeMax}</span>
+				</span>
+			{/if}
+		</div>
 	</div>
 
 	<div class="ml-auto flex items-end gap-3">

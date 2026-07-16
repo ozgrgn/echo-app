@@ -276,6 +276,8 @@
 	gpi={ps.gpi}
 	reviewCount={ps.reviewCount}
 	blendedGpi={data.blended.gpi}
+	nativeStar={ps.nativeStarRating}
+	nativeMax={ps.nativeStarMax}
 />
 
 <!-- Sub-tabs — active tab uses the platform brand color (prototype .ut.on). -->
