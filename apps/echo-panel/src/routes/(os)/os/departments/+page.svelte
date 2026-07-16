@@ -97,7 +97,10 @@
 	const improving = $derived(
 		depts.filter((d) => d.trend === 'up').sort((a, b) => (b.trendValue ?? 0) - (a.trendValue ?? 0))
 	);
-	const weakest = $derived([...scored].sort((a, b) => a.score - b.score)[0]);
+	// Stable = trend is exactly flat (no prior period OR zero movement) — the third
+	// bucket that completes the trend split (down + up + flat = total). Shown as a
+	// count instead of the old "En zayıf" score so the KPI strip reads one universe.
+	const stable = $derived(depts.filter((d) => d.trend === 'flat'));
 
 	function enterDept(key: string) {
 		osState.setLens({ kind: 'department', department: key });
@@ -162,22 +165,22 @@
 			caption="skor ≥ 70"
 		/>
 		<StatTile
-			label="En zayıf"
-			value={weakest ? `${weakest.score.toFixed(0)}` : '—'}
-			tone="danger"
-			caption={weakest?.label ?? '—'}
+			label="Yükselişte"
+			value={`${improving.length}`}
+			tone={improving.length > 0 ? 'success' : 'neutral'}
+			caption="trend yukarı"
+		/>
+		<StatTile
+			label="Stabil"
+			value={`${stable.length}`}
+			tone="neutral"
+			caption="trend düz"
 		/>
 		<StatTile
 			label="Düşüşte"
 			value={`${declining.length}`}
 			tone={declining.length > 0 ? 'warning' : 'neutral'}
 			caption="trend aşağı"
-		/>
-		<StatTile
-			label="Yükselişte"
-			value={`${improving.length}`}
-			tone={improving.length > 0 ? 'success' : 'neutral'}
-			caption="trend yukarı"
 		/>
 	</div>
 
