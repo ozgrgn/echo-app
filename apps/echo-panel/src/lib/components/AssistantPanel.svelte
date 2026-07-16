@@ -66,7 +66,13 @@
 		goal: { goalId: string; label?: string; metricPath: string; target: number; deadline?: string | null };
 		progress?: { now: number | null; gap: number | null; weeklyDelta: number | null; trend: string; reached: boolean };
 		feasibility?: { verdict: string; verdictTr?: string; evidence?: string };
-		pace?: { verdict: string; sentence: string; daysLeft?: number } | null;
+		pace?: {
+			verdict: string;
+			sentence: string;
+			daysLeft?: number;
+			suggestedTarget?: number | null;
+			suggestedDeadline?: string | null;
+		} | null;
 	};
 	type Thread = { threadId?: string; title?: string; source?: string; status?: string };
 
@@ -254,9 +260,20 @@
 	});
 	const gUnit = $derived(METRIC_KINDS.find((m) => m.kind === gKind)?.unit ?? '');
 
-	// Two-step save (owner ask, 2026-07-16): Kaydet fetches a DRY-RUN report first and a
-	// confirm modal voices the calendar ("bu sürede zor") before anything is persisted.
+	// Two-step save (owner ask, 2026-07-16/17): Değerlendir fetches a DRY-RUN report and
+	// the assessment renders INLINE below the form (no modal — owner, 2026-07-17); the
+	// suggestion chips apply the fix and re-assess. Only "Onayla ve kaydet" persists.
 	let gPreview = $state<GoalReport | null>(null);
+
+	// One-tap fixes from the assessment: apply, then immediately re-assess so the user
+	// sees the verdict flip (unrealistic → demanding/comfortable) before confirming.
+	function applySuggestion(kind: 'target' | 'deadline') {
+		const p = gPreview?.pace;
+		if (!p) return;
+		if (kind === 'target' && p.suggestedTarget != null) gTarget = String(p.suggestedTarget);
+		if (kind === 'deadline' && p.suggestedDeadline) gDeadline = p.suggestedDeadline;
+		void previewGoal();
+	}
 
 	// The date input's ELEMENT, not just its value: a hand-typed impossible date
 	// ("31/09/2026") leaves value '' but sets validity.badInput — without checking it
@@ -510,15 +527,53 @@
 							<p class="text-[11px] text-danger">{gError}</p>
 						{/if}
 						<div class="flex justify-end gap-2">
-							<button onclick={() => (showGoalForm = false)} class="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-text-3 hover:text-text-1">Vazgeç</button>
+							<button onclick={() => { showGoalForm = false; gPreview = null; }} class="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-text-3 hover:text-text-1">Geri dön</button>
 							<button
 								onclick={previewGoal}
 								disabled={gSaving}
 								class="rounded-lg bg-talkwo px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-							>{gSaving ? 'Hesaplanıyor…' : 'Kaydet'}</button>
+							>{gSaving ? 'Hesaplanıyor…' : gPreview ? 'Yeniden değerlendir' : 'Değerlendir'}</button>
 						</div>
 					</div>
 				</div>
+
+				<!-- Inline assessment (no modal — owner, 2026-07-17): the calendar + the
+				     review-mass math answer HERE, under the form, before anything saves. -->
+				{#if gPreview}
+					{@const p = gPreview}
+					<div class="mb-2.5 rounded-xl border border-border bg-surface-1 p-3">
+						<div class="mb-1 text-[10px] font-extrabold uppercase tracking-wider text-talkwo">Değerlendirme</div>
+						<p class="text-[12.5px] font-bold text-text-1">
+							{p.goal.label ?? p.goal.metricPath}: hedef {p.goal.target}{p.goal.deadline ? ` · ${p.goal.deadline}` : ''}
+						</p>
+						<p class="mt-0.5 text-[11.5px] text-text-3">Şu an: <b class="text-text-1">{fmt(p.progress?.now)}</b>{p.progress?.gap != null && p.progress.gap > 0 ? ` — fark ${fmt(p.progress.gap)}` : ''}</p>
+						{#if p.pace?.sentence}
+							<p class="mt-2 rounded-lg bg-surface-2 p-2.5 text-[12px] leading-relaxed {paceTone(p.pace.verdict)}">{p.pace.sentence}</p>
+						{:else if p.feasibility?.evidence}
+							<p class="mt-2 rounded-lg bg-surface-2 p-2.5 text-[12px] leading-relaxed text-text-2">{p.feasibility.evidence}</p>
+						{/if}
+						{#if !p.goal.deadline}
+							<p class="mt-1.5 text-[11px] text-text-3">Son tarih girilmedi — tarih girersen süre + yorum-akışı değerlendirmesi de yapılır.</p>
+						{/if}
+						{#if p.pace?.suggestedDeadline || p.pace?.suggestedTarget != null}
+							<div class="mt-2 flex flex-wrap gap-1.5">
+								{#if p.pace?.suggestedDeadline}
+									<button onclick={() => applySuggestion('deadline')} class="rounded-full border border-talkwo/40 bg-talkwo/5 px-2.5 py-1 text-[11px] font-semibold text-talkwo transition-colors hover:bg-talkwo/10">Tarihi {p.pace.suggestedDeadline} yap</button>
+								{/if}
+								{#if p.pace?.suggestedTarget != null}
+									<button onclick={() => applySuggestion('target')} class="rounded-full border border-talkwo/40 bg-talkwo/5 px-2.5 py-1 text-[11px] font-semibold text-talkwo transition-colors hover:bg-talkwo/10">Hedefi {p.pace.suggestedTarget} yap</button>
+								{/if}
+							</div>
+						{/if}
+						<div class="mt-3 flex justify-end">
+							<button
+								onclick={confirmGoal}
+								disabled={gSaving}
+								class="rounded-lg bg-talkwo px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+							>{gSaving ? 'Kaydediliyor…' : 'Onayla ve kaydet'}</button>
+						</div>
+					</div>
+				{/if}
 			{/if}
 			{#if goals.length === 0 && !showGoalForm}
 				<div class="flex flex-col items-center justify-center px-4 py-14 text-center">
@@ -528,7 +583,7 @@
 					<p class="text-[13px] font-semibold text-text-1">Henüz hedef yok</p>
 					<p class="mt-1.5 text-[12px] text-text-3">"Yeni hedef" ile ilk hedefini koy — gidişatı her sabah taze veriyle izleriz.</p>
 				</div>
-			{:else}
+			{:else if !showGoalForm}
 				<div class="flex flex-col gap-2.5">
 					{#each goals as g (g.goal.goalId)}
 						{@const tone = goalTone(g)}
@@ -570,36 +625,6 @@
 			</div>
 		{/if}
 	</div>
-
-	<!-- Goal confirm modal — the calendar speaks BEFORE anything is saved. -->
-	{#if gPreview}
-		{@const p = gPreview}
-		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-			<div class="w-full max-w-sm rounded-2xl border border-border bg-surface-1 p-4 shadow-card-hover">
-				<div class="mb-1 text-[10px] font-extrabold uppercase tracking-wider text-talkwo">Hedefi onayla</div>
-				<p class="text-[14px] font-bold text-text-1">
-					{p.goal.label ?? p.goal.metricPath}: hedef {p.goal.target}{p.goal.deadline ? ` · ${p.goal.deadline}` : ''}
-				</p>
-				<p class="mt-1 text-[12px] text-text-3">Şu an: <b class="text-text-1">{fmt(p.progress?.now)}</b>{p.progress?.gap != null && p.progress.gap > 0 ? ` — fark ${fmt(p.progress.gap)}` : ''}</p>
-				{#if p.pace?.sentence}
-					<p class="mt-2 rounded-lg bg-surface-2 p-2.5 text-[12px] leading-relaxed {paceTone(p.pace.verdict)}">{p.pace.sentence}</p>
-				{:else if p.feasibility?.evidence}
-					<p class="mt-2 rounded-lg bg-surface-2 p-2.5 text-[12px] leading-relaxed text-text-2">{p.feasibility.evidence}</p>
-				{/if}
-				{#if !p.goal.deadline}
-					<p class="mt-1.5 text-[11px] text-text-3">Son tarih girilmedi — tarih girersen süre değerlendirmesi de yapılır.</p>
-				{/if}
-				<div class="mt-3 flex justify-end gap-2">
-					<button onclick={() => (gPreview = null)} class="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-text-3 hover:text-text-1">Geri dön</button>
-					<button
-						onclick={confirmGoal}
-						disabled={gSaving}
-						class="rounded-lg bg-talkwo px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-					>{gSaving ? 'Kaydediliyor…' : 'Onayla ve kaydet'}</button>
-				</div>
-			</div>
-		</div>
-	{/if}
 
 	<!-- Composer: visible but passive (K6 — "disabled input + yakında"). -->
 	<div class="border-t border-border p-3">
