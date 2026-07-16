@@ -42,12 +42,15 @@ export interface SessionIdentity {
 }
 
 /**
- * What we can re-authenticate with when the 1-hour access token expires.
+ * What we can re-authenticate with when the access token expires.
  *
- * Two shapes, because the demo has no password:
- *   - a normal panel login stores {tenantKey, clientSecret}
+ * Three shapes:
+ *   - a legacy panel login stores {tenantKey, clientSecret} → silent re-login
  *   - a demo session stores {demoToken} — the long-lived (30-day) link token, which
- *     POST /v1/auth/demo-token exchanges for a fresh 1-hour staff JWT.
+ *     POST /v1/auth/demo-token exchanges for a fresh 1-hour staff JWT
+ *   - an OTP session stores {otpSession: true} — a MARKER, not a credential: OTP
+ *     is interactive (SMS), there is nothing to re-login with. The 24h session
+ *     token IS the whole session; on 401 the user re-enters the OTP flow.
  *
  * Distinguished by which field is present, not by a discriminator: cookies minted
  * before the demo existed carry clientSecret and must keep working.
@@ -56,11 +59,19 @@ export interface SessionIdentity {
  * refresh() would call login() with an undefined clientSecret, fail, and bounce the
  * viewer to /login mid-demo. See echoApi.refresh().
  */
-export type RefreshCreds = { tenantKey: string; clientSecret: string } | { demoToken: string };
+export type RefreshCreds =
+	| { tenantKey: string; clientSecret: string }
+	| { demoToken: string }
+	| { otpSession: true };
 
 /** Type guard: is this a demo session's refresh credential? */
 export function isDemoRefresh(c: RefreshCreds): c is { demoToken: string } {
 	return 'demoToken' in c;
+}
+
+/** Type guard: OTP session marker — no silent re-auth possible (see type doc). */
+export function isOtpRefresh(c: RefreshCreds): c is { otpSession: true } {
+	return 'otpSession' in c;
 }
 
 /** Base cookie attributes shared by all three session cookies. */

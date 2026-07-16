@@ -161,6 +161,105 @@ export async function whoami(token: string, opts?: FetchOpts): Promise<WhoamiRes
   return res.json();
 }
 
+// ─── OTP login (user-based, ops-engine delegated — Radar pattern) ────────────
+// echo-backend brokers the whole flow (src/lib/otpAuth.ts): it proxies the OTP
+// to ops-engine, filters venues by echo_access, maps them to ECHO identities by
+// slug, and mints its own aud:'echo' tokens. The panel only walks the 3 steps.
+
+/** RFC 7807 problem with the machine-readable OTP code the UI switches on
+ *  (OTP_INVALID, OTP_EXPIRED, OTP_MAX_ATTEMPTS, OTP_RATE_LIMITED + retryAfter,
+ *  STAFF_NOT_FOUND, NO_ECHO_ACCESS, VENUE_NOT_ALLOWED…). */
+export class ApiProblemError extends Error {
+  status: number;
+  code?: string;
+  /** Seconds until the next OTP may be requested (OTP_RATE_LIMITED). */
+  retryAfter?: number;
+
+  constructor(status: number, message: string, code?: string, retryAfter?: number) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.retryAfter = retryAfter;
+  }
+}
+
+async function postProblemAware<T>(path: string, body: unknown, opts?: FetchOpts, bearer?: string): Promise<T> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(bearer ? { Authorization: `Bearer ${bearer}` } : {})
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const problem = await res.json().catch(() => ({}) as Record<string, unknown>);
+    throw new ApiProblemError(
+      res.status,
+      (problem.detail as string) || (problem.title as string) || `Request failed: ${res.status}`,
+      problem.code as string | undefined,
+      typeof problem.retry_after === 'number' ? problem.retry_after : undefined
+    );
+  }
+  return res.json();
+}
+
+/** A venue the user may open, already in ECHO's identity space (slug-joined). */
+export interface EchoVenueOption {
+  tenantKey: string;
+  venueSlug: string;
+  venueName: string | null;
+  role: string;
+  department: string | null;
+  scope: 'venue' | 'department';
+}
+
+export interface OtpRequestResponse {
+  sent?: boolean;
+  expires_in?: number;
+  /** Present only when the backend runs dev/OTP_BYPASS — shown as a dev hint. */
+  dev_otp?: string;
+}
+
+export interface OtpVerifyResponse {
+  /** Short-lived (30m) echo selection token — spend it at otpSelectVenue(). */
+  selectionToken: string;
+  user: { id: string; name: string | null };
+  venues: EchoVenueOption[];
+  autoSelect: EchoVenueOption | null;
+}
+
+export interface OtpSessionResponse extends AuthTokenResponse {
+  staff: { id: string; name: string | null; role: string; department: string | null };
+  venue: { tenantKey: string; venueSlug: string; venueName: string | null; scope: 'venue' | 'department' };
+}
+
+/** Step 1 — POST /auth/request-otp: ops-engine sends the SMS (or dev_otp back). */
+export function requestOtp(
+  args: { phone: string; tenantKey?: string },
+  opts?: FetchOpts
+): Promise<OtpRequestResponse> {
+  return postProblemAware('/auth/request-otp', args, opts);
+}
+
+/** Step 2 — POST /auth/verify-otp: code → selection token + echo venue options. */
+export function verifyOtp(
+  args: { phone: string; otp: string; tenantKey?: string },
+  opts?: FetchOpts
+): Promise<OtpVerifyResponse> {
+  return postProblemAware('/auth/verify-otp', args, opts);
+}
+
+/** Step 3 — POST /auth/select-venue: selection token + choice → session token. */
+export function otpSelectVenue(
+  selectionToken: string,
+  choice: { tenantKey: string; venueSlug: string },
+  opts?: FetchOpts
+): Promise<OtpSessionResponse> {
+  return postProblemAware('/auth/select-venue', choice, opts, selectionToken);
+}
+
 // ─── Tenant & subscription (populated after login, cached) ──────────────────
 
 let _cachedTenant: Tenant | null = null;

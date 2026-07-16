@@ -57,7 +57,7 @@ import {
 	type VenueGranularPatch,
 	type OsLens
 } from '@talkwo/echo-ui';
-import { setJwtCookie, clearSession, isDemoRefresh } from '$lib/server/session';
+import { setJwtCookie, clearSession, isDemoRefresh, isOtpRefresh } from '$lib/server/session';
 
 class Unauthenticated extends Error {}
 
@@ -85,6 +85,9 @@ export function makeServerApi(event: RequestEvent) {
 	 */
 	async function refresh(): Promise<boolean> {
 		if (!locals.refresh) return false;
+		// OTP sessions carry a marker, not a credential — OTP is interactive (SMS),
+		// so a 401 after the 24h session token expires means a fresh /login walk.
+		if (isOtpRefresh(locals.refresh)) return false;
 		try {
 			const res = isDemoRefresh(locals.refresh)
 				? await loginDemo(locals.refresh.demoToken, fo())
