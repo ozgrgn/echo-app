@@ -32,6 +32,7 @@ import {
 	getDailyHistory,
 	getSegments,
 	getImpact,
+	getImpactConcentration,
 	getDepartments,
 	getDepartmentDetail,
 	getDepartmentKeyTrend,
@@ -42,6 +43,7 @@ import {
 	getPortfolioScore,
 	getOsBundle,
 	getVenueSettings,
+	getVenueSettingsBundle,
 	patchVenueSettings,
 	getVenueGranularCatalog,
 	patchVenueGranularRow,
@@ -131,6 +133,8 @@ export function makeServerApi(event: RequestEvent) {
 			opts: { lens: OsLens; window?: string; period?: string; chartDaily?: boolean; chartFrom?: string }
 		) => withRetry((t) => getOsBundle(venueSlug, t, opts, fo())),
 		getVenueSettings: (venueSlug: string) => withRetry((t) => getVenueSettings(venueSlug, t, fo())),
+		getVenueSettingsBundle: (venueSlug: string) =>
+			withRetry((t) => getVenueSettingsBundle(venueSlug, t, fo())),
 		getReviews: (venueSlug: string, filters: ReviewFilters) =>
 			withRetry((t) => getReviews(venueSlug, filters, t, fo())),
 		getMentions: (venueSlug: string, filters: MentionFilters = {}) =>
@@ -153,6 +157,8 @@ export function makeServerApi(event: RequestEvent) {
 		) => withRetry((t) => getDailyHistory(venueSlug, t, opts, fo())),
 		getImpact: (venueSlug: string, opts: { platform?: string; period?: string; target?: number; window?: string } = {}) =>
 			withRetry((t) => getImpact(venueSlug, t, opts, fo())),
+		getImpactConcentration: (venueSlug: string, category: string, opts: { window?: string } = {}) =>
+			withRetry((t) => getImpactConcentration(venueSlug, category, t, opts, fo())),
 		getDepartments: (venueSlug: string, opts: { platform?: string; period?: string; window?: string } = {}) =>
 			withRetry((t) => getDepartments(venueSlug, t, opts, fo())),
 		getDepartmentDetail: (

@@ -49,12 +49,23 @@ export const GET: RequestHandler = async (event) => {
 					await api.getDepartmentKeyTrend(venueSlug, deptKey, granularKey, { platform, window })
 				);
 			}
+			case 'venueSettings':
+				// Settings incl. operatingSeasons — the goal form's "Sezon sonu" preset
+				// reads the venue's real season windows from here.
+				return json(await api.getVenueSettingsBundle(venueSlug));
 			case 'responseStats':
 				// Window forwarded so the card's breakdown covers the same lookback as the
 				// page's other numbers (backend defaults to 24mo when absent).
 				return json(await api.getResponseStats(venueSlug, platform, window));
 			case 'responseQueue':
 				return json(await api.getResponseQueue(venueSlug, { platform, limit }));
+			case 'impactConcentration': {
+				// Impact-card per-category drill-down ("En çok negatif nerede yoğunlaşmış?").
+				// Lazy — fetched only when a category row is expanded.
+				const category = url.searchParams.get('category');
+				if (!category) throw error(400, 'category required');
+				return json(await api.getImpactConcentration(venueSlug, category, { window }));
+			}
 			case 'mentions': {
 				const polarity = url.searchParams.get('polarity') as 'negative' | 'positive' | null;
 				const category = url.searchParams.get('category') ?? undefined;

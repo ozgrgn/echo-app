@@ -168,23 +168,66 @@
 	// echo proxy — the picker shows "Teknik — şu an 24.6" so the target is set in context.
 	let deptOpts = $state<{ key: string; label: string; score?: number }[]>([]);
 
+	// Next season end for the "Sezon sonu" preset: seasons are year-agnostic windows
+	// (scoring/seasons.ts), so project each window's end month/day onto this year and
+	// the next, and take the nearest date that is still ahead of us.
+	let seasonEnd = $state<string | null>(null);
+
+	const isoLocal = (d: Date) =>
+		`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+	function nextSeasonEnd(seasons: { start?: string; end?: string }[]): string | null {
+		const today = isoLocal(new Date());
+		const year = new Date().getFullYear();
+		let best: string | null = null;
+		for (const s of seasons) {
+			const m = /^\d{4}-(\d{2}-\d{2})$/.exec(s.end ?? '');
+			if (!m) continue;
+			for (const y of [year, year + 1]) {
+				const cand = `${y}-${m[1]}`;
+				if (cand >= today && (!best || cand < best)) best = cand;
+			}
+		}
+		return best;
+	}
+
 	async function openGoalForm() {
 		showGoalForm = true;
 		gError = null;
-		if (deptOpts.length) return;
-		try {
-			const res = await fetch('/api/os/data?resource=departments');
-			const data = await res.json();
-			const list = Array.isArray(data) ? data : (data.departments ?? []);
-			deptOpts = list.map((d: { key: string; label: string; score?: number }) => ({
-				key: d.key,
-				label: d.label,
-				score: d.score
-			}));
-			if (deptOpts.length && !gDept) gDept = deptOpts[0].key;
-		} catch {
-			/* dept picker degrades to empty — other metric kinds still work */
+		if (!deptOpts.length) {
+			try {
+				const res = await fetch('/api/os/data?resource=departments');
+				const data = await res.json();
+				const list = Array.isArray(data) ? data : (data.departments ?? []);
+				deptOpts = list.map((d: { key: string; label: string; score?: number }) => ({
+					key: d.key,
+					label: d.label,
+					score: d.score
+				}));
+				if (deptOpts.length && !gDept) gDept = deptOpts[0].key;
+			} catch {
+				/* dept picker degrades to empty — other metric kinds still work */
+			}
 		}
+		if (seasonEnd == null) {
+			try {
+				const res = await fetch('/api/os/data?resource=venueSettings');
+				const data = await res.json();
+				seasonEnd = nextSeasonEnd(data.operatingSeasons ?? []);
+			} catch {
+				/* no season data → the preset simply doesn't render */
+			}
+		}
+	}
+
+	// Deadline presets — one tap instead of date-picker gymnastics.
+	function presetDeadline(kind: '30d' | 'nextMonth' | 'season' | 'yearEnd') {
+		const now = new Date();
+		if (kind === '30d') gDeadline = isoLocal(new Date(now.getTime() + 30 * 86_400_000));
+		else if (kind === 'nextMonth')
+			gDeadline = isoLocal(new Date(now.getFullYear(), now.getMonth() + 2, 0)); // last day of NEXT month
+		else if (kind === 'season' && seasonEnd) gDeadline = seasonEnd;
+		else if (kind === 'yearEnd') gDeadline = `${now.getFullYear()}-12-31`;
 	}
 
 	const goalDraft = $derived.by(() => {
@@ -454,6 +497,14 @@
 								title="Son tarih (opsiyonel)"
 								class="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[12px] text-text-1 outline-none"
 							/>
+						</div>
+						<div class="flex flex-wrap items-center gap-1.5">
+							<button onclick={() => presetDeadline('30d')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1">30 gün</button>
+							<button onclick={() => presetDeadline('nextMonth')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1">Gelecek ay sonu</button>
+							{#if seasonEnd}
+								<button onclick={() => presetDeadline('season')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1">Sezon sonu · {seasonEnd.slice(5).replace('-', '/')}</button>
+							{/if}
+							<button onclick={() => presetDeadline('yearEnd')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1">Yıl sonu</button>
 						</div>
 						{#if gError}
 							<p class="text-[11px] text-danger">{gError}</p>

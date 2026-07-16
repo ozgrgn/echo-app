@@ -648,6 +648,25 @@ export interface DepartmentTrendPoint {
   score: number | null;
 }
 
+/** One granular key in the "en çok negatif nerede yoğunlaşmış?" drill-down. Ranked by
+ *  negative volume (tie-break ratio) and cut at cumulative-50% of the negatives —
+ *  see backend selectParetoDrilldown. Used by the impact-card per-category drill-down
+ *  (getImpactConcentration). */
+export interface NegativeConcentrationRow {
+  granular_key: string;
+  granular_label: string;
+  /** Raw negative mentions (polarity ≤ -0.2) for this key in the window. */
+  negativeCount: number;
+  /** All scoreable mentions for this key in the window. */
+  totalCount: number;
+  /** negativeCount / totalCount, 0..1. */
+  negativeRatio: number;
+  /** This key's share of the department's total negatives, 0..1. */
+  shareOfNegatives: number;
+  /** Running cumulative share up to and including this row, 0..1. */
+  cumulativeShare: number;
+}
+
 export interface DepartmentDetail extends DepartmentScore {
   breakdown: DepartmentCategoryBreakdown[];
   topIssues: { category: string; subcategory: string; count: number; sampleExcerpt: string }[];
@@ -781,6 +800,33 @@ export async function getImpact(
   return res.json();
 }
 
+/** Impact-card per-category drill-down: granular keys under a category, ranked by
+ *  negative volume + ratio and Pareto-cut at cumulative-50%. Reuses NegativeConcentrationRow
+ *  (defined with DepartmentDetail) — same selectParetoDrilldown shape. */
+export interface ImpactConcentrationResponse {
+  category: string;
+  label: string;
+  rows: NegativeConcentrationRow[];
+}
+
+export async function getImpactConcentration(
+  venueSlug: string,
+  category: string,
+  token: string,
+  opts: { window?: string } = {},
+  fetchOpts?: FetchOpts
+): Promise<ImpactConcentrationResponse> {
+  const { base, f } = resolveFetch(fetchOpts);
+  const params = new URLSearchParams({ ...(opts.window ? { window: opts.window } : {}) });
+  const qs = params.toString();
+  const res = await f(
+    `${base}/insights/impact/${encodeURIComponent(venueSlug)}/${encodeURIComponent(category)}/concentration${qs ? `?${qs}` : ''}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) throw new Error(`getImpactConcentration failed: ${res.status}`);
+  return res.json();
+}
+
 // ─── Segments (audience breakdown: language + tripType) ─────────────────────
 
 export interface SegmentBucket {
@@ -910,6 +956,29 @@ export async function getVenueSettings(
   if (!res.ok) throw new Error(`getVenueSettings failed: ${res.status}`);
   const data = await res.json();
   return data.settings as EchoVenueSettings;
+}
+
+/** Settings + venue-level meta the settings payload rides with. getVenueSettings
+ * (above) narrows to `settings` for the existing settings page; this returns the
+ * full body — operatingSeasons feeds the goal form's "Sezon sonu" preset. */
+export async function getVenueSettingsBundle(
+  venueSlug: string,
+  token: string,
+  opts?: FetchOpts,
+): Promise<{
+  settings: EchoVenueSettings;
+  operatingSeasons: { start: string; end: string }[];
+}> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/venues/${encodeURIComponent(venueSlug)}/settings`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`getVenueSettingsBundle failed: ${res.status}`);
+  const data = await res.json();
+  return {
+    settings: data.settings as EchoVenueSettings,
+    operatingSeasons: (data.operatingSeasons ?? []) as { start: string; end: string }[],
+  };
 }
 
 export async function patchVenueSettings(
