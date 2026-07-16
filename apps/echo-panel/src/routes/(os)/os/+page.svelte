@@ -166,6 +166,10 @@
 	const curWindow = $derived(parseOsWindow(data.window));
 	const windowLabel = $derived(OS_WINDOW_TABS.find((t) => t.key === curWindow)?.label ?? '');
 	const reviewCountLabel = $derived(curWindow === 'max' ? 'Toplam Yorum' : `Yorum (${windowLabel})`);
+	// The issues/praises lists aggregate mentions across the SELECTED window (not a fixed
+	// 30 days — the old hardcoded "son 30 gün" hint was wrong: at 2Y these counts span two
+	// years). Label follows the window so it can't drift from the data again.
+	const mentionPeriodLabel = $derived(curWindow === 'max' ? 'tüm dönem' : windowLabel.toLocaleLowerCase('tr-TR'));
 
 	// Category movement — [REAL] top categories by mention.
 	// Category movement — declining categories first (most actionable), then by
@@ -409,10 +413,10 @@
 
 <!-- ── Issues / Praises ──────────────────────────────────────────────────── -->
 <div class="mb-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-2">
-	<SectionCard title="En çok bahsedilen sorunlar" icon={CircleAlert} hint="son 30 gün">
+	<SectionCard title="En çok bahsedilen sorunlar" icon={CircleAlert} hint={mentionPeriodLabel}>
 		<MentionList items={allIssues} tone="issue" total={hs.reviewCount} />
 	</SectionCard>
-	<SectionCard title="En çok övülenler" icon={ThumbsUp} hint="son 30 gün">
+	<SectionCard title="En çok övülenler" icon={ThumbsUp} hint={mentionPeriodLabel}>
 		<MentionList items={allPraises} tone="praise" total={hs.reviewCount} />
 	</SectionCard>
 </div>
