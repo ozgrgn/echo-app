@@ -1,13 +1,19 @@
 /**
  * OS time-window dimension — a single source of truth for the global window
  * selector in the rail. A window is a lookback horizon; the backend scores each
- * window separately (24mo == full history, the default). The whole OS shell reads
+ * window separately (default '6mo' — current standing, aligned with radar alerts;
+ * 24mo == full history). The whole OS shell reads
  * `?window=` from the URL so the horizon is shared across every lens, shareable,
  * and survives a refresh — no client-only state that SSR can't see.
  */
 
 /**
- * Selectable windows, widest → narrowest. '24mo' is the DEFAULT (absent ?window).
+ * Selectable windows, widest → narrowest. '6mo' is the DEFAULT (absent ?window):
+ * the OS shell opens on CURRENT standing — the same horizon radar's alert engine
+ * evaluates (its daily photo reads /daily with a 6mo window), so the department
+ * grid and the alert rail tell ONE story ("Güvenlik 39.3" over 2 years vs an alert
+ * saying "GPI 78" was the mismatch this fixes). Full history stays one click away
+ * in the rail (2Y / Tümü).
  * 'max' = lifetime ("Tümü") — no lower bound, every analyzed review. It's OWNED-only
  * territory: in the 'max' lens the panel hides RPI + competitor comparison (an owned
  * venue's full history isn't comparable to a competitor's ~2 analyzed years).
@@ -16,7 +22,7 @@ export const OS_WINDOWS = ['max', '24mo', '12mo', '6mo', '3mo'] as const;
 
 export type OsWindow = (typeof OS_WINDOWS)[number];
 
-export const DEFAULT_OS_WINDOW: OsWindow = '24mo';
+export const DEFAULT_OS_WINDOW: OsWindow = '6mo';
 
 /** True for windows where competitor comparison (RPI, rival delta, Rakipler) is
  *  meaningless and must be hidden — currently only 'max' (see triage doc). */
@@ -36,17 +42,19 @@ export const OS_WINDOW_TABS: { key: OsWindow; label: string; short: string }[] =
 	{ key: '3mo', label: '3 Ay', short: '3A' }
 ];
 
-/** Parse a raw `?window=` value; unknown/absent → the full-history default. */
+/** Parse a raw `?window=` value; unknown/absent → the default ('6mo', current standing). */
 export function parseOsWindow(raw: string | null | undefined): OsWindow {
 	return OS_WINDOWS.includes(raw as OsWindow) ? (raw as OsWindow) : DEFAULT_OS_WINDOW;
 }
 
 /**
- * The `?window=` query string to pass to a scored endpoint, or undefined for the
- * default (so the backend applies its own default and URLs stay clean at 24mo).
+ * The `?window=` query string to pass to a scored endpoint, or undefined only when
+ * the UI default ALSO matches the backend's own default. NOTE: the backend's default
+ * window is 24mo while the UI default is 6mo — so the UI default MUST be passed
+ * explicitly (returning undefined here would silently score over 24 months again).
  */
 export function windowParam(w: OsWindow): string | undefined {
-	return w === DEFAULT_OS_WINDOW ? undefined : w;
+	return w;
 }
 
 /**

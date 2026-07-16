@@ -1,6 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { error } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
+import { DEFAULT_OS_WINDOW } from '$lib/config/window';
 
 // Competitors lens (SSR). Same data shape as (app)/benchmark, in OS lens style.
 //
@@ -17,11 +18,16 @@ import { makeServerApi } from '$lib/server/echoApi';
 
 // Time-window selector: ?window=3mo shortens the scoring horizon so a recovering
 // venue's current standing is visible (backend scores each window separately).
-// Absent/invalid → '24mo' (full-history default, matches pre-window behaviour).
+// Absent/invalid → DEFAULT_OS_WINDOW — MUST match the global rail's default (6mo), else
+// this screen shows 24mo data while the rail highlights "6A" (the two used to disagree:
+// local default was 24mo, rail default 6mo → first visit showed 24mo under a 6A highlight).
 const WINDOWS = ['24mo', '12mo', '6mo', '3mo'] as const;
 type Window = (typeof WINDOWS)[number];
 function parseWindow(raw: string | null): Window {
-	return WINDOWS.includes(raw as Window) ? (raw as Window) : '24mo';
+	if (WINDOWS.includes(raw as Window)) return raw as Window;
+	// DEFAULT_OS_WINDOW is 'max' | '24mo' | … ; this screen has no 'max', so fall back to
+	// 6mo when the global default isn't one of this screen's windows.
+	return (WINDOWS as readonly string[]).includes(DEFAULT_OS_WINDOW) ? (DEFAULT_OS_WINDOW as Window) : '6mo';
 }
 
 export const load: PageServerLoad = async (event) => {
@@ -35,11 +41,12 @@ export const load: PageServerLoad = async (event) => {
 	if (!session) throw error(401, 'Not authenticated');
 	const api = makeServerApi(event);
 
-	// window is this file's local '24mo'|'12mo'|'6mo'|'3mo'; send undefined at the
-	// default so the URL/param stays clean at 24mo (matches windowParam elsewhere).
+	// Always send the resolved window EXPLICITLY. The backend's own default is 24mo, so
+	// sending undefined at 6mo would make it score 24 months — the exact mismatch we're
+	// fixing. `window` here is already the correct resolved value (6mo when absent).
 	const b = await api.getOsBundle(session.venueSlug, {
 		lens: 'competitors',
-		window: window === '24mo' ? undefined : window
+		window
 	});
 
 	// The bundle 404s without a snapshot, so a 200 always carries blended.

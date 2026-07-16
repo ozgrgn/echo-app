@@ -102,7 +102,10 @@
 	// new sentiment — and it varied by window. hs.gpiTrend is stamped by scoring's
 	// injectCohortTrend so all arrows answer one question. See COHORT_TREND_TASARIM.md.
 	const gpiSpark = $derived(spark(historyGpi));
-	const gpiDelta = $derived(hs.gpiTrend ?? 0);
+	// hs.gpiTrend (positive-share / memnun-oranı shift, last 30d) is intentionally NOT shown
+	// as the GPI card's delta — it's a different unit and read as a GPI-point drop. It's a
+	// real, seasonally-adjusted satisfaction signal that deserves its own surface later
+	// (e.g. a "Memnuniyet Trendi" indicator), not the GPI badge. (GPI_SAF_ASPECT_PLAN.md.)
 	const reviewSpark = $derived(spark(historyNewReviews));
 	// "This period" = new reviews in the newest point's gap (not a delta).
 	const reviewDelta = $derived(historyNewReviews.length > 0 ? historyNewReviews[historyNewReviews.length - 1] : 0);
@@ -153,7 +156,7 @@
 	const rpiValue = $derived(
 		hs.rpi ?? (competitorAvg ? +((hs.gpi / competitorAvg) * 100).toFixed(1) : null)
 	);
-	const competitorGap = $derived(competitorAvg !== null ? +(hs.gpi - competitorAvg).toFixed(1) : null);
+	// (competitorGap removed with the "Rakip Farkı" card — RPI already carries the comparison.)
 
 	// In the 'max' (Tümü) lens competitor comparison is hidden — an owned venue's full
 	// history isn't comparable to a competitor's ~2 analyzed years (owner decision).
@@ -299,18 +302,33 @@
 </div>
 
 <!-- ── KPI strip ─────────────────────────────────────────────────────────── -->
-<div class="mb-3.5 grid grid-cols-2 gap-3.5 {hideComp ? 'lg:grid-cols-3' : 'lg:grid-cols-5'}">
+<!-- Cards: GPI + Yorum + Yanıt + Yıldız always (4); RPI adds a 5th when competitors exist. -->
+<div class="mb-3.5 grid grid-cols-2 gap-3.5 {hideComp ? 'lg:grid-cols-4' : 'lg:grid-cols-5'}">
+	<!-- Yıldız Ortalaması FIRST — the market number the owner is proud of (OTA star, silent
+	     reviews included). Leads so the eye lands on the "iyi hissettiren" number, then GPI
+	     right beside it as the action metric. Two universes, side by side
+	     (GPI_SAF_ASPECT_PLAN.md): Yıldız = market/reputation, GPI = review content/aspect. -->
+	<StatTile
+		label="Yıldız Ortalaması"
+		value={hs.avgStarRating != null ? `${hs.avgStarRating.toFixed(1)}` : '—'}
+		tone="success"
+		emphasis="primary"
+		stars={hs.avgStarRating ?? undefined}
+		caption="OTA ortalaması · 5 üzerinden"
+	/>
+	<!-- No delta badge on the GPI card: gpiTrend is the positive-share (memnun-oranı) shift,
+	     NOT a GPI-point change — showing it beside the GPI value read as "GPI fell 14.5",
+	     which is false (GPI is a snapshot, it didn't move). The satisfaction-trend signal is
+	     real and belongs elsewhere (its own surface), not as the GPI card's badge.
+	     (GPI_SAF_ASPECT_PLAN.md.) -->
 	<StatTile
 		label="Genel GPI"
 		value={hs.gpi.toFixed(1)}
 		tone={zoneTone(hs.gpi)}
-		emphasis="primary"
-		caption="hedef {GPI_TARGET}"
-		delta={gpiDelta}
-		deltaPolarity="higher-better"
+		caption="içerik analizi · hedef {GPI_TARGET}"
 		trend={gpiSpark}
 		trendMinSpan={2}
-		title="Değişim: son 30 gün"
+		title="Son dönem GPI seyri"
 	/>
 	{#if !hideComp}
 		<StatTile
@@ -336,14 +354,6 @@
 		caption="hedef %80"
 		critical={responseRatePct === 0}
 	/>
-	{#if !hideComp}
-		<StatTile
-			label="Rakip Farkı"
-			value={competitorGap !== null ? competitorGap.toFixed(1) : '—'}
-			tone={competitorGap !== null && competitorGap < 0 ? 'danger' : 'neutral'}
-			caption={competitorGap !== null && competitorGap < 0 ? 'rakip önde' : 'öndeyiz'}
-		/>
-	{/if}
 </div>
 
 <!-- ── Trend + Platforms/Categories row ──────────────────────────────────── -->

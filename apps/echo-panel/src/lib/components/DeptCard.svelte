@@ -25,6 +25,11 @@
 	const arrowClass = $derived(
 		dept.trend === 'up' ? 'text-success' : dept.trend === 'down' ? 'text-danger' : 'text-text-3'
 	);
+	// Thin-data caption: "veri az", never "veri yok" — the window DID see the department,
+	// just not enough mentions to score it honestly. Show the count when we have one.
+	const thinCaption = $derived(
+		dept.mentions ? `veri az · ${dept.mentions} mention — skor için yetersiz` : 'veri az — skor için yetersiz'
+	);
 </script>
 
 <button
@@ -35,5 +40,5 @@
 	<span class="mt-0.5 flex items-center gap-1.5 text-lg font-extrabold {scoreColor}">
 		{dept.score ?? '—'}{#if dept.score != null}<span class="flex {arrowClass}"><TrendIcon size={14} strokeWidth={2.5} /></span>{/if}
 	</span>
-	<span class="mt-0.5 text-[10.5px] text-text-3">{dept.score == null ? 'yeterli veri yok' : dept.scope}</span>
+	<span class="mt-0.5 text-[10.5px] text-text-3">{dept.score == null ? thinCaption : dept.scope}</span>
 </button>

@@ -68,7 +68,8 @@
 			trend: d.trend > 0 ? 'up' : d.trend < 0 ? 'down' : 'flat',
 			trendValue: d.trend,
 			scope: d.categories.join(' · '),
-			enters: d.score != null
+			enters: d.score != null,
+			mentions: d.mentionCount ?? null
 		};
 	}
 
@@ -76,11 +77,14 @@
 	// there is no invented fallback set any more.
 	const depts = $derived<OsDept[]>(realDepts ? realDepts.map(toOsDept) : []);
 
-	// Summary KPIs and the grid both use the SCORED departments only (null = no data,
-	// not 0). An unscored department is dropped from the grid rather than shown as '—'.
+	// Summary KPIs use the SCORED departments only (null = insufficient mentions, not 0).
+	// The grid shows BOTH: scored tiles first, thin (unscored) tiles last as "veri az ·
+	// N mention" — a narrow window (6mo default) must say "too little data", never let a
+	// department silently vanish or read as "veri yok" (Özgür: "veri yok demesin, veri az").
 	const scored = $derived(
 		depts.filter((d): d is OsDept & { score: number } => d.score != null)
 	);
+	const thin = $derived(depts.filter((d) => d.score == null));
 	const avgScore = $derived(
 		scored.length ? scored.reduce((s, d) => s + d.score, 0) / scored.length : 0
 	);
@@ -180,6 +184,9 @@
 	<SectionCard title="Departmanlar" icon={Users} hint="tıkla → ekip detayı" class="mb-3.5">
 		<div class="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4">
 			{#each scored as d (d.key)}
+				<DeptCard dept={d} onenter={enterDept} />
+			{/each}
+			{#each thin as d (d.key)}
 				<DeptCard dept={d} onenter={enterDept} />
 			{/each}
 		</div>

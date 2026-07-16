@@ -475,9 +475,15 @@ export function computeHeadlineScore(
 
 export type GpiZone = 'green' | 'yellow' | 'red';
 
+// Bands for the PURE-ASPECT scale (2026-07, GPI_SAF_ASPECT_PLAN.md). GPI is no longer the
+// star-anchored headline (~74) — it's the aspect score (venue ~57-71, per-category ~31-73),
+// so the old 85/70 bands painted everything red. New bands, calibrated to the real
+// distribution: ≥65 green (strong), ≥55 yellow (average), <55 red (needs attention). Used
+// for the venue GPI headline AND per-category cells (both aspect-scale). Revisit when the
+// venue mix widens beyond resort hotels (all currently 4★+).
 export function gpiZone(gpi: number): GpiZone {
-  if (gpi >= 85) return 'green';
-  if (gpi >= 70) return 'yellow';
+  if (gpi >= 65) return 'green';
+  if (gpi >= 55) return 'yellow';
   return 'red';
 }
 

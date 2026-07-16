@@ -34,6 +34,9 @@
 		/** Smallest y-range the sparkline may cover — see Sparkline's minSpan. Pass it for
 		 *  metrics whose meaningful moves are small relative to their value (GPI ≈ 2). */
 		trendMinSpan?: number;
+		/** When set (0–5), draws a 5-star rating row under the value with partial fill on the
+		 *  last star (e.g. 4.6 → 4 full + 60% of the 5th). For star KPIs like the OTA rating. */
+		stars?: number;
 		/** href makes the whole tile a link. */
 		href?: string;
 		title?: string;
@@ -53,11 +56,20 @@
 		criticalLabel = 'kritik',
 		trend,
 		trendMinSpan,
+		stars,
 		href,
 		title
 	}: Props = $props();
 
 	const isPrimary = $derived(emphasis === 'primary');
+
+	// Per-star fill fraction (0–1) for a 5-star row: star i is full if stars ≥ i+1,
+	// empty if stars ≤ i, else the fractional remainder (e.g. 4.6 → 5th star = 0.6).
+	const starFills = $derived(
+		stars == null
+			? []
+			: Array.from({ length: 5 }, (_, i) => Math.max(0, Math.min(1, stars - i)))
+	);
 
 	// Value colour tracks tone; primary GPI gets the boldest weight.
 	const valueColor: Record<Tone, string> = {
@@ -105,6 +117,28 @@
 			{value}
 		</span>
 	</div>
+
+	{#if starFills.length > 0}
+		<!-- 5-star row with partial fill on the last star (OTA rating). The gold fill sits on
+		     a muted base so an empty star still reads as a star, and the pride signal is the
+		     row of gold — the number alone doesn't celebrate the way stars do. -->
+		<div class="mt-1.5 flex gap-0.5" aria-hidden="true">
+			{#each starFills as fill, i (i)}
+				<svg viewBox="0 0 20 20" class="h-3.5 w-3.5">
+					<defs>
+						<linearGradient id="starfill-{i}-{fill}">
+							<stop offset="{fill * 100}%" stop-color="#f5a623" />
+							<stop offset="{fill * 100}%" stop-color="var(--color-border, #e2e2e2)" />
+						</linearGradient>
+					</defs>
+					<path
+						d="M10 1.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L10 15.5l-5.2 2.72.99-5.8-4.21-4.1 5.82-.85z"
+						fill="url(#starfill-{i}-{fill})"
+					/>
+				</svg>
+			{/each}
+		</div>
+	{/if}
 
 	{#if caption}
 		<div class="mt-1.5 text-[10.5px] text-text-3">{caption}</div>

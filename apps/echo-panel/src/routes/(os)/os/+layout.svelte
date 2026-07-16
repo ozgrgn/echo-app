@@ -14,7 +14,7 @@
 	import { MOCK_OS_COUNTERS } from '$lib/mock/os';
 	import { Target, Bell, Settings, Wrench } from '@lucide/svelte';
 	import { OS_NAV, lensForPath, type OsNavItem } from '$lib/config/osNav';
-	import { OS_WINDOW_TABS, parseOsWindow, hidesCompetitors } from '$lib/config/window';
+	import { OS_WINDOW_TABS, parseOsWindow, hidesCompetitors, DEFAULT_OS_WINDOW } from '$lib/config/window';
 	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
 	import TalkwoMark from '$lib/components/TalkwoMark.svelte';
 	import LensTabs from '$lib/components/LensTabs.svelte';
@@ -63,11 +63,13 @@
 	const activeWindow = $derived(parseOsWindow(page.url.searchParams.get('window')));
 	function selectWindow(key: string) {
 		if (key === activeWindow) return;
-		// Preserve the current path + other params; swap only `window` (drop it for
-		// the 24mo default to keep URLs clean). invalidateAll re-runs every load so
-		// a query-only change on the same route doesn't get skipped.
+		// Preserve the current path + other params; swap only `window`. Drop the param only
+		// for the ACTUAL default (6mo) to keep those URLs clean — every other window, incl.
+		// 24mo, must be set EXPLICITLY. (Bug fix: this used to delete for 24mo, back when the
+		// default was 24mo; the default is now 6mo — DEFAULT_OS_WINDOW — so deleting on 24mo
+		// made parseOsWindow read "absent" → fall back to 6mo, i.e. 2Y silently became 6A.)
 		const url = new URL(page.url);
-		if (key === '24mo') url.searchParams.delete('window');
+		if (key === DEFAULT_OS_WINDOW) url.searchParams.delete('window');
 		else url.searchParams.set('window', key);
 		goto(url.pathname + url.search, { keepFocus: true, noScroll: true, invalidateAll: true });
 	}

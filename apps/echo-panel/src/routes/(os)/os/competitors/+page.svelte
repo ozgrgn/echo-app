@@ -87,12 +87,17 @@
 		'ENTERTAINMENT', 'KIDS', 'FACILITY', 'SPA', 'VALUE', 'GENERAL'
 	];
 
+	// Use aspectScore, NOT headlineScore: the category comparison must be on the SAME
+	// pure-aspect scale as the venue GPI (GPI_SAF_ASPECT_PLAN.md). headlineScore is the
+	// legacy star-anchored blend (~71-82) — showing it here made categories read ~80-90
+	// while the venue GPI reads ~58, an obvious contradiction. aspectScore (~31-73) is the
+	// content signal, consistent with GPI and the Departmanlar/Genel lenses.
 	function categoryGpiForVenue(slug: string, category: CategoryKey): number | null {
 		if (slug === data.hotelScore.venueSlug) {
-			return data.hotelScore.categoryScores.find((c) => c.category === category)?.headlineScore ?? null;
+			return data.hotelScore.categoryScores.find((c) => c.category === category)?.aspectScore ?? null;
 		}
 		const comp = data.competitors.find((c) => c.venueSlug === slug);
-		return comp?.categoryScores.find((c) => c.category === category)?.headlineScore ?? null;
+		return comp?.categoryScores.find((c) => c.category === category)?.aspectScore ?? null;
 	}
 
 	function heatmapBg(gpi: number | null): string {
@@ -231,7 +236,7 @@
 </SectionCard>
 
 <!-- ── Category heatmap ──────────────────────────────────────────────────── -->
-<SectionCard title="Kategori Bazlı Karşılaştırma" icon={Grid3x3} hint="yeşil ≥85 · sarı 70-84 · kırmızı <70" class="mb-3.5">
+<SectionCard title="Kategori Bazlı Karşılaştırma" icon={Grid3x3} hint="yeşil ≥65 · sarı 55-64 · kırmızı <55" class="mb-3.5">
 	<div class="overflow-x-auto">
 		<table class="min-w-full border-collapse text-sm">
 			<thead>

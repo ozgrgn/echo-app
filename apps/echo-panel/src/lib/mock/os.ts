@@ -70,6 +70,9 @@ export interface OsDept {
 	trendValue?: number;
 	scope: string;        // human hint of covered categories
 	enters: boolean;
+	/** Mention count in the active window — lets a thin (unscored) card say
+	 *  "veri az · N mention" instead of a bare "veri yok". Optional: mock rows omit it. */
+	mentions?: number | null;
 }
 
 // MOCK_OS_DEPTS (eight invented department scores) is gone: the /os and
