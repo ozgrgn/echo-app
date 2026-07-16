@@ -66,6 +66,7 @@
 		goal: { goalId: string; label?: string; metricPath: string; target: number; deadline?: string | null };
 		progress?: { now: number | null; gap: number | null; weeklyDelta: number | null; trend: string; reached: boolean };
 		feasibility?: { verdict: string; verdictTr?: string; evidence?: string };
+		pace?: { verdict: string; sentence: string; daysLeft?: number } | null;
 	};
 	type Thread = { threadId?: string; title?: string; source?: string; status?: string };
 
@@ -139,13 +140,13 @@
 	// ── "Yeni hedef" formu (P2). Metrik seçenekleri EK B'nin hedef haritası — proxy'nin
 	// beyaz listesiyle birebir; form başka path üretemez.
 	const METRIC_KINDS = [
-		{ kind: 'gpi', label: 'Genel GPI', unit: '0-100' },
-		{ kind: 'rpi', label: 'RPI (rakip kıyası)', unit: '100 = parite' },
-		{ kind: 'dept', label: 'Departman GPI', unit: '0-100' },
-		{ kind: 'platformRating', label: 'Platform puanı', unit: '1-5' },
-		{ kind: 'platformGpi', label: 'Platform GPI', unit: '0-100' },
-		{ kind: 'responseRate', label: 'Yorumlara yanıt oranı', unit: '%0-100' },
-		{ kind: 'avgStarRating', label: 'Ortalama yıldız', unit: '1-5' }
+		{ kind: 'gpi', label: 'Genel GPI', unit: '0-100', min: 0, max: 100 },
+		{ kind: 'rpi', label: 'RPI (rakip kıyası)', unit: '100 = parite', min: 0, max: 200 },
+		{ kind: 'dept', label: 'Departman GPI', unit: '0-100', min: 0, max: 100 },
+		{ kind: 'platformRating', label: 'Platform puanı', unit: '1-5', min: 1, max: 5 },
+		{ kind: 'platformGpi', label: 'Platform GPI', unit: '0-100', min: 0, max: 100 },
+		{ kind: 'responseRate', label: 'Yorumlara yanıt oranı', unit: '%0-100', min: 0, max: 100 },
+		{ kind: 'avgStarRating', label: 'Ortalama yıldız', unit: '1-5', min: 1, max: 5 }
 	] as const;
 	type MetricKind = (typeof METRIC_KINDS)[number]['kind'];
 	const PLATFORMS: [string, string][] = [
@@ -210,44 +211,99 @@
 	});
 	const gUnit = $derived(METRIC_KINDS.find((m) => m.kind === gKind)?.unit ?? '');
 
-	async function submitGoal() {
+	// Two-step save (owner ask, 2026-07-16): Kaydet fetches a DRY-RUN report first and a
+	// confirm modal voices the calendar ("bu sürede zor") before anything is persisted.
+	let gPreview = $state<GoalReport | null>(null);
+
+	// The date input's ELEMENT, not just its value: a hand-typed impossible date
+	// ("31/09/2026") leaves value '' but sets validity.badInput — without checking it
+	// the deadline silently vanishes and the preview says "tarih girilmedi".
+	let deadlineEl = $state<HTMLInputElement | null>(null);
+
+	function goalPayload() {
 		const draft = goalDraft;
-		const target = Number(gTarget.replace(',', '.'));
-		if (!draft) return;
-		if (!gTarget.trim() || !Number.isFinite(target)) {
+		// bind:value on a type="number" input yields a NUMBER (or '' when empty) — never
+		// assume string here; String() first, then accept the Turkish decimal comma.
+		const raw = String(gTarget ?? '').trim();
+		const target = Number(raw.replace(',', '.'));
+		if (!draft) return null;
+		if (!raw || !Number.isFinite(target)) {
 			gError = 'Hedef değeri gerekli';
-			return;
+			return null;
 		}
+		const kindMeta = METRIC_KINDS.find((m) => m.kind === gKind);
+		if (kindMeta && (target < kindMeta.min || target > kindMeta.max)) {
+			gError = `Hedef ${kindMeta.min}–${kindMeta.max} aralığında olmalı (${kindMeta.unit})`;
+			return null;
+		}
+		if (deadlineEl?.validity.badInput) {
+			gError = 'Geçersiz tarih — gün/ay değerini kontrol et';
+			return null;
+		}
+		return {
+			metricPath: draft.metricPath,
+			target,
+			label: draft.label,
+			...(gDeadline ? { deadline: gDeadline } : {})
+		};
+	}
+
+	async function postGoal(action: 'previewGoal' | 'setGoal'): Promise<GoalReport> {
+		const payload = goalPayload();
+		if (!payload) throw new Error('form');
+		const res = await fetch('/api/agenda', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ action, ...payload })
+		});
+		if (!res.ok) {
+			const err = await res.json().catch(() => null);
+			throw new Error(err?.message ?? `HTTP ${res.status}`);
+		}
+		return res.json();
+	}
+
+	async function previewGoal() {
+		if (!goalPayload()) return; // sets gError
 		gSaving = true;
 		gError = null;
 		try {
-			const res = await fetch('/api/agenda', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					action: 'setGoal',
-					metricPath: draft.metricPath,
-					target,
-					label: draft.label,
-					...(gDeadline ? { deadline: gDeadline } : {})
-				})
-			});
-			if (!res.ok) {
-				const err = await res.json().catch(() => null);
-				throw new Error(err?.message ?? `HTTP ${res.status}`);
-			}
-			const report: GoalReport = await res.json();
+			gPreview = await postGoal('previewGoal');
+		} catch (e) {
+			if (!(e instanceof Error && e.message === 'form'))
+				gError = e instanceof Error ? e.message : 'Önizleme alınamadı';
+		} finally {
+			gSaving = false;
+		}
+	}
+
+	async function confirmGoal() {
+		gSaving = true;
+		try {
+			const report = await postGoal('setGoal');
 			// Upsert semantics mirror radar's goalStore.set: same metric → same goal.
 			goals = [report, ...goals.filter((g) => g.goal.metricPath !== report.goal.metricPath)];
+			gPreview = null;
 			showGoalForm = false;
 			gTarget = '';
 			gDeadline = '';
 		} catch (e) {
+			gPreview = null;
 			gError = e instanceof Error ? e.message : 'Hedef kaydedilemedi';
 		} finally {
 			gSaving = false;
 		}
 	}
+
+	// Modal tone follows the pace verdict — the calendar's answer colors the confirm.
+	const paceTone = (v?: string) =>
+		v === 'comfortable' || v === 'reached'
+			? 'text-success'
+			: v === 'demanding'
+				? 'text-warning'
+				: v === 'unrealistic' || v === 'past_deadline'
+					? 'text-danger'
+					: 'text-text-2';
 </script>
 
 <div class="flex h-full flex-col overflow-hidden">
@@ -393,6 +449,7 @@
 							/>
 							<input
 								bind:value={gDeadline}
+								bind:this={deadlineEl}
 								type="date"
 								title="Son tarih (opsiyonel)"
 								class="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[12px] text-text-1 outline-none"
@@ -404,10 +461,10 @@
 						<div class="flex justify-end gap-2">
 							<button onclick={() => (showGoalForm = false)} class="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-text-3 hover:text-text-1">Vazgeç</button>
 							<button
-								onclick={submitGoal}
+								onclick={previewGoal}
 								disabled={gSaving}
 								class="rounded-lg bg-talkwo px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-							>{gSaving ? 'Kaydediliyor…' : 'Kaydet'}</button>
+							>{gSaving ? 'Hesaplanıyor…' : 'Kaydet'}</button>
 						</div>
 					</div>
 				</div>
@@ -462,6 +519,36 @@
 			</div>
 		{/if}
 	</div>
+
+	<!-- Goal confirm modal — the calendar speaks BEFORE anything is saved. -->
+	{#if gPreview}
+		{@const p = gPreview}
+		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+			<div class="w-full max-w-sm rounded-2xl border border-border bg-surface-1 p-4 shadow-card-hover">
+				<div class="mb-1 text-[10px] font-extrabold uppercase tracking-wider text-talkwo">Hedefi onayla</div>
+				<p class="text-[14px] font-bold text-text-1">
+					{p.goal.label ?? p.goal.metricPath}: hedef {p.goal.target}{p.goal.deadline ? ` · ${p.goal.deadline}` : ''}
+				</p>
+				<p class="mt-1 text-[12px] text-text-3">Şu an: <b class="text-text-1">{fmt(p.progress?.now)}</b>{p.progress?.gap != null && p.progress.gap > 0 ? ` — fark ${fmt(p.progress.gap)}` : ''}</p>
+				{#if p.pace?.sentence}
+					<p class="mt-2 rounded-lg bg-surface-2 p-2.5 text-[12px] leading-relaxed {paceTone(p.pace.verdict)}">{p.pace.sentence}</p>
+				{:else if p.feasibility?.evidence}
+					<p class="mt-2 rounded-lg bg-surface-2 p-2.5 text-[12px] leading-relaxed text-text-2">{p.feasibility.evidence}</p>
+				{/if}
+				{#if !p.goal.deadline}
+					<p class="mt-1.5 text-[11px] text-text-3">Son tarih girilmedi — tarih girersen süre değerlendirmesi de yapılır.</p>
+				{/if}
+				<div class="mt-3 flex justify-end gap-2">
+					<button onclick={() => (gPreview = null)} class="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-text-3 hover:text-text-1">Geri dön</button>
+					<button
+						onclick={confirmGoal}
+						disabled={gSaving}
+						class="rounded-lg bg-talkwo px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+					>{gSaving ? 'Kaydediliyor…' : 'Onayla ve kaydet'}</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Composer: visible but passive (K6 — "disabled input + yakında"). -->
 	<div class="border-t border-border p-3">

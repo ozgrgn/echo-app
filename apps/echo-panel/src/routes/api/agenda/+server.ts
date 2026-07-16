@@ -12,7 +12,13 @@
  */
 
 import { json, error } from '@sveltejs/kit';
-import { listRadarAlerts, listRadarGoals, listRadarThreads, setRadarGoal } from '$lib/server/radarApi';
+import {
+	listRadarAlerts,
+	listRadarGoals,
+	listRadarThreads,
+	setRadarGoal,
+	previewRadarGoal
+} from '$lib/server/radarApi';
 import type { RadarScope, RadarAlertCard } from '$lib/server/radarApi';
 import type { RequestHandler } from './$types';
 
@@ -78,7 +84,8 @@ const GOALABLE_PATHS = [
 	/^reviews\.platforms\.(booking|tripadvisor|google|holidaycheck|check24)\.(rating|gpi)$/
 ];
 
-// POST /api/agenda — body { action: 'setGoal', metricPath, target, label?, deadline? }
+// POST /api/agenda — body { action: 'setGoal' | 'previewGoal', metricPath, target, label?, deadline? }
+// previewGoal is the confirm-modal dry-run: same validation, nothing persisted.
 export const POST: RequestHandler = async ({ request, locals, fetch }) => {
 	if (!locals.session) throw error(401, 'Not authenticated');
 	const scope: RadarScope = {
@@ -87,7 +94,8 @@ export const POST: RequestHandler = async ({ request, locals, fetch }) => {
 	};
 
 	const body = await request.json().catch(() => null);
-	if (!body || body.action !== 'setGoal') throw error(400, 'Unknown action');
+	if (!body || (body.action !== 'setGoal' && body.action !== 'previewGoal'))
+		throw error(400, 'Unknown action');
 
 	const metricPath = String(body.metricPath ?? '');
 	if (!GOALABLE_PATHS.some((re) => re.test(metricPath))) {
@@ -102,7 +110,8 @@ export const POST: RequestHandler = async ({ request, locals, fetch }) => {
 	}
 
 	try {
-		const report = await setRadarGoal(scope, { metricPath, target, label, deadline }, fetch);
+		const call = body.action === 'previewGoal' ? previewRadarGoal : setRadarGoal;
+		const report = await call(scope, { metricPath, target, label, deadline }, fetch);
 		return json(report);
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : 'Hedef kaydedilemedi';

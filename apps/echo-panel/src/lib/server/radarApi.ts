@@ -56,13 +56,24 @@ export interface RadarGoalReport {
 		reached: boolean;
 	};
 	feasibility?: {
-		verdict: 'reached' | 'realistic' | 'stretch' | 'never_achieved';
+		verdict: 'reached' | 'realistic' | 'stretch' | 'never_achieved' | 'warming_up' | 'unknown';
 		verdictTr?: string;
 		evidence?: string;
 		historyMax?: number | null;
 		suggested?: number | null;
 	};
+	pace?: RadarGoalPace | null;
 	[k: string]: unknown;
+}
+
+/** Deadline-aware pace assessment (goal confirm modal). */
+export interface RadarGoalPace {
+	daysLeft?: number;
+	gap?: number;
+	requiredPerWeek?: number;
+	recentPerWeek?: number | null;
+	verdict: 'comfortable' | 'demanding' | 'unrealistic' | 'reached' | 'past_deadline' | 'unknown_pace';
+	sentence: string;
 }
 
 export interface RadarThread {
@@ -174,6 +185,17 @@ export async function setRadarGoal(
 	const t = encodeURIComponent(scope.tenantKey);
 	const v = encodeURIComponent(scope.venueSlug);
 	return radarPost<RadarGoalReport>(scope, `/api/os/venues/${t}/${v}/goals`, body, fetchFn);
+}
+
+/** Dry-run goalReport for the confirm modal — nothing is persisted. */
+export async function previewRadarGoal(
+	scope: RadarScope,
+	body: { metricPath: string; target: number; label?: string; deadline?: string },
+	fetchFn: typeof fetch = fetch
+) {
+	const t = encodeURIComponent(scope.tenantKey);
+	const v = encodeURIComponent(scope.venueSlug);
+	return radarPost<RadarGoalReport>(scope, `/api/os/venues/${t}/${v}/goals/preview`, body, fetchFn);
 }
 
 /** Reputation-domain topic threads (Gündem). */
