@@ -275,6 +275,14 @@
 		void previewGoal();
 	}
 
+	// Generic date-extension chips on the assessment itself (owner, 2026-07-17):
+	// bump the deadline and re-assess in one tap — the verdict recomputes with the
+	// new window, no trip back up to the form.
+	function extendAndAssess(kind: Parameters<typeof presetDeadline>[0]) {
+		presetDeadline(kind);
+		void previewGoal();
+	}
+
 	// The date input's ELEMENT, not just its value: a hand-typed impossible date
 	// ("31/09/2026") leaves value '' but sets validity.badInput — without checking it
 	// the deadline silently vanishes and the preview says "tarih girilmedi".
@@ -557,12 +565,24 @@
 						{/if}
 						{#if p.pace?.suggestedDeadline || p.pace?.suggestedTarget != null}
 							<div class="mt-2 flex flex-wrap gap-1.5">
-								{#if p.pace?.suggestedDeadline}
-									<button onclick={() => applySuggestion('deadline')} class="rounded-full border border-talkwo/40 bg-talkwo/5 px-2.5 py-1 text-[11px] font-semibold text-talkwo transition-colors hover:bg-talkwo/10">Tarihi {p.pace.suggestedDeadline} yap</button>
-								{/if}
 								{#if p.pace?.suggestedTarget != null}
 									<button onclick={() => applySuggestion('target')} class="rounded-full border border-talkwo/40 bg-talkwo/5 px-2.5 py-1 text-[11px] font-semibold text-talkwo transition-colors hover:bg-talkwo/10">Hedefi {p.pace.suggestedTarget} yap</button>
 								{/if}
+								{#if p.pace?.suggestedDeadline}
+									<button onclick={() => applySuggestion('deadline')} class="rounded-full border border-talkwo/40 bg-talkwo/5 px-2.5 py-1 text-[11px] font-semibold text-talkwo transition-colors hover:bg-talkwo/10">Tarihi {p.pace.suggestedDeadline} yap</button>
+								{/if}
+							</div>
+						{/if}
+						{#if p.pace && p.pace.verdict !== 'comfortable' && p.pace.verdict !== 'reached'}
+							<!-- Always-available window bumps: re-assess with a longer runway in one tap. -->
+							<div class="mt-2 flex flex-wrap items-center gap-1.5">
+								<span class="text-[10px] font-bold uppercase tracking-wide text-text-3">Süreyi değiştir:</span>
+								<button onclick={() => extendAndAssess('30d')} class="rounded-full border border-border px-2 py-0.5 text-[10.5px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1">+30 gün</button>
+								<button onclick={() => extendAndAssess('nextMonth')} class="rounded-full border border-border px-2 py-0.5 text-[10.5px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1">Gelecek ay sonu</button>
+								{#if seasonEnd}
+									<button onclick={() => extendAndAssess('season')} class="rounded-full border border-border px-2 py-0.5 text-[10.5px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1">Sezon sonu</button>
+								{/if}
+								<button onclick={() => extendAndAssess('yearEnd')} class="rounded-full border border-border px-2 py-0.5 text-[10.5px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1">Yıl sonu</button>
 							</div>
 						{/if}
 						<div class="mt-3 flex justify-end">
