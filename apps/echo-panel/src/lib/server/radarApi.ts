@@ -187,6 +187,25 @@ export async function setRadarGoal(
 	return radarPost<RadarGoalReport>(scope, `/api/os/venues/${t}/${v}/goals`, body, fetchFn);
 }
 
+/** Delete a goal (panel card action). Scoped by the token's venue on radar's side. */
+export async function deleteRadarGoal(
+	scope: RadarScope,
+	goalId: string,
+	fetchFn: typeof fetch = fetch
+) {
+	const t = encodeURIComponent(scope.tenantKey);
+	const v = encodeURIComponent(scope.venueSlug);
+	const res = await fetchFn(`${baseUrl()}/api/os/venues/${t}/${v}/goals/${encodeURIComponent(goalId)}`, {
+		method: 'DELETE',
+		headers: { Authorization: `Bearer ${mintRadarToken(scope)}` }
+	});
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		throw new Error(`radar ${res.status} on goal delete: ${text.slice(0, 200)}`);
+	}
+	return res.json() as Promise<{ ok: boolean; goalId: string }>;
+}
+
 /** Dry-run goalReport for the confirm modal — nothing is persisted. */
 export async function previewRadarGoal(
 	scope: RadarScope,

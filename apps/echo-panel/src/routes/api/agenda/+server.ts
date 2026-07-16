@@ -17,7 +17,8 @@ import {
 	listRadarGoals,
 	listRadarThreads,
 	setRadarGoal,
-	previewRadarGoal
+	previewRadarGoal,
+	deleteRadarGoal
 } from '$lib/server/radarApi';
 import type { RadarScope, RadarAlertCard } from '$lib/server/radarApi';
 import type { RequestHandler } from './$types';
@@ -94,8 +95,21 @@ export const POST: RequestHandler = async ({ request, locals, fetch }) => {
 	};
 
 	const body = await request.json().catch(() => null);
-	if (!body || (body.action !== 'setGoal' && body.action !== 'previewGoal'))
+	const action = body?.action;
+	if (!body || !['setGoal', 'previewGoal', 'deleteGoal'].includes(action))
 		throw error(400, 'Unknown action');
+
+	if (action === 'deleteGoal') {
+		const goalId = String(body.goalId ?? '');
+		if (!goalId) throw error(400, 'goalId required');
+		try {
+			return json(await deleteRadarGoal(scope, goalId, fetch));
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'Hedef silinemedi';
+			const m = /\b(4\d\d|5\d\d)\b/.exec(msg);
+			throw error(m ? Number(m[1]) : 502, msg);
+		}
+	}
 
 	const metricPath = String(body.metricPath ?? '');
 	if (!GOALABLE_PATHS.some((re) => re.test(metricPath))) {

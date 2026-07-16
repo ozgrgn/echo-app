@@ -5,7 +5,7 @@
   scope header · thread tabs · daily brief · stream of active topics · composer.
 -->
 <script lang="ts">
-	import { Sparkles, Ellipsis, Plus, ArrowUp, GitCompare, Bell, Target, MessagesSquare, ListTodo, TrendingDown, TrendingUp, Minus } from '@lucide/svelte';
+	import { Sparkles, Ellipsis, Plus, ArrowUp, GitCompare, Bell, Target, MessagesSquare, ListTodo, TrendingDown, TrendingUp, Minus, Pencil, Trash2 } from '@lucide/svelte';
 	import { osState } from '$lib/stores/osState.svelte';
 	import { MOCK_THREADS, MOCK_BRIEF, MOCK_STREAM, type ThreadStatus } from '$lib/mock/assistant';
 	import TalkwoMark from './TalkwoMark.svelte';
@@ -273,6 +273,60 @@
 		if (kind === 'target' && p.suggestedTarget != null) gTarget = String(p.suggestedTarget);
 		if (kind === 'deadline' && p.suggestedDeadline) gDeadline = p.suggestedDeadline;
 		void previewGoal();
+	}
+
+	// Edit: prefill the form from an existing goal (reverse-map metricPath → picker
+	// state) and enter the form view; save is the same upsert path, so "düzenle" and
+	// "yeni" are one flow with one assessment.
+	function editGoal(g: GoalReport) {
+		const mp = g.goal.metricPath;
+		let m: RegExpExecArray | null = null;
+		if (mp === 'reviews.gpi') gKind = 'gpi';
+		else if (mp === 'reviews.rpi') gKind = 'rpi';
+		else if (mp === 'reviews.responseRate') gKind = 'responseRate';
+		else if (mp === 'reviews.avgStarRating') gKind = 'avgStarRating';
+		else if ((m = /^reviews\.departments\.([a-z0-9_]+)\.gpi$/.exec(mp))) {
+			gKind = 'dept';
+			gDept = m[1];
+		} else if ((m = /^reviews\.platforms\.([a-z0-9_]+)\.(rating|gpi)$/.exec(mp))) {
+			gKind = m[2] === 'rating' ? 'platformRating' : 'platformGpi';
+			gPlatform = m[1];
+		}
+		gTarget = String(g.goal.target);
+		gDeadline = g.goal.deadline ?? '';
+		gPreview = null;
+		void openGoalForm().then(() => {
+			// A goal may point at a department the picker list doesn't carry (renamed /
+			// zero-mention dept) — keep it selectable rather than silently switching.
+			if (gKind === 'dept' && gDept && !deptOpts.some((d) => d.key === gDept))
+				deptOpts = [...deptOpts, { key: gDept, label: gDept }];
+		});
+	}
+
+	// Delete: two-step arm-then-confirm on the card itself (no browser confirm popup);
+	// arming auto-clears after 3s so a stray tap can't linger as a loaded gun.
+	let deleteArmed = $state<string | null>(null);
+	async function deleteGoal(g: GoalReport) {
+		const id = g.goal.goalId;
+		if (deleteArmed !== id) {
+			deleteArmed = id;
+			setTimeout(() => {
+				if (deleteArmed === id) deleteArmed = null;
+			}, 3000);
+			return;
+		}
+		deleteArmed = null;
+		try {
+			const res = await fetch('/api/agenda', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'deleteGoal', goalId: id })
+			});
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			goals = goals.filter((x) => x.goal.goalId !== id);
+		} catch {
+			loadError = 'Hedef silinemedi';
+		}
 	}
 
 	// Generic date-extension chips on the assessment itself (owner, 2026-07-17):
@@ -607,10 +661,18 @@
 				<div class="flex flex-col gap-2.5">
 					{#each goals as g (g.goal.goalId)}
 						{@const tone = goalTone(g)}
-						<div class="rounded-xl border border-border bg-surface-1 p-3">
+						<div class="group rounded-xl border border-border bg-surface-1 p-3">
 							<div class="flex items-center justify-between gap-2">
 								<span class="truncate text-[12.5px] font-bold text-text-1">{g.goal.label ?? g.goal.metricPath}</span>
-								<span class="flex-none rounded-full px-2 py-0.5 text-[9px] font-bold uppercase {tone.cls}">{tone.label}</span>
+								<span class="flex flex-none items-center gap-1">
+									{#if deleteArmed === g.goal.goalId}
+										<button onclick={() => deleteGoal(g)} class="rounded-full bg-danger px-2 py-0.5 text-[9px] font-bold uppercase text-white">Emin misin?</button>
+									{:else}
+										<button onclick={() => editGoal(g)} title="Düzenle" class="rounded-md p-1 text-text-3 opacity-0 transition-opacity hover:bg-surface-2 hover:text-text-1 group-hover:opacity-100"><Pencil size={12} /></button>
+										<button onclick={() => deleteGoal(g)} title="Sil" class="rounded-md p-1 text-text-3 opacity-0 transition-opacity hover:bg-surface-2 hover:text-danger group-hover:opacity-100"><Trash2 size={12} /></button>
+									{/if}
+									<span class="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase {tone.cls}">{tone.label}</span>
+								</span>
 							</div>
 							<div class="mt-2 flex items-baseline gap-1.5">
 								<span class="text-[17px] font-extrabold text-text-1">{fmt(g.progress?.now)}</span>
