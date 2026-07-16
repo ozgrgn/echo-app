@@ -698,7 +698,19 @@
 					<p class="mt-2 text-[12px] leading-relaxed text-text-2">{alertStory(a)}</p>
 
 					{#if aSeriesLoading}
-						<div class="mt-3 h-[84px] animate-pulse rounded-lg bg-surface-2"></div>
+						<!-- Chart data still loading: keep the chart-height box but show three
+						     sequentially-pulsing dots instead of drawing an empty/placeholder line. -->
+						<div class="mt-3 flex h-[84px] items-center justify-center gap-1.5 rounded-lg bg-surface-2" role="status" aria-label="Grafik yükleniyor">
+							<span class="spark-dot h-2 w-2 rounded-full bg-text-3"></span>
+							<span class="spark-dot h-2 w-2 rounded-full bg-text-3"></span>
+							<span class="spark-dot h-2 w-2 rounded-full bg-text-3"></span>
+						</div>
+					{:else if aSeries && aSeries.length > 0 && aSeries.length < 14}
+						<!-- A 2-point "line" reads as "always flat" — say what's true instead. -->
+						<div class="mt-3 rounded-lg bg-surface-2 p-2.5 text-[11.5px] leading-relaxed text-text-3">
+							Bu metrik için henüz <b class="text-text-1">{aSeries.length} günlük</b> veri var (son değer
+							<b class="text-text-1">{fmt(aSeries[aSeries.length - 1].value)}</b>) — grafik veri biriktikçe anlamlanacak.
+						</div>
 					{:else if sparkGeo}
 						<!-- Yearly daily series — single line, threshold as dashed reference. -->
 						<div class="mt-3 rounded-lg bg-surface-2 p-2.5">
@@ -1030,3 +1042,33 @@
 	</div>
 {/if}
 </div>
+
+<style>
+	/* Alert mini-chart loading placeholder: three dots pulse in sequence (left→right)
+	   so the wait reads as a lively "…" rather than a frozen block. */
+	.spark-dot {
+		animation: spark-dot-pulse 1.1s ease-in-out infinite;
+	}
+	.spark-dot:nth-child(2) {
+		animation-delay: 0.16s;
+	}
+	.spark-dot:nth-child(3) {
+		animation-delay: 0.32s;
+	}
+	@keyframes spark-dot-pulse {
+		0%, 80%, 100% {
+			opacity: 0.3;
+			transform: scale(0.8);
+		}
+		40% {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.spark-dot {
+			animation: none;
+			opacity: 0.6;
+		}
+	}
+</style>
