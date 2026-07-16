@@ -120,6 +120,9 @@ export interface TopIssue {
 export interface HotelScore {
   venueSlug: string;       // canonical identifier (LAD-6)
   venueName: string;
+  /** Venue logo URL for the OS header card, attached read-time by the backend from the
+   *  venue doc (echoSettings.logoUrl). Absent → panel renders the first-letter placeholder. */
+  logoUrl?: string;
   period: string;          // 'YYYY-MM' or 'YYYY-QN'
   avgStarRating: number;   // average OTA star rating (1–5)
   /** DASHBOARD-facing OTA star (1–5), silent reviews included; falls back to avgStarRating. */

@@ -291,9 +291,19 @@
 
 <!-- ── Venue hero: neutral band, same skeleton as PlatformHero so lenses align ── -->
 <div class="mb-3.5 flex flex-wrap items-center gap-5 rounded-[18px] border border-border bg-surface-1 p-5 shadow-card">
-	<div class="grid h-[50px] w-[50px] flex-none place-items-center rounded-[13px] bg-gradient-to-br from-[#4f46e5] to-[#a855f7] text-[17px] font-extrabold text-white">
-		{hs.venueName.slice(0, 1)}
-	</div>
+	{#if hs.logoUrl}
+		<!-- Real venue logo when set on the venue doc; object-contain so a wide/tall SVG
+		     never distorts inside the 50×50 box. Falls back to the letter placeholder below. -->
+		<img
+			src={hs.logoUrl}
+			alt={hs.venueName}
+			class="h-[50px] w-[50px] flex-none rounded-[13px] object-contain"
+		/>
+	{:else}
+		<div class="grid h-[50px] w-[50px] flex-none place-items-center rounded-[13px] bg-gradient-to-br from-[#4f46e5] to-[#a855f7] text-[17px] font-extrabold text-white">
+			{hs.venueName.slice(0, 1)}
+		</div>
+	{/if}
 	<div class="min-w-0">
 		<div class="text-base font-extrabold tracking-tight text-text-1">{hs.venueName}</div>
 		<!-- Region + season were hardcoded to one customer's venue and are not in the
