@@ -85,13 +85,15 @@
 	// doesn't) — otherwise the language GPI lens takes its place.
 	const hasTrip = $derived((data?.tripTypeKnown ?? 0) > 0);
 
-	// GPI cell coloring vs the venue reference: clearly above → strength (green),
-	// clearly below → at-risk (warning), within a band → neutral. 3-pt deadband
-	// avoids flapping colors on noise.
+	// GPI cell coloring vs the venue reference (the overall GPI, base = venueGpi):
+	// above the average → strength (green), below → at-risk (warning), exactly equal
+	// → neutral. No deadband (owner decision): a language above the venue average reads
+	// green even by a point — the reference IS the average, so "above it" is the signal.
+	// Rounded to whole points (the cell shows 0-decimal) so color matches the number.
 	function gpiTone(gpi: number | null): string {
 		if (gpi == null || venueGpi == null) return 'text-text-1';
-		if (gpi >= venueGpi + 3) return 'text-success';
-		if (gpi <= venueGpi - 3) return 'text-warning';
+		if (Math.round(gpi) > Math.round(venueGpi)) return 'text-success';
+		if (Math.round(gpi) < Math.round(venueGpi)) return 'text-warning';
 		return 'text-text-1';
 	}
 </script>
