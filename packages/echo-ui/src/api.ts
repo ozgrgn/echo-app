@@ -1151,6 +1151,21 @@ export async function getVenueSettings(
   return data.settings as EchoVenueSettings;
 }
 
+/** {granular_key → label_tr} map — the panel renders radar's humanized-English
+ * alert titles in Turkish with this (catalog stays echo's single source). */
+export async function getGranularLabels(
+  token: string,
+  opts?: FetchOpts,
+): Promise<Record<string, string>> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/granular-labels`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`getGranularLabels failed: ${res.status}`);
+  const data = await res.json();
+  return (data.labels ?? {}) as Record<string, string>;
+}
+
 /** Settings + venue-level meta the settings payload rides with. getVenueSettings
  * (above) narrows to `settings` for the existing settings page; this returns the
  * full body — operatingSeasons feeds the goal form's "Sezon sonu" preset. */

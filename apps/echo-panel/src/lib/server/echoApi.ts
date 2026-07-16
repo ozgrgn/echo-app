@@ -44,6 +44,7 @@ import {
 	getOsBundle,
 	getVenueSettings,
 	getVenueSettingsBundle,
+	getGranularLabels,
 	patchVenueSettings,
 	getVenueGranularCatalog,
 	patchVenueGranularRow,
@@ -138,6 +139,7 @@ export function makeServerApi(event: RequestEvent) {
 			opts: { lens: OsLens; window?: string; period?: string; chartDaily?: boolean; chartFrom?: string }
 		) => withRetry((t) => getOsBundle(venueSlug, t, opts, fo())),
 		getVenueSettings: (venueSlug: string) => withRetry((t) => getVenueSettings(venueSlug, t, fo())),
+		getGranularLabels: () => withRetry((t) => getGranularLabels(t, fo())),
 		getVenueSettingsBundle: (venueSlug: string) =>
 			withRetry((t) => getVenueSettingsBundle(venueSlug, t, fo())),
 		getReviews: (venueSlug: string, filters: ReviewFilters) =>

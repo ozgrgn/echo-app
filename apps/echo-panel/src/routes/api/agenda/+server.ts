@@ -19,7 +19,8 @@ import {
 	setRadarGoal,
 	previewRadarGoal,
 	deleteRadarGoal,
-	muteRadarAlert
+	muteRadarAlert,
+	getRadarMetricSeries
 } from '$lib/server/radarApi';
 import type { RadarScope, RadarAlertCard } from '$lib/server/radarApi';
 import type { RequestHandler } from './$types';
@@ -46,6 +47,14 @@ export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 				return json({ goals: await listRadarGoals(scope, fetch) });
 			case 'threads':
 				return json({ threads: await listRadarThreads(scope, fetch) });
+			case 'series': {
+				// Alert-detail chart. Same path discipline as the goal whitelist's spirit:
+				// reviews.* only — radar enforces it again on its side.
+				const path = url.searchParams.get('path') ?? '';
+				if (!/^reviews\.[a-zA-Z0-9_.]{1,80}$/.test(path)) throw error(400, 'Geçersiz metrik yolu');
+				const days = Math.min(Number(url.searchParams.get('days')) || 365, 730);
+				return json(await getRadarMetricSeries(scope, path, days, fetch));
+			}
 			case 'all': {
 				// One round-trip for the panel's initial paint. Sections fail SOFT and
 				// independently: a radar hiccup on one surface must not blank the other

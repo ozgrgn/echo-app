@@ -49,6 +49,9 @@ export const GET: RequestHandler = async (event) => {
 					await api.getDepartmentKeyTrend(venueSlug, deptKey, granularKey, { platform, window })
 				);
 			}
+			case 'granularLabels':
+				// {granular_key → label_tr} — alert titles render Turkish with this map.
+				return json({ labels: await api.getGranularLabels() });
 			case 'venueSettings':
 				// Settings incl. operatingSeasons — the goal form's "Sezon sonu" preset
 				// reads the venue's real season windows from here.

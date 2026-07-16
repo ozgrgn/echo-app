@@ -187,6 +187,23 @@ export async function setRadarGoal(
 	return radarPost<RadarGoalReport>(scope, `/api/os/venues/${t}/${v}/goals`, body, fetchFn);
 }
 
+/** Daily series of one reviews.* metric from radar's snapshot store — the alert
+ * detail view's chart. Radar validates the path against its own whitelist too. */
+export async function getRadarMetricSeries(
+	scope: RadarScope,
+	path: string,
+	days = 365,
+	fetchFn: typeof fetch = fetch
+) {
+	const t = encodeURIComponent(scope.tenantKey);
+	const v = encodeURIComponent(scope.venueSlug);
+	return radarGet<{ path: string; points: { date: string; value: number }[] }>(
+		scope,
+		`/api/os/venues/${t}/${v}/metric-series?path=${encodeURIComponent(path)}&days=${days}`,
+		fetchFn
+	);
+}
+
 /** Mute an alert card (7d / 30d / forever). Muted cards leave the active list;
  * lifecycle keeps the fingerprint so the alert re-surfaces cleanly on unmute/expiry. */
 export async function muteRadarAlert(

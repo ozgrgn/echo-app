@@ -54,6 +54,8 @@
 	type AlertCard = {
 		fingerprint: string;
 		ruleId?: string;
+		subject?: string;
+		payload?: Record<string, unknown> | null;
 		title?: string;
 		detail?: string;
 		severity?: string;
@@ -98,6 +100,11 @@
 				alerts = (data.alerts ?? []).filter((a: AlertCard) => a.category === 'reputation');
 				goals = data.goals ?? [];
 				threads = data.threads ?? [];
+				// Label maps for render-time repair — fetch as soon as the list needs them
+				// (not only on detail open): echo label_tr for granular keys, echo dept
+				// labels for department tokens.
+				if (alerts.some((a) => /\.keys:/.test(String(a.subject ?? '')))) void ensureKeyLabels();
+				if (alerts.some((a) => /^reviews\.departments/.test(String(a.subject ?? '')))) void ensureDeptOpts();
 				loadError = data.partial ? 'Bazı bölümler yüklenemedi' : null;
 			} catch (e) {
 				if (!cancelled) loadError = e instanceof Error ? e.message : 'Gündem yüklenemedi';
@@ -197,24 +204,27 @@
 		return best;
 	}
 
+	async function ensureDeptOpts() {
+		if (deptOpts.length) return;
+		try {
+			const res = await fetch('/api/os/data?resource=departments');
+			const data = await res.json();
+			const list = Array.isArray(data) ? data : (data.departments ?? []);
+			deptOpts = list.map((d: { key: string; label: string; score?: number }) => ({
+				key: d.key,
+				label: d.label,
+				score: d.score
+			}));
+			if (deptOpts.length && !gDept) gDept = deptOpts[0].key;
+		} catch {
+			/* dept picker degrades to empty — other metric kinds still work */
+		}
+	}
+
 	async function openGoalForm() {
 		showGoalForm = true;
 		gError = null;
-		if (!deptOpts.length) {
-			try {
-				const res = await fetch('/api/os/data?resource=departments');
-				const data = await res.json();
-				const list = Array.isArray(data) ? data : (data.departments ?? []);
-				deptOpts = list.map((d: { key: string; label: string; score?: number }) => ({
-					key: d.key,
-					label: d.label,
-					score: d.score
-				}));
-				if (deptOpts.length && !gDept) gDept = deptOpts[0].key;
-			} catch {
-				/* dept picker degrades to empty — other metric kinds still work */
-			}
-		}
+		await ensureDeptOpts();
 		if (seasonEnd == null) {
 			try {
 				const res = await fetch('/api/os/data?resource=venueSettings');
@@ -329,6 +339,154 @@
 		}
 	}
 
+	// ── Alert DETAIL view (owner, 2026-07-17): tapping a card opens an in-tab detail —
+	// Turkish title (granular label_tr from echo's catalog), a friendlier narrative,
+	// the numbers behind it, a yearly sparkline, and the actions (mute / hedef belirle).
+	let alertDetail = $state<AlertCard | null>(null);
+	let keyLabels = $state<Record<string, string> | null>(null);
+	let aSeries = $state<{ date: string; value: number }[] | null>(null);
+	let aSeriesLoading = $state(false);
+
+	const humanizeKey = (k: string) => {
+		const s = k.replace(/_/g, ' ');
+		return s.charAt(0).toUpperCase() + s.slice(1);
+	};
+
+	// subject formats (radar scan.js): "reviews.departments:mnt" ·
+	// "reviews.departments.keys:sec/privacy_disturbance" · plain metric paths.
+	function parseSubject(a: AlertCard): { dept?: string; key?: string } {
+		const s = String(a.subject ?? '');
+		let m: RegExpExecArray | null;
+		if ((m = /^reviews\.departments\.keys:([a-z0-9_]+)\/([a-z0-9_]+)$/.exec(s)))
+			return { dept: m[1], key: m[2] };
+		if ((m = /^reviews\.departments:([a-z0-9_]+)$/.exec(s))) return { dept: m[1] };
+		return {};
+	}
+
+	// The daily-series path behind an alert (for the chart) — null when no series maps.
+	function seriesPathFor(a: AlertCard): string | null {
+		const { dept, key } = parseSubject(a);
+		if (dept && key) return `reviews.departments.${dept}.keys.${key}.score`;
+		if (dept) return `reviews.departments.${dept}.gpi`;
+		if (a.ruleId === 'E_gpi_drop') return 'reviews.gpi';
+		if (a.ruleId === 'E_rpi_low' || a.ruleId === 'E_rpi_drop') return 'reviews.rpi';
+		if (a.ruleId === 'E_response_rate_drop') return 'reviews.responseRate';
+		if (a.ruleId === 'E_volume_drop') return 'reviews.count';
+		return null;
+	}
+
+	const deptLabel = (k?: string) => (k && deptOpts.find((d) => d.key === k)?.label) || k || '';
+
+	// Render-time label repair. Stored alert titles freeze at creation (the scan's
+	// dedup skips re-firing cards, so a label fix never reaches old rows) — swap both
+	// the humanized-English granular key (echo label_tr) and the stale department
+	// token (echo dept label) at render.
+	function trText(a: AlertCard, text?: string): string {
+		let t = text ?? '';
+		const { dept, key } = parseSubject(a);
+		if (key && keyLabels?.[key]) t = t.split(humanizeKey(key)).join(keyLabels[key]);
+		const lbl = dept && deptOpts.find((d) => d.key === dept)?.label;
+		if (lbl) {
+			t = t.replace(/^.+?(?= memnuniyeti )/, lbl); // dept title: "qc memnuniyeti…"
+			t = t.replace(/^.+?(?= Echo GPI )/, lbl); // dept detail: "qc Echo GPI…"
+			if (key) t = t.replace(/^.+?(?= · )/, lbl); // key detail: "qc · …"
+		}
+		return t;
+	}
+
+	// A friendlier one-paragraph narrative than the stored one-liner, built from payload.
+	function alertStory(a: AlertCard): string {
+		const p = (a.payload ?? {}) as Record<string, number | string>;
+		const { dept, key } = parseSubject(a);
+		if (dept && key) {
+			const label = keyLabels?.[key] ?? humanizeKey(key);
+			return `${deptLabel(dept)} departmanında "${label}" konusu ${p.score ?? '?'} puanda — dikkat eşiği ${p.floor ?? '?'}. Bu skor son dönemdeki ${p.mentions ?? '?'} misafir yorumuna dayanıyor; konu düzelmeden departman skoru da toparlanmaz.`;
+		}
+		if (dept) {
+			return `${deptLabel(dept)} departmanının misafir memnuniyeti ${p.gpi ?? p.now ?? '?'} puanda — dikkat eşiği olan ${p.floor ?? '?'}'in altında. Aşağıdaki seyir son bir yılın günlük skoru; hedef koyarak toparlanmayı takibe alabilirsin.`;
+		}
+		return trText(a, a.detail);
+	}
+
+	async function ensureKeyLabels() {
+		if (keyLabels) return;
+		try {
+			const res = await fetch('/api/os/data?resource=granularLabels');
+			const data = await res.json();
+			keyLabels = data.labels ?? {};
+		} catch {
+			keyLabels = {};
+		}
+	}
+
+	async function openAlert(a: AlertCard) {
+		alertDetail = a;
+		muteOpen = null;
+		aSeries = null;
+		void ensureDeptOpts();
+		void ensureKeyLabels();
+		const path = seriesPathFor(a);
+		if (!path) return;
+		aSeriesLoading = true;
+		try {
+			const res = await fetch(`/api/agenda?resource=series&path=${encodeURIComponent(path)}&days=365`);
+			const data = await res.json();
+			aSeries = data.points ?? [];
+		} catch {
+			aSeries = [];
+		} finally {
+			aSeriesLoading = false;
+		}
+	}
+
+	// "Hedef belirle" — jump to the Hedefler tab with the form prefilled from the alert.
+	function goalFromAlert(a: AlertCard) {
+		const { dept } = parseSubject(a);
+		if (dept) {
+			gKind = 'dept';
+			gDept = dept;
+		} else if (a.ruleId === 'E_rpi_low' || a.ruleId === 'E_rpi_drop') gKind = 'rpi';
+		else if (a.ruleId === 'E_response_rate_drop') gKind = 'responseRate';
+		else gKind = 'gpi';
+		gTarget = '';
+		gDeadline = '';
+		gPreview = null;
+		alertDetail = null;
+		section = 'goals';
+		void openGoalForm().then(() => {
+			if (gKind === 'dept' && gDept && !deptOpts.some((d) => d.key === gDept))
+				deptOpts = [...deptOpts, { key: gDept, label: gDept }];
+		});
+	}
+
+	// Sparkline geometry (single series, 2px line, threshold as dashed reference).
+	const SPARK_W = 320;
+	const SPARK_H = 84;
+	const sparkGeo = $derived.by(() => {
+		const pts = aSeries ?? [];
+		if (pts.length < 2) return null;
+		const vals = pts.map((p) => p.value);
+		const floorRaw = (alertDetail?.payload as Record<string, unknown> | null)?.floor;
+		const floor = typeof floorRaw === 'number' ? floorRaw : null;
+		const lo = Math.min(...vals, ...(floor != null ? [floor] : []));
+		const hi = Math.max(...vals, ...(floor != null ? [floor] : []));
+		const span = hi - lo || 1;
+		const x = (i: number) => (i / (pts.length - 1)) * SPARK_W;
+		const y = (v: number) => SPARK_H - 6 - ((v - lo) / span) * (SPARK_H - 12);
+		return {
+			d: pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' '),
+			floorY: floor != null ? y(floor) : null,
+			floor,
+			lo: Math.round(lo * 10) / 10,
+			hi: Math.round(hi * 10) / 10,
+			last: pts[pts.length - 1],
+			lastX: x(pts.length - 1),
+			lastY: y(pts[pts.length - 1].value),
+			from: pts[0].date,
+			to: pts[pts.length - 1].date
+		};
+	});
+
 	// Mute an alert (P3, radar preset contract: 7d | 30d | forever). The card leaves
 	// the active list on success — radar's lifecycle keeps the fingerprint, so the
 	// alert resurfaces cleanly when the mute expires.
@@ -343,6 +501,7 @@
 			});
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			alerts = alerts.filter((a) => a.fingerprint !== fingerprint);
+			if (alertDetail?.fingerprint === fingerprint) alertDetail = null;
 		} catch {
 			loadError = 'Uyarı susturulamadı';
 		}
@@ -524,7 +683,49 @@
 				</div>
 			{/if}
 		{:else if section === 'alerts'}
-			{#if alerts.length === 0}
+			{#if alertDetail}
+				{@const a = alertDetail}
+				<!-- ── Alert detail: narrative + numbers + yearly line + actions ── -->
+				<button onclick={() => (alertDetail = null)} class="mb-2 text-[11px] font-semibold text-text-3 hover:text-text-1">← Uyarılara dön</button>
+				<div class="rounded-xl border border-border bg-surface-1 p-3.5 {a.severity === 'critical' ? 'border-l-2 border-l-danger' : ''}">
+					<div class="flex items-center gap-2">
+						<span class="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase {sevChip(a.severity)}">{sevLabel(a.severity)}</span>
+						{#if (a.sendCount ?? 1) > 1}
+							<span class="rounded-full bg-surface-2 px-1.5 py-0.5 text-[9px] font-bold text-text-3">{a.sendCount}× tetiklendi</span>
+						{/if}
+					</div>
+					<p class="mt-2 text-[13.5px] font-bold leading-snug text-text-1">{trText(a, a.title)}</p>
+					<p class="mt-2 text-[12px] leading-relaxed text-text-2">{alertStory(a)}</p>
+
+					{#if aSeriesLoading}
+						<div class="mt-3 h-[84px] animate-pulse rounded-lg bg-surface-2"></div>
+					{:else if sparkGeo}
+						<!-- Yearly daily series — single line, threshold as dashed reference. -->
+						<div class="mt-3 rounded-lg bg-surface-2 p-2.5">
+							<svg viewBox="0 0 {SPARK_W} {SPARK_H}" class="block w-full" role="img" aria-label="Son 1 yılın günlük seyri">
+								{#if sparkGeo.floorY != null}
+									<line x1="0" y1={sparkGeo.floorY} x2={SPARK_W} y2={sparkGeo.floorY} class="stroke-text-3/40" stroke-width="1" stroke-dasharray="4 3" />
+								{/if}
+								<path d={sparkGeo.d} fill="none" class="stroke-talkwo" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+								<circle cx={sparkGeo.lastX} cy={sparkGeo.lastY} r="3" class="fill-talkwo" />
+							</svg>
+							<div class="mt-1 flex items-center justify-between text-[10px] text-text-3">
+								<span>{sparkGeo.from}</span>
+								<span>aralık {sparkGeo.lo}–{sparkGeo.hi}{sparkGeo.floor != null ? ` · eşik ${sparkGeo.floor}` : ''}</span>
+								<span>{sparkGeo.to} · <b class="text-text-1">{fmt(sparkGeo.last.value)}</b></span>
+							</div>
+						</div>
+					{/if}
+
+					<div class="mt-3 flex flex-wrap items-center gap-1.5">
+						<button onclick={() => goalFromAlert(a)} class="rounded-lg bg-talkwo px-2.5 py-1.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90">Hedef belirle</button>
+						<span class="ml-auto text-[10px] font-bold uppercase tracking-wide text-text-3">Sustur:</span>
+						<button onclick={() => muteAlert(a.fingerprint, '7d')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 hover:border-text-3 hover:text-text-1">7g</button>
+						<button onclick={() => muteAlert(a.fingerprint, '30d')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 hover:border-text-3 hover:text-text-1">30g</button>
+						<button onclick={() => muteAlert(a.fingerprint, 'forever')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 hover:border-danger hover:text-danger">kalıcı</button>
+					</div>
+				</div>
+			{:else if alerts.length === 0}
 				<div class="flex h-full flex-col items-center justify-center px-4 text-center">
 					<div class="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-success-light text-success">
 						<Bell size={20} />
@@ -535,28 +736,19 @@
 			{:else}
 				<div class="flex flex-col gap-2.5">
 					{#each alerts as a (a.fingerprint)}
-						<div class="group rounded-xl border border-border bg-surface-1 p-3 {a.severity === 'critical' ? 'border-l-2 border-l-danger' : ''}">
+						<button onclick={() => openAlert(a)} class="rounded-xl border border-border bg-surface-1 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-hover {a.severity === 'critical' ? 'border-l-2 border-l-danger' : ''}">
 							<div class="flex items-start gap-2">
 								<span class="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase {sevChip(a.severity)}">{sevLabel(a.severity)}</span>
 								{#if (a.sendCount ?? 1) > 1}
 									<span class="rounded-full bg-surface-2 px-1.5 py-0.5 text-[9px] font-bold text-text-3">{a.sendCount}×</span>
 								{/if}
-								<span class="ml-auto flex items-center gap-1">
-									{#if muteOpen === a.fingerprint}
-										<button onclick={() => muteAlert(a.fingerprint, '7d')} class="rounded-full border border-border px-1.5 py-0.5 text-[9.5px] font-semibold text-text-2 hover:border-text-3 hover:text-text-1">7g</button>
-										<button onclick={() => muteAlert(a.fingerprint, '30d')} class="rounded-full border border-border px-1.5 py-0.5 text-[9.5px] font-semibold text-text-2 hover:border-text-3 hover:text-text-1">30g</button>
-										<button onclick={() => muteAlert(a.fingerprint, 'forever')} class="rounded-full border border-border px-1.5 py-0.5 text-[9.5px] font-semibold text-text-2 hover:border-danger hover:text-danger">kalıcı</button>
-										<button onclick={() => (muteOpen = null)} class="rounded-md p-0.5 text-text-3 hover:text-text-1" title="Vazgeç">×</button>
-									{:else}
-										<button onclick={() => (muteOpen = a.fingerprint)} title="Sustur" class="rounded-md p-1 text-text-3 opacity-0 transition-opacity hover:bg-surface-2 hover:text-text-1 group-hover:opacity-100"><BellOff size={12} /></button>
-									{/if}
-								</span>
+								<span class="ml-auto rounded-md p-0.5 text-text-3"><Ellipsis size={14} /></span>
 							</div>
-							<p class="mt-1.5 text-[12.5px] font-bold leading-snug text-text-1">{a.title}</p>
+							<p class="mt-1.5 text-[12.5px] font-bold leading-snug text-text-1">{trText(a, a.title)}</p>
 							{#if a.detail}
-								<p class="mt-1 line-clamp-2 text-[11.5px] leading-relaxed text-text-3">{a.detail}</p>
+								<p class="mt-1 line-clamp-2 text-[11.5px] leading-relaxed text-text-3">{trText(a, a.detail)}</p>
 							{/if}
-						</div>
+						</button>
 					{/each}
 				</div>
 			{/if}
