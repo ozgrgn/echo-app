@@ -187,6 +187,24 @@ export async function setRadarGoal(
 	return radarPost<RadarGoalReport>(scope, `/api/os/venues/${t}/${v}/goals`, body, fetchFn);
 }
 
+/** Mute an alert card (7d / 30d / forever). Muted cards leave the active list;
+ * lifecycle keeps the fingerprint so the alert re-surfaces cleanly on unmute/expiry. */
+export async function muteRadarAlert(
+	scope: RadarScope,
+	fingerprint: string,
+	preset: '7d' | '30d' | 'forever',
+	fetchFn: typeof fetch = fetch
+) {
+	const t = encodeURIComponent(scope.tenantKey);
+	const v = encodeURIComponent(scope.venueSlug);
+	return radarPost<{ ok: boolean }>(
+		scope,
+		`/api/assist/${t}/${v}/alerts/${encodeURIComponent(fingerprint)}/mute`,
+		{ preset },
+		fetchFn
+	);
+}
+
 /** Delete a goal (panel card action). Scoped by the token's venue on radar's side. */
 export async function deleteRadarGoal(
 	scope: RadarScope,

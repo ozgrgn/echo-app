@@ -18,7 +18,8 @@ import {
 	listRadarThreads,
 	setRadarGoal,
 	previewRadarGoal,
-	deleteRadarGoal
+	deleteRadarGoal,
+	muteRadarAlert
 } from '$lib/server/radarApi';
 import type { RadarScope, RadarAlertCard } from '$lib/server/radarApi';
 import type { RequestHandler } from './$types';
@@ -96,8 +97,22 @@ export const POST: RequestHandler = async ({ request, locals, fetch }) => {
 
 	const body = await request.json().catch(() => null);
 	const action = body?.action;
-	if (!body || !['setGoal', 'previewGoal', 'deleteGoal'].includes(action))
+	if (!body || !['setGoal', 'previewGoal', 'deleteGoal', 'muteAlert'].includes(action))
 		throw error(400, 'Unknown action');
+
+	if (action === 'muteAlert') {
+		const fingerprint = String(body.fingerprint ?? '');
+		const preset = String(body.preset ?? '');
+		if (!fingerprint) throw error(400, 'fingerprint required');
+		if (!['7d', '30d', 'forever'].includes(preset)) throw error(400, 'preset: 7d | 30d | forever');
+		try {
+			return json(await muteRadarAlert(scope, fingerprint, preset as '7d' | '30d' | 'forever', fetch));
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'Uyarı susturulamadı';
+			const m = /\b(4\d\d|5\d\d)\b/.exec(msg);
+			throw error(m ? Number(m[1]) : 502, msg);
+		}
+	}
 
 	if (action === 'deleteGoal') {
 		const goalId = String(body.goalId ?? '');

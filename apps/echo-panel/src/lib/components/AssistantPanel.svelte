@@ -5,7 +5,7 @@
   scope header · thread tabs · daily brief · stream of active topics · composer.
 -->
 <script lang="ts">
-	import { Sparkles, Ellipsis, Plus, ArrowUp, GitCompare, Bell, Target, MessagesSquare, ListTodo, TrendingDown, TrendingUp, Minus, Pencil, Trash2 } from '@lucide/svelte';
+	import { Sparkles, Ellipsis, Plus, ArrowUp, GitCompare, Bell, BellOff, Target, MessagesSquare, ListTodo, TrendingDown, TrendingUp, Minus, Pencil, Trash2 } from '@lucide/svelte';
 	import { osState } from '$lib/stores/osState.svelte';
 	import { MOCK_THREADS, MOCK_BRIEF, MOCK_STREAM, type ThreadStatus } from '$lib/mock/assistant';
 	import TalkwoMark from './TalkwoMark.svelte';
@@ -329,6 +329,25 @@
 		}
 	}
 
+	// Mute an alert (P3, radar preset contract: 7d | 30d | forever). The card leaves
+	// the active list on success — radar's lifecycle keeps the fingerprint, so the
+	// alert resurfaces cleanly when the mute expires.
+	let muteOpen = $state<string | null>(null); // fingerprint whose preset menu is open
+	async function muteAlert(fingerprint: string, preset: '7d' | '30d' | 'forever') {
+		muteOpen = null;
+		try {
+			const res = await fetch('/api/agenda', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'muteAlert', fingerprint, preset })
+			});
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			alerts = alerts.filter((a) => a.fingerprint !== fingerprint);
+		} catch {
+			loadError = 'Uyarı susturulamadı';
+		}
+	}
+
 	// Generic date-extension chips on the assessment itself (owner, 2026-07-17):
 	// bump the deadline and re-assess in one tap — the verdict recomputes with the
 	// new window, no trip back up to the form.
@@ -516,12 +535,22 @@
 			{:else}
 				<div class="flex flex-col gap-2.5">
 					{#each alerts as a (a.fingerprint)}
-						<div class="rounded-xl border border-border bg-surface-1 p-3 {a.severity === 'critical' ? 'border-l-2 border-l-danger' : ''}">
+						<div class="group rounded-xl border border-border bg-surface-1 p-3 {a.severity === 'critical' ? 'border-l-2 border-l-danger' : ''}">
 							<div class="flex items-start gap-2">
 								<span class="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase {sevChip(a.severity)}">{sevLabel(a.severity)}</span>
 								{#if (a.sendCount ?? 1) > 1}
 									<span class="rounded-full bg-surface-2 px-1.5 py-0.5 text-[9px] font-bold text-text-3">{a.sendCount}×</span>
 								{/if}
+								<span class="ml-auto flex items-center gap-1">
+									{#if muteOpen === a.fingerprint}
+										<button onclick={() => muteAlert(a.fingerprint, '7d')} class="rounded-full border border-border px-1.5 py-0.5 text-[9.5px] font-semibold text-text-2 hover:border-text-3 hover:text-text-1">7g</button>
+										<button onclick={() => muteAlert(a.fingerprint, '30d')} class="rounded-full border border-border px-1.5 py-0.5 text-[9.5px] font-semibold text-text-2 hover:border-text-3 hover:text-text-1">30g</button>
+										<button onclick={() => muteAlert(a.fingerprint, 'forever')} class="rounded-full border border-border px-1.5 py-0.5 text-[9.5px] font-semibold text-text-2 hover:border-danger hover:text-danger">kalıcı</button>
+										<button onclick={() => (muteOpen = null)} class="rounded-md p-0.5 text-text-3 hover:text-text-1" title="Vazgeç">×</button>
+									{:else}
+										<button onclick={() => (muteOpen = a.fingerprint)} title="Sustur" class="rounded-md p-1 text-text-3 opacity-0 transition-opacity hover:bg-surface-2 hover:text-text-1 group-hover:opacity-100"><BellOff size={12} /></button>
+									{/if}
+								</span>
 							</div>
 							<p class="mt-1.5 text-[12.5px] font-bold leading-snug text-text-1">{a.title}</p>
 							{#if a.detail}
