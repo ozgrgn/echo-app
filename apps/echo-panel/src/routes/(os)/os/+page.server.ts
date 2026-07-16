@@ -75,22 +75,31 @@ export const load: PageServerLoad = async (event) => {
 	// failure 404 the whole lens — the card renders its empty state instead. (It used
 	// to degrade to a MOCK breakdown: a transient backend error would silently show a
 	// real tenant fabricated per-platform numbers. Honest absence beats invented data.)
-	const [b, responseStats] = await Promise.all([
-		api.getOsBundle(venueSlug, {
-			lens: 'genel',
-			window: w,
-			period: requestPeriod,
-			chartDaily: chart.daily,
-			chartFrom: chart.from
-		}),
+	const [bundleRes, responseStats] = await Promise.all([
+		// A venue with no analyzed reviews yet (a freshly-onboarded owned tenant whose
+		// harvest hasn't produced scores) makes getOsBundle 404. That's NOT an error to
+		// crash the page on — the venue simply has no data yet. Catch it and fall through
+		// to the empty state below, so the panel says "henüz veri yok" instead of a 500.
+		api
+			.getOsBundle(venueSlug, {
+				lens: 'genel',
+				window: w,
+				period: requestPeriod,
+				chartDaily: chart.daily,
+				chartFrom: chart.from
+			})
+			.catch(() => null),
 		// Same window as everything else on the page, so the card's rows and the
 		// headline "%X" beside them count the same universe of reviews.
 		api.getResponseStats(venueSlug, undefined, w).catch(() => null)
 	]);
 
-	// The bundle 404s when there's no snapshot, so a 200 always carries a blended
-	// score. Narrow the type (and guard the edge case) before handing it to the page.
-	if (!b.blended) throw error(404, 'No score snapshot for this venue');
+	// No bundle or no blended score → the venue has no analyzed reviews yet. Return a
+	// noData flag (not a thrown error) so the page renders an honest empty state.
+	if (!bundleRes || !bundleRes.blended) {
+		return { noData: true, venueName: event.locals.session?.venueName ?? venueSlug, window };
+	}
+	const b = bundleRes;
 
 	// Market benchmark = the REAL mean of the competitors' own response rates (their
 	// snapshots carry responseStats, same can't-reply exclusions as our venue). It was

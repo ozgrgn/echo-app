@@ -32,7 +32,10 @@
 	} from '$lib/mock/os';
 
 	let { data } = $props();
-	const hs = $derived(data.hotelScore);
+	// When the venue has no analyzed reviews yet the loader returns { noData: true } and no
+	// hotelScore — render the empty state below and never touch the score-derived values.
+	// hs is guarded so any lazily-evaluated derived doesn't crash before the {#if} gate.
+	const hs = $derived(data.hotelScore!);
 
 	// ── EXPERIMENT (2026-07, revertible): "Kategori hareketi" shows RAW positive/
 	// negative mention counts + a split green/red ratio bar + the 30-day (pure-aspect)
@@ -134,7 +137,7 @@
 	};
 
 	const platforms = $derived<OsPlatform[]>(
-		data.channels.map((c) => {
+		(data.channels ?? []).map((c) => {
 			const label = PLATFORM_LABEL[c.platform] ?? c.platform;
 			const native = c.score.nativeStarRating;
 			const max = c.score.nativeStarMax;
@@ -160,8 +163,8 @@
 	const responseRatePct = $derived(Math.round(hs.responseStats.rate * 100));
 	// Market average GPI across competitors → derive RPI + gap when present.
 	const competitorAvg = $derived(
-		data.competitors.length > 0
-			? data.competitors.reduce((s, c) => s + c.gpi, 0) / data.competitors.length
+		(data.competitors ?? []).length > 0
+			? (data.competitors ?? []).reduce((s, c) => s + c.gpi, 0) / (data.competitors ?? []).length
 			: null
 	);
 	const rpiValue = $derived(
@@ -289,6 +292,20 @@
 	);
 </script>
 
+{#if data.noData}
+	<!-- Freshly-onboarded venue: harvest hasn't produced analyzed reviews yet. Honest empty
+	     state instead of a 500 — the scores appear once ABSA analyses the first reviews. -->
+	<div class="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
+		<div class="grid h-14 w-14 place-items-center rounded-2xl bg-surface-2">
+			<Activity size={26} class="text-text-3" strokeWidth={2} />
+		</div>
+		<div class="text-lg font-extrabold tracking-tight text-text-1">Henüz analizli yorum yok</div>
+		<p class="max-w-md text-sm text-text-3">
+			<b class="text-text-2">{data.venueName}</b> için yorumlar toplanıyor. İlk yorumlar analiz
+			edildikçe GPI, platform ve departman skorları burada görünecek.
+		</p>
+	</div>
+{:else}
 <!-- ── Venue hero: neutral band, same skeleton as PlatformHero so lenses align ── -->
 <div class="mb-3.5 flex flex-wrap items-center gap-5 rounded-[18px] border border-border bg-surface-1 p-5 shadow-card">
 	{#if hs.logoUrl}
@@ -356,7 +373,7 @@
 			label="RPI"
 			value={rpiValue?.toFixed(1) ?? '—'}
 			tone={rpiValue !== null ? (rpiValue >= 100 ? 'success' : 'warning') : 'neutral'}
-			caption={competitorAvg !== null ? `${data.competitors.length} rakip · ort ${competitorAvg.toFixed(1)}` : 'rakip endeksi'}
+			caption={competitorAvg !== null ? `${(data.competitors ?? []).length} rakip · ort ${competitorAvg.toFixed(1)}` : 'rakip endeksi'}
 		/>
 	{/if}
 	<StatTile
@@ -495,3 +512,4 @@
 		</div>
 	{/if}
 </SectionCard>
+{/if}
