@@ -122,6 +122,14 @@ export interface HotelScore {
   venueName: string;
   period: string;          // 'YYYY-MM' or 'YYYY-QN'
   avgStarRating: number;   // average OTA star rating (1–5)
+  /** DASHBOARD-facing OTA star (1–5), silent reviews included; falls back to avgStarRating. */
+  otaStarRating?: number;
+  /** DASHBOARD-facing total review count (silent included); the "339 yorum" number. */
+  otaReviewCount?: number;
+  /** PER-PLATFORM: native star in the platform's own scale (Booking /10, HC /6). */
+  nativeStarRating?: number;
+  /** Top of the native scale (5 | 6 | 10) for nativeStarRating. */
+  nativeStarMax?: number;
   // Overall polarity-based aspect score across inGpi categories (0–100 | null)
   aspectScore: number | null;
   // Headline GPI shown to users: 0.70×normalizedRating + 0.30×aspectScore

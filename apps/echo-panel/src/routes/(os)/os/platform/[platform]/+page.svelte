@@ -178,21 +178,22 @@
 	}
 
 	// Real categories sorted by score (worst first feeds the opportunity list).
+	// aspectScore = pure-aspect scale, consistent with GPI (GPI_SAF_ASPECT_PLAN.md).
 	const categories = $derived(
 		[...ps.categoryScores]
 			.sort((a, b) => b.mentionCount - a.mentionCount)
-			.map((cs) => ({ label: CATEGORIES[cs.category].label, score: cs.headlineScore, trend: cs.trend }))
+			.map((cs) => ({ label: CATEGORIES[cs.category].label, score: cs.aspectScore ?? 0, trend: cs.trend }))
 	);
 
 	// "Önce neyi düzelt" — lowest-score × highest-mention = highest leverage.
 	// lift is a [MOCK→radar] heuristic placeholder (real leverage math is radar's).
 	const opportunities = $derived(
 		[...ps.categoryScores]
-			.filter((cs) => cs.mentionCount > 0)
+			.filter((cs) => cs.mentionCount > 0 && cs.aspectScore != null)
 			.map((cs) => ({
 				cs,
-				// crude leverage proxy: how far below 85 × mention weight
-				leverage: (85 - cs.headlineScore) * Math.log10(cs.mentionCount + 1)
+				// crude leverage proxy: how far below the 85 target × mention weight (aspect scale)
+				leverage: (85 - (cs.aspectScore ?? 0)) * Math.log10(cs.mentionCount + 1)
 			}))
 			.sort((a, b) => b.leverage - a.leverage)
 			.slice(0, 3)
@@ -200,7 +201,7 @@
 				rank: i + 1,
 				label: CATEGORIES[x.cs.category].label,
 				mentions: x.cs.mentionCount,
-				score: x.cs.headlineScore,
+				score: x.cs.aspectScore ?? 0,
 				lift: `+${(x.leverage / 10).toFixed(1)}`
 			}))
 	);

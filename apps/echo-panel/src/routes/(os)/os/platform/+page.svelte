@@ -78,7 +78,8 @@
 				const cells: Record<string, Cell> = {};
 				for (const ch of channels) {
 					const cs = ch.score.categoryScores.find((c) => c.category === meta.key);
-					cells[ch.platform] = { score: cs && cs.mentionCount > 0 ? cs.headlineScore : null };
+					// aspectScore = pure-aspect scale, consistent with GPI (GPI_SAF_ASPECT_PLAN.md).
+					cells[ch.platform] = { score: cs && cs.mentionCount > 0 ? cs.aspectScore : null };
 				}
 				const anyScored = Object.values(cells).some((c) => c.score != null);
 				return { key: meta.key, label: meta.label, cells, anyScored };

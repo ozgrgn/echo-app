@@ -119,24 +119,30 @@
 		gpiZone(hs.gpi) === 'green' ? 'text-success' : gpiZone(hs.gpi) === 'yellow' ? 'text-warning' : 'text-danger'
 	);
 
-	// Platform list — REAL GPI per channel from data.channels. Static meta (label,
-	// brand color via key, display scale) lives here; the score is the real GPI.
+	// Platform list from data.channels. The BIG number on the right is the platform's NATIVE
+	// star (its own scale — Booking 7.5/10, HolidayCheck 5.5/6, TA/Google /5), i.e. what that
+	// OTA actually shows the guest. GPI (pure-aspect content score) moves to the sub line, so
+	// the row carries both universes: market star (headline) + content GPI (sub).
 	// trend is [MOCK→radar] until the series endpoint lands (single period → flat).
-	const PLATFORM_META: Record<string, { label: string; scale: string }> = {
-		tripadvisor: { label: 'TripAdvisor', scale: '/100' },
-		booking: { label: 'Booking', scale: '/100' },
-		google: { label: 'Google', scale: '/100' },
-		holidaycheck: { label: 'HolidayCheck', scale: '/100' }
+	const PLATFORM_LABEL: Record<string, string> = {
+		tripadvisor: 'TripAdvisor',
+		booking: 'Booking',
+		google: 'Google',
+		holidaycheck: 'HolidayCheck'
 	};
 
 	const platforms = $derived<OsPlatform[]>(
 		data.channels.map((c) => {
-			const meta = PLATFORM_META[c.platform] ?? { label: c.platform, scale: '/100' };
+			const label = PLATFORM_LABEL[c.platform] ?? c.platform;
+			const native = c.score.nativeStarRating;
+			const max = c.score.nativeStarMax;
+			// Native star headline when we have it; fall back to GPI/100 on pre-native snapshots.
+			const hasNative = native != null && max != null;
 			return {
 				key: c.platform as OsPlatform['key'],
-				label: meta.label,
-				score: c.score.gpi.toFixed(1),
-				scale: meta.scale,
+				label,
+				score: hasNative ? native.toFixed(1) : c.score.gpi.toFixed(1),
+				scale: hasNative ? `/${max}` : '/100',
 				sub: `${c.score.reviewCount} yorum · GPI ${c.score.gpi.toFixed(1)}`,
 				trend: 'flat', // [MOCK→radar] — no series yet (single period)
 				enters: true
@@ -186,7 +192,7 @@
 			.sort((a, b) => Math.abs(b.trend) - Math.abs(a.trend) || b.mentionCount - a.mentionCount)
 			.map((cs) => ({
 				label: CATEGORIES[cs.category].label,
-				score: cs.headlineScore,
+				score: cs.aspectScore ?? 0, // pure-aspect scale, consistent with GPI (GPI_SAF_ASPECT_PLAN.md)
 				trend: cs.trend,
 				// Raw positive/negative mention counts (neutral excluded) for the
 				// sentiment-ratio bar. strong buckets fold into their side.

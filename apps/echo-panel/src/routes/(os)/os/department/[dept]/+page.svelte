@@ -94,7 +94,7 @@
 	});
 
 	const score = $derived(detail?.score ?? 0);
-	const scoreColor = $derived(score >= 70 ? 'text-success' : score >= 55 ? 'text-warning' : 'text-danger');
+	const scoreColor = $derived(score >= 65 ? 'text-success' : score >= 55 ? 'text-warning' : 'text-danger');
 
 	// Real trend series → chart. Filter out null points (periods with no mentions)
 	// in ONE pass so scores and their period labels stay aligned; need ≥2 real
@@ -151,7 +151,7 @@
 	// Opportunities: lowest-score × highest-mention among this dept's categories.
 	const opportunities = $derived(
 		[...breakdown]
-			.map((b) => ({ b, s: b.score ?? b.headlineScore ?? null }))
+			.map((b) => ({ b, s: b.score ?? null }))
 			.filter((x) => x.b.mentionCount > 0 && x.s != null)
 			.map((x) => ({ b: x.b, s: x.s as number, leverage: (85 - (x.s as number)) * Math.log10(x.b.mentionCount + 1) }))
 			.sort((a, b) => b.leverage - a.leverage)
@@ -384,8 +384,8 @@
 			{:else}
 				<div class="flex flex-col">
 					{#each breakdown as b (b.granular_key ?? b.category)}
-						{@const bScore = b.score ?? b.headlineScore ?? null}
-						{@const tone = bScore == null ? 'text-text-3' : bScore >= 70 ? 'text-success' : bScore >= 55 ? 'text-warning' : 'text-danger'}
+						{@const bScore = b.score ?? null}
+						{@const tone = bScore == null ? 'text-text-3' : bScore >= 65 ? 'text-success' : bScore >= 55 ? 'text-warning' : 'text-danger'}
 						{@const rowKey = b.granular_key ?? b.subcategory}
 						{@const scoped = mentionScope?.key === rowKey}
 						<div class="grid grid-cols-[1fr_auto] items-center gap-3 border-t border-surface-2 py-2.5 first:border-t-0">
