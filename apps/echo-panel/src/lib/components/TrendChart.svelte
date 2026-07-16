@@ -47,7 +47,11 @@
 		pointNotes = []
 	}: Props = $props();
 
-	const W = 740;
+	// Measured render width of the wrapper → viewBox width. Keeping 1 SVG unit = 1
+	// CSS px means the chart fills the container edge-to-edge (no letterbox side-gaps)
+	// and text/dots stay pixel-consistent at any width. Falls back to 740 pre-layout.
+	let boxW = $state(740);
+	const W = $derived(Math.max(320, boxW));
 	const H = $derived(height);
 	const pL = 38, pR = 20, pT = 16, pB = 28;
 
@@ -123,9 +127,17 @@
 
 	function onMove(e: PointerEvent) {
 		if (!svgEl || actual.length === 0) return;
-		const rect = svgEl.getBoundingClientRect();
-		// Map cursor px → SVG user units (viewBox is 0..W wide regardless of render size).
-		const svgX = ((e.clientX - rect.left) / rect.width) * W;
+		// Map cursor px → SVG user units using the browser's own screen→user matrix.
+		// This is correct for any viewBox / preserveAspectRatio / render width — the
+		// old getBoundingClientRect ratio assumed the viewBox filled the box edge-to-
+		// edge, which is false under "xMidYMid meet" (content is letterboxed), so the
+		// mapping drifted further right the narrower the container got.
+		const ctm = svgEl.getScreenCTM();
+		if (!ctm) return; // not laid out yet — skip this move
+		const pt = svgEl.createSVGPoint();
+		pt.x = e.clientX;
+		pt.y = e.clientY;
+		const svgX = pt.matrixTransform(ctm.inverse()).x;
 		// Snap to nearest actual index by comparing against each point's X().
 		let best = 0, bestD = Infinity;
 		for (let i = 0; i < actual.length; i++) {
@@ -217,10 +229,13 @@
 	const ttY = $derived(hoverPt ? Math.max(pT, hoverPt[1] - ttH - 8) : 0);
 </script>
 
+<!-- Wrapper measures the available width; the SVG's viewBox tracks it 1:1 so the
+     chart fills edge-to-edge instead of letterboxing to a fixed 740-wide box. -->
+<div bind:clientWidth={boxW} style="width:100%">
 <svg
 	bind:this={svgEl}
 	viewBox="0 0 {W} {H}"
-	preserveAspectRatio="xMidYMid meet"
+	preserveAspectRatio="none"
 	style="width:100%;height:{height}px;max-height:{height}px;display:block"
 	role="img"
 	onpointermove={onMove}
@@ -293,6 +308,7 @@
 		</g>
 	{/if}
 </svg>
+</div>
 
 <style>
 	/* Line draws itself left→right on mount. pathLength=1 normalizes any path

@@ -25,7 +25,11 @@
 	}
 	let { series, periods = [], daily = false, height = 230 }: Props = $props();
 
-	const W = 760;
+	// Measured render width → viewBox width (1 SVG unit = 1 CSS px), so the chart
+	// fills its container edge-to-edge instead of letterboxing to a fixed 760-wide
+	// box and leaving empty side-gaps. Falls back to 760 before first layout.
+	let boxW = $state(760);
+	const W = $derived(Math.max(320, boxW));
 	const H = $derived(height);
 	const pL = 32, pR = 14, pT = 14, pB = 30;
 
@@ -103,8 +107,15 @@
 
 	function onMove(e: PointerEvent) {
 		if (!svgEl || n === 0) return;
-		const rect = svgEl.getBoundingClientRect();
-		const svgX = ((e.clientX - rect.left) / rect.width) * W;
+		// Map cursor px → SVG user units via the browser's screen→user matrix, so the
+		// mapping stays correct under "xMidYMid meet" letterboxing at any render width.
+		// (The old getBoundingClientRect ratio drifted right as the container narrowed.)
+		const ctm = svgEl.getScreenCTM();
+		if (!ctm) return; // not laid out yet — skip this move
+		const pt = svgEl.createSVGPoint();
+		pt.x = e.clientX;
+		pt.y = e.clientY;
+		const svgX = pt.matrixTransform(ctm.inverse()).x;
 		let best = 0, bestD = Infinity;
 		for (let i = 0; i < n; i++) {
 			const d = Math.abs(X(i) - svgX);
@@ -156,7 +167,10 @@
 	const ttY = $derived(pT + 4);
 </script>
 
-<svg bind:this={svgEl} viewBox="0 0 {W} {H}" class="w-full" style="height:{H}px" role="img" aria-label="Platform GPI karşılaştırması" onpointermove={onMove} onpointerleave={onLeave}>
+<!-- Wrapper measures available width; viewBox tracks it 1:1 so the chart fills
+     edge-to-edge instead of letterboxing to a fixed 760-wide box. -->
+<div bind:clientWidth={boxW} style="width:100%">
+<svg bind:this={svgEl} viewBox="0 0 {W} {H}" preserveAspectRatio="none" class="w-full" style="height:{H}px" role="img" aria-label="Platform GPI karşılaştırması" onpointermove={onMove} onpointerleave={onLeave}>
 	<defs>
 		<linearGradient id="{uid}-fill" x1="0" y1="0" x2="0" y2="1">
 			<stop offset="0%" stop-color="var(--color-brand)" stop-opacity="0.18" />
@@ -229,6 +243,7 @@
 		</g>
 	{/if}
 </svg>
+</div>
 
 <style>
 	.mtc-line {
