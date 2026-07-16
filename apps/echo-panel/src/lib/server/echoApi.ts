@@ -51,6 +51,8 @@ import {
 	listAllVenues,
 	listWatches,
 	getHarvestRuns,
+	listEchoUsers,
+	listEchoUserVenues,
 	type FetchOpts,
 	type ReviewFilters,
 	type MentionFilters,
@@ -181,7 +183,9 @@ export function makeServerApi(event: RequestEvent) {
 		// ── admin (superadmin surface) ──
 		listAllVenues: () => withRetry((t) => listAllVenues(t, fo())),
 		listWatches: (ownerVenueId?: string) => withRetry((t) => listWatches(t, ownerVenueId, fo())),
-		getHarvestRuns: (days?: number) => withRetry((t) => getHarvestRuns(t, days, fo()))
+		getHarvestRuns: (days?: number) => withRetry((t) => getHarvestRuns(t, days, fo())),
+		listEchoUsers: (phone: string) => withRetry((t) => listEchoUsers(phone, t, fo())),
+		listEchoUserVenues: () => withRetry((t) => listEchoUserVenues(t, fo()))
 	};
 }
 

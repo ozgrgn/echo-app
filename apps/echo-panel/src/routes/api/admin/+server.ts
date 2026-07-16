@@ -15,6 +15,8 @@ import {
 	patchVenueSeasons,
 	createWatch,
 	deleteWatch,
+	setEchoUserAccess,
+	createEchoUser,
 	type PlatformRefs
 } from '@talkwo/echo-ui';
 import type { RequestHandler } from './$types';
@@ -62,6 +64,21 @@ export const POST: RequestHandler = async ({ request, locals, fetch }) => {
 				break;
 			case 'deleteWatch':
 				await deleteWatch(body.ownerVenueId as string, body.targetVenueId as string, token, opts);
+				break;
+			case 'setEchoUserAccess':
+				await setEchoUserAccess(
+					body.staffId as string,
+					body.access as { enabled: boolean; scope?: 'venue' | 'department' },
+					token,
+					opts
+				);
+				break;
+			case 'createEchoUser':
+				await createEchoUser(
+					body.payload as Parameters<typeof createEchoUser>[0],
+					token,
+					opts
+				);
 				break;
 			default:
 				throw error(400, `Unknown action: ${action}`);

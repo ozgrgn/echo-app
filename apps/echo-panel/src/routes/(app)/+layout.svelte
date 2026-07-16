@@ -85,6 +85,7 @@
 		requires: () => isSuperadmin,
 		items: [
 			{ href: '/settings/owner-routing', icon: '🧭', label: 'Yönlendirme' },
+			{ href: '/admin/users', icon: '👥', label: 'Kullanıcılar' },
 			{ href: '/admin/harvest', icon: '📡', label: 'Harvest' },
 			{ href: '/admin', icon: '🛠️', label: 'Venue / Platform' }
 		]

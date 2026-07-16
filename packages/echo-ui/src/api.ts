@@ -398,6 +398,84 @@ export function createWatch(ownerVenueId: string, targetVenueId: string, token: 
   return adminWrite('/admin/watches', 'POST', { ownerVenueId, targetVenueId }, token, opts);
 }
 
+// ─── Superadmin: ECHO user access (Yönetim → Kullanıcılar) ────────────────────
+// Who may open ECHO. Identity lives in ops-engine Staff; echo-backend proxies
+// (/v1/admin/users ↔ ops-engine /echo/* facade) and stores nothing.
+
+/** One ops-engine Staff row (a person = one row per venue) + its echo gate. */
+export interface EchoUserRecord {
+  staffId: string;
+  tenantKey: string; // ops-engine tenantKey (display only — NOT echo's)
+  venueId: string | null;
+  slug: string | null;
+  venueName: string | null;
+  name: string;
+  role: string;
+  department: string | null;
+  phone: string | null;
+  echo_access: { enabled: boolean; scope: 'venue' | 'department' };
+}
+
+/** An ops-engine registered venue (create-form dropdown). */
+export interface OpsVenueOption {
+  tenantKey: string;
+  venueId: string;
+  slug: string;
+  name: string;
+}
+
+/** Look a person up by phone — every active staff row they hold. */
+export async function listEchoUsers(phone: string, token: string, opts?: FetchOpts): Promise<EchoUserRecord[]> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/admin/users?phone=${encodeURIComponent(phone)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const problem = await res.json().catch(() => ({ detail: 'Kullanıcı sorgusu başarısız' }));
+    throw new Error(problem.detail || `user lookup failed: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.staff ?? [];
+}
+
+/** Registered venues for the create form. */
+export async function listEchoUserVenues(token: string, opts?: FetchOpts): Promise<OpsVenueOption[]> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/admin/users/venues`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`venue list failed: ${res.status}`);
+  const data = await res.json();
+  return data.venues ?? [];
+}
+
+/** Grant/revoke/change-scope ECHO access on one staff row. */
+export function setEchoUserAccess(
+  staffId: string,
+  access: { enabled: boolean; scope?: 'venue' | 'department' },
+  token: string,
+  opts?: FetchOpts,
+): Promise<void> {
+  return adminWrite(`/admin/users/${encodeURIComponent(staffId)}/access`, 'POST', access, token, opts);
+}
+
+/** Create a minimal echo-only staff row (standalone tenants without Hoops). */
+export function createEchoUser(
+  payload: {
+    tenantKey: string;
+    venueId: string;
+    name: string;
+    role: string;
+    department: string;
+    phone?: string;
+    scope?: 'venue' | 'department';
+  },
+  token: string,
+  opts?: FetchOpts,
+): Promise<void> {
+  return adminWrite('/admin/users', 'POST', payload, token, opts);
+}
+
 /**
  * One slice of harvest history. `fetched` is what we pulled from the source (cost);
  * `inserted` is what was genuinely new (value). Read them together — a big gap means
