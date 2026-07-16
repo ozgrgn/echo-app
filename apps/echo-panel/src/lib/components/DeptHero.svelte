@@ -6,15 +6,14 @@
 <script lang="ts">
 	import type { DeptDetail } from '$lib/mock/departments';
 	import * as icons from '@lucide/svelte';
+	import { zoneClass } from '@talkwo/echo-core';
 
 	interface Props {
 		dept: DeptDetail;
 	}
 	let { dept }: Props = $props();
 
-	const scoreColor = $derived(
-		dept.score >= 70 ? 'text-success' : dept.score >= 55 ? 'text-warning' : 'text-danger'
-	);
+	const scoreColor = $derived(zoneClass(dept.score));
 
 	// Resolve the lucide icon component by name (e.g. 'bed-double' → BedDouble).
 	const pascal = (s: string) => s.split('-').map((p) => p[0].toUpperCase() + p.slice(1)).join('');

@@ -6,6 +6,7 @@
 <script lang="ts">
 	import type { OsDept } from '$lib/mock/os';
 	import { ArrowUp, ArrowDown, Minus } from '@lucide/svelte';
+	import { zoneClass } from '@talkwo/echo-core';
 
 	interface Props {
 		dept: OsDept;
@@ -16,11 +17,7 @@
 
 	// A null score means "not enough mentions to score" — render it neutral ('—'),
 	// never as a red 0: a department with insufficient data is unknown, not failing.
-	const scoreColor = $derived(
-		dept.score == null
-			? 'text-text-3'
-			: dept.score >= 70 ? 'text-success' : dept.score >= 55 ? 'text-warning' : 'text-danger'
-	);
+	const scoreColor = $derived(zoneClass(dept.score));
 	const TrendIcon = $derived(dept.trend === 'up' ? ArrowUp : dept.trend === 'down' ? ArrowDown : Minus);
 	const arrowClass = $derived(
 		dept.trend === 'up' ? 'text-success' : dept.trend === 'down' ? 'text-danger' : 'text-text-3'

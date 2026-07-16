@@ -41,11 +41,20 @@
 		></span>
 	</span>
 
-	<!-- Raw counts: pos ✓ · neg ✗ -->
-	<span class="flex w-[72px] justify-end gap-1 text-xs font-bold tabular-nums">
-		<span class="text-success">{pos}</span>
-		<span class="text-text-3">·</span>
-		<span class="text-danger">{neg}</span>
+	<!-- Positive share as a % — the "how satisfied" number the bar visualizes; muted when
+	     there are no scored mentions (nothing to divide). Centred in its box so the spacing to
+	     the bar and to the counts reads even. -->
+	<span class="w-10 text-center text-xs font-bold tabular-nums {total > 0 ? 'text-text-1' : 'text-text-3'}">
+		{total > 0 ? `%${Math.round(posPct)}` : '—'}
+	</span>
+
+	<!-- Raw counts pos · neg — aligned on the centre dot so it sits on one vertical line
+	     across every row (pos right-aligned, neg left-aligned, dot fixed), regardless of digit
+	     count (494·22 vs 7·10 line up on the ·). -->
+	<span class="flex w-[80px] items-center pl-2 text-xs font-bold tabular-nums">
+		<span class="flex-1 text-right text-success">{pos}</span>
+		<span class="px-1 text-text-3">·</span>
+		<span class="flex-1 text-left text-danger">{neg}</span>
 	</span>
 
 	<span class="flex w-5 justify-end {arrowClass}"><TrendIcon size={13} strokeWidth={2.5} /></span>

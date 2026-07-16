@@ -8,7 +8,7 @@
 -->
 <script lang="ts">
 	import type { ImpactResponse, NegativeConcentrationRow } from '@talkwo/echo-ui';
-	import { CATEGORIES } from '@talkwo/echo-core';
+	import { CATEGORIES, zoneClass } from '@talkwo/echo-core';
 	import { page } from '$app/state';
 	import { parseOsWindow } from '$lib/config/window';
 	import { TrendingUp, ChevronDown, CircleAlert } from '@lucide/svelte';
@@ -27,12 +27,7 @@
 	function label(category: string, fallback: string): string {
 		return (CATEGORIES as Record<string, { label: string }>)[category]?.label ?? fallback;
 	}
-	function scoreTone(s: number | null): string {
-		if (s == null) return 'text-text-3';
-		if (s >= 70) return 'text-success';
-		if (s >= 55) return 'text-warning';
-		return 'text-danger';
-	}
+	const scoreTone = zoneClass;
 
 	// ── Per-category drill-down ("En çok negatif nerede yoğunlaşmış?") ──────────
 	// Clicking a category row expands its granular negative-concentration (Pareto,

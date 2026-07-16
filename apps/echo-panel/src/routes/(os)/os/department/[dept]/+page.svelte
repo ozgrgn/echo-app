@@ -32,7 +32,7 @@
 		type MentionRow,
 		type ResponseStats
 	} from '@talkwo/echo-ui';
-	import { CATEGORIES, getSubcategoryLabel, type CategoryKey } from '@talkwo/echo-core';
+	import { CATEGORIES, getSubcategoryLabel, zoneClass, type CategoryKey } from '@talkwo/echo-core';
 	import {
 		TrendingDown, TrendingUp, ListTree, CircleAlert, Rocket,
 		ArrowLeft, MessageCircleReply, MessageSquare, History, X
@@ -94,7 +94,7 @@
 	});
 
 	const score = $derived(detail?.score ?? 0);
-	const scoreColor = $derived(score >= 65 ? 'text-success' : score >= 55 ? 'text-warning' : 'text-danger');
+	const scoreColor = $derived(zoneClass(score));
 
 	// Real trend series → chart. Filter out null points (periods with no mentions)
 	// in ONE pass so scores and their period labels stay aligned; need ≥2 real
@@ -385,7 +385,7 @@
 				<div class="flex flex-col">
 					{#each breakdown as b (b.granular_key ?? b.category)}
 						{@const bScore = b.score ?? null}
-						{@const tone = bScore == null ? 'text-text-3' : bScore >= 65 ? 'text-success' : bScore >= 55 ? 'text-warning' : 'text-danger'}
+						{@const tone = zoneClass(bScore)}
 						{@const rowKey = b.granular_key ?? b.subcategory}
 						{@const scoped = mentionScope?.key === rowKey}
 						<div class="grid grid-cols-[1fr_auto] items-center gap-3 border-t border-surface-2 py-2.5 first:border-t-0">

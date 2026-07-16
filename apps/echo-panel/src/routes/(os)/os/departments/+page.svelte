@@ -10,6 +10,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { osState } from '$lib/stores/osState.svelte';
+	import { zoneClass, gpiZone } from '@talkwo/echo-core';
 	import { windowParam, parseOsWindow } from '$lib/config/window';
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
@@ -147,7 +148,7 @@
 		</div>
 		<div class="ml-auto flex flex-col items-end">
 			<span class="text-[10.5px] font-bold uppercase tracking-wide text-text-3">Departman Ort.</span>
-			<span class="text-[42px] font-extrabold leading-none tracking-tight {avgScore >= 65 ? 'text-success' : avgScore >= 55 ? 'text-warning' : 'text-danger'}">{avgScore.toFixed(0)}</span>
+			<span class="text-[42px] font-extrabold leading-none tracking-tight {zoneClass(avgScore)}">{avgScore.toFixed(0)}</span>
 		</div>
 	</div>
 
@@ -155,7 +156,7 @@
 	<div class="mb-3.5 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
 		<StatTile
 			label="İyi durumda"
-			value={`${scored.filter((x) => x.score >= 65).length}/${scored.length}`}
+			value={`${scored.filter((x) => gpiZone(x.score) === 'green').length}/${scored.length}`}
 			tone="success"
 			emphasis="primary"
 			caption="skor ≥ 70"

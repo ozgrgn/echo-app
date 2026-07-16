@@ -16,6 +16,7 @@
 <script lang="ts">
 	import { Dialog } from 'bits-ui';
 	import TrendChart from './TrendChart.svelte';
+	import { zoneClass } from '@talkwo/echo-core';
 	import { OS_WINDOW_TABS, type OsWindow } from '$lib/config/window';
 	import { History } from '@lucide/svelte';
 
@@ -104,9 +105,7 @@
 	const ymax = $derived(actual.length ? Math.ceil(Math.max(...actual) + 6) : 100);
 	const totalMentions = $derived(points.reduce((n, p) => n + p.mentions, 0));
 	const last = $derived(scored.length ? scored[scored.length - 1] : null);
-	const lastTone = $derived(
-		last == null ? 'text-text-3' : last.score >= 70 ? 'text-success' : last.score >= 55 ? 'text-warning' : 'text-danger'
-	);
+	const lastTone = $derived(zoneClass(last?.score));
 </script>
 
 <Dialog.Root {open} {onOpenChange}>

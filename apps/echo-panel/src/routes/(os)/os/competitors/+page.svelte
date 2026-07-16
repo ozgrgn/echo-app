@@ -236,7 +236,7 @@
 </SectionCard>
 
 <!-- ── Category heatmap ──────────────────────────────────────────────────── -->
-<SectionCard title="Kategori Bazlı Karşılaştırma" icon={Grid3x3} hint="yeşil ≥65 · sarı 55-64 · kırmızı <55" class="mb-3.5">
+<SectionCard title="Kategori Bazlı Karşılaştırma" icon={Grid3x3} hint="yeşil ≥72 · sarı 62-71 · kırmızı <62" class="mb-3.5">
 	<div class="overflow-x-auto">
 		<table class="min-w-full border-collapse text-sm">
 			<thead>

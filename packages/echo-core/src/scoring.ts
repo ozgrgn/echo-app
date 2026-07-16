@@ -475,16 +475,33 @@ export function computeHeadlineScore(
 
 export type GpiZone = 'green' | 'yellow' | 'red';
 
-// Bands for the PURE-ASPECT scale (2026-07, GPI_SAF_ASPECT_PLAN.md). GPI is no longer the
-// star-anchored headline (~74) — it's the aspect score (venue ~57-71, per-category ~31-73),
-// so the old 85/70 bands painted everything red. New bands, calibrated to the real
-// distribution: ≥65 green (strong), ≥55 yellow (average), <55 red (needs attention). Used
-// for the venue GPI headline AND per-category cells (both aspect-scale). Revisit when the
-// venue mix widens beyond resort hotels (all currently 4★+).
+// Bands for the pure-aspect scale AFTER the linear rescale (2026-07, GPI_SAF_ASPECT_PLAN.md).
+// The rescale (polarityToScore, base 20) lifted scores: venue GPI ~66-73, per-category ~45-91,
+// department ~34-90. The old 85/70 (star-anchored) and interim 65/55 bands both mis-fit; these
+// are ≥72 green / ≥62 yellow / <62 red — calibrated so venue GPI splits into a real upper/lower
+// half (Lago 66 = yellow, "improvable, not a disaster") and categories land ~56/27/17. Used for
+// the venue GPI headline AND per-category cells (both aspect-scale). Kept IN SYNC with the
+// backend echo-core copy. Revisit when the venue mix widens beyond resort hotels (all 4★+).
+/** Green-zone floor on the rescaled aspect scale — also the default GPI TARGET ("reach
+ *  green"), so the goal tracks the band and there's no separate 85 to drift out of scale. */
+export const GPI_GREEN_MIN = 72;
+export const GPI_YELLOW_MIN = 62;
+
 export function gpiZone(gpi: number): GpiZone {
-  if (gpi >= 65) return 'green';
-  if (gpi >= 55) return 'yellow';
+  if (gpi >= GPI_GREEN_MIN) return 'green';
+  if (gpi >= GPI_YELLOW_MIN) return 'yellow';
   return 'red';
+}
+
+/**
+ * Tailwind text-colour class for a score's zone — the SINGLE source panels should use for
+ * score colouring, so a band change (gpiZone) flows everywhere with no per-file hardcoded
+ * thresholds to drift. null (unscored / below MIN_MENTIONS) → muted, never a false red/green.
+ */
+export function zoneClass(score: number | null | undefined): string {
+  if (score == null) return 'text-text-3';
+  const z = gpiZone(score);
+  return z === 'green' ? 'text-success' : z === 'yellow' ? 'text-warning' : 'text-danger';
 }
 
 export function rpiLabel(rpi: number): string {

@@ -5,7 +5,7 @@
   palette. Built from the shared primitives (StatTile/TrendChart/…).
 -->
 <script lang="ts">
-	import { CATEGORIES, gpiZone, getSubcategoryLabel } from '@talkwo/echo-core';
+	import { CATEGORIES, gpiZone, getSubcategoryLabel, GPI_GREEN_MIN } from '@talkwo/echo-core';
 	import { type DepartmentScore } from '@talkwo/echo-ui';
 	import { goto } from '$app/navigation';
 	import { hidesCompetitors, parseOsWindow, windowParam, OS_WINDOW_TABS } from '$lib/config/window';
@@ -53,7 +53,9 @@
 	// against 85: the chart drew one goal line and the "fastest route to target" card was
 	// solving for a different one, on the same screen. Read it from the data so the two
 	// can't drift again.
-	const GPI_TARGET = $derived(data.impact?.target ?? 85);
+	// Target = the green-zone floor ("reach green"), on the rescaled scale — NOT the old 85
+	// (star-anchored era; unreachable now that GPI maxes ~73 → permanent "below target" red).
+	const GPI_TARGET = $derived(data.impact?.target ?? GPI_GREEN_MIN);
 	const historyGpi = $derived((data.history ?? []).map((p) => p.gpi));
 	const trendActual = $derived(historyGpi.length > 0 ? historyGpi : [hs.gpi]);
 	const trendYmin = $derived(Math.floor(Math.min(...trendActual, GPI_TARGET) - 4));
@@ -144,7 +146,10 @@
 				score: hasNative ? native.toFixed(1) : c.score.gpi.toFixed(1),
 				scale: hasNative ? `/${max}` : '/100',
 				sub: `${c.score.reviewCount} yorum · GPI ${c.score.gpi.toFixed(1)}`,
-				trend: 'flat', // [MOCK→radar] — no series yet (single period)
+				// Per-platform 30-day cohort arrow (positive-share shift) — gpiTrend on the
+				// platform snapshot is now that platform's OWN delta, not the venue's. Small
+				// moves (±0.05pp) read as flat to avoid arrow noise. (GPI_SAF_ASPECT_PLAN.md.)
+				trend: (c.score.gpiTrend ?? 0) > 0.05 ? 'up' : (c.score.gpiTrend ?? 0) < -0.05 ? 'down' : 'flat',
 				enters: true
 			};
 		})
@@ -403,7 +408,7 @@
 		{/if}
 	</div>
 
-	<SectionCard title="Platformlar" icon={Globe} hint="tıkla → evren" class="h-full">
+	<SectionCard title="Platformlar" icon={Globe} hint="ok: son 30 gün · tıkla → evren" class="h-full">
 		<div class="-mx-1">
 			{#each platforms as p (p.key)}
 				<PlatformRow platform={p} onenter={enterPlatform} />
@@ -438,7 +443,7 @@
 </div>
 
 <!-- ── Impact analysis: "neyi düzeltirsem GPI artar?" (REAL leverage) ─────── -->
-<SectionCard title="Neyi düzeltirsem GPI artar?" icon={Rocket} hint="gerçek kaldıraç · hedef 85" class="mb-3.5">
+<SectionCard title="Neyi düzeltirsem GPI artar?" icon={Rocket} hint="gerçek kaldıraç · hedef {GPI_TARGET}" class="mb-3.5">
 	<ImpactList impact={data.impact ?? null} />
 </SectionCard>
 
