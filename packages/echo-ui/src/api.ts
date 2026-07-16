@@ -259,6 +259,22 @@ export function patchVenueRefs(venueId: string, refs: PlatformRefs, token: strin
   return adminWrite(`/admin/venues/${encodeURIComponent(venueId)}/refs`, 'PATCH', refs, token, opts);
 }
 
+/** Set a venue's operating seasons (empty array = open year-round). Superadmin. */
+export function patchVenueSeasons(
+  venueId: string,
+  operatingSeasons: { start: string; end: string }[],
+  token: string,
+  opts?: FetchOpts,
+): Promise<void> {
+  return adminWrite(
+    `/admin/venues/${encodeURIComponent(venueId)}/seasons`,
+    'PATCH',
+    { operatingSeasons },
+    token,
+    opts,
+  );
+}
+
 export interface WatchRecord {
   ownerVenueId: string;
   targetVenueId: string;

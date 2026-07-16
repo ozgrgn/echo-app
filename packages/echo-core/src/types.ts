@@ -300,6 +300,8 @@ export interface Venue {
   kind?: 'owned' | 'competitor';  // explicit registry kind (isOwned is derived from this)
   /** Owned venue's selected platforms (propagate to its competitors). */
   watchedPlatforms?: string[];
+  /** Operating windows (ISO date pairs); absent/empty ⇒ open year-round. */
+  operatingSeasons?: { start: string; end: string }[];
   /** Per-platform scraper credentials (URL/locationId) for this venue. */
   platformRefs?: {
     tripadvisor?: { locationId: number; url: string };

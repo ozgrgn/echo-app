@@ -12,6 +12,7 @@ import { json, error } from '@sveltejs/kit';
 import {
 	patchVenuePlatforms,
 	patchVenueRefs,
+	patchVenueSeasons,
 	createWatch,
 	deleteWatch,
 	type PlatformRefs
@@ -47,6 +48,14 @@ export const POST: RequestHandler = async ({ request, locals, fetch }) => {
 				break;
 			case 'patchRefs':
 				await patchVenueRefs(body.venueId as string, body.refs as PlatformRefs, token, opts);
+				break;
+			case 'patchSeasons':
+				await patchVenueSeasons(
+					body.venueId as string,
+					body.operatingSeasons as { start: string; end: string }[],
+					token,
+					opts
+				);
 				break;
 			case 'createWatch':
 				await createWatch(body.ownerVenueId as string, body.targetVenueId as string, token, opts);

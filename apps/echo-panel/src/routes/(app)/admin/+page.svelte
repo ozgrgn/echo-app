@@ -86,6 +86,43 @@
 		}
 	}
 
+	// ── Operating seasons (seasonal resorts) ──────────────────────────────────
+	// ISO date pairs on the venue root; empty list = open year-round. Matching is
+	// year-agnostic downstream (echo scoring + the goal form's "Sezon sonu" preset),
+	// so the year entered here is just a carrier.
+	let seasonsDraft = $state<{ start: string; end: string }[]>([]);
+	$effect(() => {
+		seasonsDraft = structuredClone($state.snapshot(selected?.operatingSeasons ?? []));
+	});
+
+	function addSeason() {
+		seasonsDraft = [...seasonsDraft, { start: '', end: '' }];
+	}
+	function removeSeason(i: number) {
+		seasonsDraft = seasonsDraft.filter((_, x) => x !== i);
+	}
+	async function saveSeasons() {
+		if (!selectedId) return;
+		if (seasonsDraft.some((s) => !s.start || !s.end)) {
+			flash('Eksik tarihli sezon penceresi var');
+			return;
+		}
+		saving = true;
+		try {
+			await postAdmin({
+				action: 'patchSeasons',
+				venueId: selectedId,
+				operatingSeasons: $state.snapshot(seasonsDraft)
+			});
+			flash('Sezon pencereleri kaydedildi');
+			await invalidateAll();
+		} catch (e) {
+			flash('Hata: ' + (e as Error).message);
+		} finally {
+			saving = false;
+		}
+	}
+
 	// ── Per-venue platform refs (URL/ID) editing ──────────────────────────────
 	let refsEditing = $state<string | null>(null); // venueId being edited
 	let refsDraft = $state<PlatformRefs>({});
@@ -241,6 +278,40 @@
 					>
 						Bu venue'nun platform bilgilerini düzenle ({refSummary(selected)})
 					</button>
+				</section>
+
+				<!-- Operating seasons -->
+				<section class="bg-surface-1 border border-border rounded-lg p-5">
+					<header class="flex items-center justify-between mb-3">
+						<div>
+							<h2 class="font-semibold text-text-1">Sezon pencereleri</h2>
+							<p class="text-xs text-text-3">
+								Otelin açık olduğu tarih aralıkları. Boş = yıl boyu açık. Skorlama kapalı ayları
+								boşluk sayar; hedef formundaki "Sezon sonu" düğmesi buradan beslenir.
+							</p>
+						</div>
+						<button
+							class="text-sm bg-brand text-white px-3 py-1.5 rounded-md disabled:opacity-50"
+							onclick={saveSeasons}
+							disabled={saving}
+						>
+							Kaydet
+						</button>
+					</header>
+					<div class="space-y-2">
+						{#each seasonsDraft as s, i (i)}
+							<div class="flex items-center gap-2">
+								<input type="date" bind:value={s.start} class="border border-border rounded-md px-2 py-1.5 text-sm bg-surface-2" />
+								<span class="text-text-3 text-sm">→</span>
+								<input type="date" bind:value={s.end} class="border border-border rounded-md px-2 py-1.5 text-sm bg-surface-2" />
+								<button class="text-xs text-danger hover:underline ml-1" onclick={() => removeSeason(i)}>kaldır</button>
+							</div>
+						{/each}
+						{#if seasonsDraft.length === 0}
+							<p class="text-sm text-text-3">Pencere yok — yıl boyu açık sayılır.</p>
+						{/if}
+						<button class="text-xs text-brand hover:underline" onclick={addSeason}>+ pencere ekle</button>
+					</div>
 				</section>
 
 				<!-- Competitors -->
