@@ -16,6 +16,7 @@
 	import TrendChart from '$lib/components/TrendChart.svelte';
 	import PlatformRow from '$lib/components/PlatformRow.svelte';
 	import CategoryBar from '$lib/components/CategoryBar.svelte';
+	import CategorySentimentBar from '$lib/components/CategorySentimentBar.svelte';
 	import MentionList from '$lib/components/MentionList.svelte';
 	import DeptCard from '$lib/components/DeptCard.svelte';
 	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
@@ -32,6 +33,16 @@
 
 	let { data } = $props();
 	const hs = $derived(data.hotelScore);
+
+	// ── EXPERIMENT (2026-07, revertible): "Kategori hareketi" shows RAW positive/
+	// negative mention counts + a split green/red ratio bar + the 30-day (pure-aspect)
+	// trend arrow — instead of a single opaque star-anchored score. Rationale: a score
+	// like "79" is derived and un-auditable ("is it right?"), and a lone ↓ reads as
+	// alarm; "142 pos / 31 neg, ↓ last 30d" is concrete, checkable, and gives the arrow
+	// context. Counts come straight from cs.distribution (already in every snapshot).
+	// Set false to restore the score bars — delete this flag + the CategorySentimentBar
+	// usage to fully revert. Neutral bucket is excluded on purpose.
+	const CATEGORY_MOVEMENT_SENTIMENT = true;
 
 	// ── GPI trend — REAL series from /v1/scores/:slug/history (backfilled snapshots).
 	// Falls back to a single point (today's GPI) when history is missing/empty, so
@@ -166,7 +177,15 @@
 	const topCategories = $derived(
 		[...hs.categoryScores]
 			.sort((a, b) => Math.abs(b.trend) - Math.abs(a.trend) || b.mentionCount - a.mentionCount)
-			.map((cs) => ({ label: CATEGORIES[cs.category].label, score: cs.headlineScore, trend: cs.trend }))
+			.map((cs) => ({
+				label: CATEGORIES[cs.category].label,
+				score: cs.headlineScore,
+				trend: cs.trend,
+				// Raw positive/negative mention counts (neutral excluded) for the
+				// sentiment-ratio bar. strong buckets fold into their side.
+				pos: cs.distribution.positiveCount + cs.distribution.strongPositiveCount,
+				neg: cs.distribution.negativeCount + cs.distribution.strongNegativeCount
+			}))
 	);
 
 	// Issues / praises across all categories — [REAL].
@@ -234,15 +253,21 @@
 			trend: d.trend > 0 ? 'up' : d.trend < 0 ? 'down' : 'flat',
 			trendValue: d.trend,
 			scope: d.categories.join(' · '),
-			enters: d.score != null
+			enters: d.score != null,
+			mentions: d.mentionCount ?? null
 		};
 	}
 
 	// Real list only — empty until the departments endpoint answers. A department with a
-	// null score (not enough mentions to score) is DROPPED from the grid entirely: a "—"
-	// tile is noise on the overview, and a coerced 0 read as a catastrophic red zero.
+	// null score (not enough mentions in this window) is KEPT and rendered as a thin
+	// "veri az · N mention" tile (scored first, thin last) — never a red 0, and never
+	// silently dropped: on the 6mo default a dept the guest DID mention must not vanish.
 	const depts = $derived<OsDept[]>(
-		realDepts ? realDepts.filter((d) => d.score != null).map(toOsDept) : []
+		realDepts
+			? realDepts
+					.map(toOsDept)
+					.sort((a, b) => (a.score == null ? 1 : 0) - (b.score == null ? 1 : 0))
+			: []
 	);
 </script>
 
@@ -366,9 +391,18 @@
 		</div>
 		<div class="mb-2 mt-4 flex items-center gap-2 border-t border-border pt-3 text-[13px] font-bold text-text-1">
 			<Activity size={15} class="text-text-3" strokeWidth={2} />Kategori hareketi
+			{#if CATEGORY_MOVEMENT_SENTIMENT}
+				<!-- Counts follow the selected window; arrows always compare the last 30 days
+				     (window-independent cohort). Label makes the two time scales explicit. -->
+				<span class="ml-auto text-[11px] font-medium text-text-3">Trendler · son 30 gün</span>
+			{/if}
 		</div>
 		{#each topCategories as c (c.label)}
-			<CategoryBar label={c.label} score={c.score} trend={c.trend} />
+			{#if CATEGORY_MOVEMENT_SENTIMENT}
+				<CategorySentimentBar label={c.label} pos={c.pos} neg={c.neg} trend={c.trend} />
+			{:else}
+				<CategoryBar label={c.label} score={c.score} trend={c.trend} />
+			{/if}
 		{/each}
 	</SectionCard>
 </div>
