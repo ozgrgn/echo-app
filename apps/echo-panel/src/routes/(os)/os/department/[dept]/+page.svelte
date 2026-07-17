@@ -189,6 +189,9 @@
 			return;
 		}
 		mentionsLoading = true;
+		// Scope mentions to the rail's window like the scores, so a 6mo view doesn't list
+		// 2018 mentions. windowParam maps the OS window → the backend's window token.
+		const wq = windowParam(parseOsWindow(page.url.searchParams.get('window')));
 		try {
 			// v2: one call, filtered to this department's granular keys. Legacy fallback
 			// (pre-v2 snapshot with no granular_key): the old per-category fan-out.
@@ -200,6 +203,7 @@
 							limit: '60'
 						});
 						if (mentionFilter !== 'all') params.set('polarity', mentionFilter);
+						if (wq) params.set('window', wq);
 						const r = await fetch(`/api/os/data?${params}`);
 						return [r.ok ? await r.json() : { items: [] }];
 					})()
@@ -207,13 +211,17 @@
 						cats.map(async (category) => {
 							const params = new URLSearchParams({ resource: 'mentions', category, limit: '40' });
 							if (mentionFilter !== 'all') params.set('polarity', mentionFilter);
+							if (wq) params.set('window', wq);
 							const r = await fetch(`/api/os/data?${params}`);
 							return r.ok ? await r.json() : { items: [] };
 						})
 					);
+			// Newest first — the backend already sorts this way; re-sort here because the
+			// legacy fan-out merges multiple category responses. publishedDate is an ISO
+			// string, so a plain string compare (desc) is chronological.
 			mentions = results
 				.flatMap((r) => r.items)
-				.sort((a, b) => Math.abs(b.polarity) - Math.abs(a.polarity))
+				.sort((a, b) => (b.publishedDate ?? '').localeCompare(a.publishedDate ?? ''))
 				.slice(0, 60);
 		} catch {
 			mentions = [];
@@ -225,6 +233,8 @@
 		void deptKey;
 		void mentionFilter;
 		void mentionScope;
+		// Re-fetch when the rail window changes too, so mentions track the selected window.
+		void page.url.searchParams.get('window');
 		if (detail) loadMentions();
 	});
 	function setMentionFilter(f: 'all' | 'negative' | 'positive') {

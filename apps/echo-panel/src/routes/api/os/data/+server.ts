@@ -82,7 +82,8 @@ export const GET: RequestHandler = async (event) => {
 						...(polarity ? { polarity } : {}),
 						...(granularKey ? { granularKey } : {}),
 						...(category ? { category } : {}),
-						...(subcategory ? { subcategory } : {})
+						...(subcategory ? { subcategory } : {}),
+						...(window ? { window } : {})
 					})
 				);
 			}
