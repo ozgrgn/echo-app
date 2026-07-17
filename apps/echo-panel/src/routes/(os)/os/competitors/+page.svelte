@@ -160,6 +160,11 @@
 		});
 	});
 
+	// The platform-compare card shows ONE metric at a time, chosen by a header toggle:
+	// 'gpi' (pure-aspect 0-100) or 'puan' (native OTA star, own scale). Same grouped-bar
+	// layout — only the value/scale/colour differ. Default 'gpi' (the page's primary lens).
+	let compareMode = $state<'gpi' | 'puan'>('gpi');
+
 	// Native star → bar width + colour. Normalized on star/max (ratio) so all three
 	// scales (TA/Google 5, HolidayCheck 6, Booking 10) read on one 0-100% axis and the
 	// colour thresholds are scale-independent. Full-scale (not floored like GPI's 50-100
@@ -312,111 +317,117 @@
 </SectionCard>
 
 <!-- ── Platform comparison (grouped bars) ────────────────────────────────────
-     Each channel: own + rival bars on that platform's snapshot, worst own-score first.
-     Per-platform scores come from the backend's persisted per-channel snapshots. -->
-<SectionCard
-	title="Platform Bazlı Karşılaştırma"
-	icon={Building2}
-	hint="kanal GPI"
->
-	{#if platformGroups.length === 0}
-		<p class="py-6 text-center text-[13px] text-text-3">
-			Bu dönemde platform bazlı karşılaştırma için yeterli veri yok.
-		</p>
-	{:else}
-		<div class="flex flex-col gap-4">
-			{#each platformGroups as g (g.key)}
-				<div>
-					<div class="mb-1.5 text-[12.5px] font-bold text-text-1">{g.label}</div>
-					<ul class="flex flex-col gap-1.5">
-						{#each g.bars as bar (bar.venueName)}
-							<li class="grid grid-cols-[12rem_1fr_3rem] items-center gap-2.5">
-								<span
-									class="flex min-w-0 items-center gap-1.5 text-[12px] {bar.isOwn ? 'font-semibold text-text-1' : 'text-text-2'}"
-									title={bar.venueName}
-								>
-									{#if bar.isOwn}<span class="shrink-0 text-warning">▶</span>{/if}
-									<span class="truncate">{bar.venueName}</span>
-								</span>
-								<span class="h-2 overflow-hidden rounded-full bg-surface-2">
-									{#if bar.score != null}
-										<span
-											class="block h-full rounded-full transition-all duration-500 {barColor(bar.score)} {bar.isOwn ? '' : 'opacity-70'}"
-											style="width:{barWidth(bar.score)}%"
-										></span>
-									{/if}
-								</span>
-								<span
-									class="text-right text-[12.5px] font-bold tabular-nums {bar.score == null
-										? 'text-text-3'
-										: gpiZone(bar.score) === 'green'
-											? 'text-success'
-											: gpiZone(bar.score) === 'yellow'
-												? 'text-warning'
-												: 'text-danger'}"
-								>
-									{bar.score != null ? bar.score.toFixed(1) : '—'}
-								</span>
-							</li>
-						{/each}
-					</ul>
-				</div>
-			{/each}
+     One card, one metric at a time chosen by the header toggle: GPI (pure aspect,
+     0-100) or Puan (native OTA star, own scale). Same layout; only the value/scale/
+     colour differ. Per-platform scores come from persisted per-channel snapshots. -->
+<SectionCard title="Platform Bazlı Karşılaştırma" icon={Building2}>
+	{#snippet action()}
+		<div class="inline-flex rounded-lg border border-border bg-surface-1 p-0.5 text-[11.5px] font-semibold">
+			<button
+				class="rounded-md px-2 py-0.5 transition-colors {compareMode === 'gpi' ? 'bg-surface-2 text-text-1' : 'text-text-3 hover:text-text-2'}"
+				onclick={() => (compareMode = 'gpi')}
+			>GPI</button>
+			<button
+				class="rounded-md px-2 py-0.5 transition-colors {compareMode === 'puan' ? 'bg-surface-2 text-text-1' : 'text-text-3 hover:text-text-2'}"
+				onclick={() => (compareMode = 'puan')}
+			>Puan</button>
 		</div>
-	{/if}
-</SectionCard>
+	{/snippet}
 
-<!-- ── Platform Bazlı Karşılaştırma — PUAN (native OTA star) ──────────────────
-     Same layout as the GPI card above, but bars are the venue's native star on each
-     channel (own scale, shown "X.X/max"). GPI (aspect) and Puan (star) can tell
-     different stories — e.g. weak aspect but high star — which is why both live here. -->
-<SectionCard title="Platform Bazlı Karşılaştırma" icon={Building2} hint="puan (OTA)">
-	{#if platformStarGroups.length === 0}
-		<p class="py-6 text-center text-[13px] text-text-3">
-			Bu dönemde platform bazlı puan karşılaştırması için yeterli veri yok.
-		</p>
-	{:else}
-		<div class="flex flex-col gap-4">
-			{#each platformStarGroups as g (g.key)}
-				<div>
-					<div class="mb-1.5 text-[12.5px] font-bold text-text-1">
-						{g.label}{#if g.max}<span class="ml-1 text-[11px] font-medium text-text-3">/{g.max}</span>{/if}
+	{#if compareMode === 'gpi'}
+		{#if platformGroups.length === 0}
+			<p class="py-6 text-center text-[13px] text-text-3">
+				Bu dönemde platform bazlı karşılaştırma için yeterli veri yok.
+			</p>
+		{:else}
+			<div class="flex flex-col gap-4">
+				{#each platformGroups as g (g.key)}
+					<div>
+						<div class="mb-1.5 text-[12.5px] font-bold text-text-1">{g.label}</div>
+						<ul class="flex flex-col gap-1.5">
+							{#each g.bars as bar (bar.venueName)}
+								<li class="grid grid-cols-[12rem_1fr_3rem] items-center gap-2.5">
+									<span
+										class="flex min-w-0 items-center gap-1.5 text-[12px] {bar.isOwn ? 'font-semibold text-text-1' : 'text-text-2'}"
+										title={bar.venueName}
+									>
+										{#if bar.isOwn}<span class="shrink-0 text-warning">▶</span>{/if}
+										<span class="truncate">{bar.venueName}</span>
+									</span>
+									<span class="h-2 overflow-hidden rounded-full bg-surface-2">
+										{#if bar.score != null}
+											<span
+												class="block h-full rounded-full transition-all duration-500 {barColor(bar.score)} {bar.isOwn ? '' : 'opacity-70'}"
+												style="width:{barWidth(bar.score)}%"
+											></span>
+										{/if}
+									</span>
+									<span
+										class="text-right text-[12.5px] font-bold tabular-nums {bar.score == null
+											? 'text-text-3'
+											: gpiZone(bar.score) === 'green'
+												? 'text-success'
+												: gpiZone(bar.score) === 'yellow'
+													? 'text-warning'
+													: 'text-danger'}"
+									>
+										{bar.score != null ? bar.score.toFixed(1) : '—'}
+									</span>
+								</li>
+							{/each}
+						</ul>
 					</div>
-					<ul class="flex flex-col gap-1.5">
-						{#each g.bars as bar (bar.venueName)}
-							<li class="grid grid-cols-[12rem_1fr_3rem] items-center gap-2.5">
-								<span
-									class="flex min-w-0 items-center gap-1.5 text-[12px] {bar.isOwn ? 'font-semibold text-text-1' : 'text-text-2'}"
-									title={bar.venueName}
-								>
-									{#if bar.isOwn}<span class="shrink-0 text-warning">▶</span>{/if}
-									<span class="truncate">{bar.venueName}</span>
-								</span>
-								<span class="h-2 overflow-hidden rounded-full bg-surface-2">
-									{#if bar.star != null && g.max}
-										<span
-											class="block h-full rounded-full transition-all duration-500 {starColor(bar.star, g.max)} {bar.isOwn ? '' : 'opacity-70'}"
-											style="width:{starWidth(bar.star, g.max)}%"
-										></span>
-									{/if}
-								</span>
-								<span
-									class="text-right text-[12.5px] font-bold tabular-nums {bar.star == null || !g.max
-										? 'text-text-3'
-										: starZone(bar.star, g.max) === 'green'
-											? 'text-success'
-											: starZone(bar.star, g.max) === 'yellow'
-												? 'text-warning'
-												: 'text-danger'}"
-								>
-									{bar.star != null ? bar.star.toFixed(1) : '—'}
-								</span>
-							</li>
-						{/each}
-					</ul>
-				</div>
-			{/each}
-		</div>
+				{/each}
+			</div>
+		{/if}
+	{:else}
+		{#if platformStarGroups.length === 0}
+			<p class="py-6 text-center text-[13px] text-text-3">
+				Bu dönemde platform bazlı puan karşılaştırması için yeterli veri yok.
+			</p>
+		{:else}
+			<div class="flex flex-col gap-4">
+				{#each platformStarGroups as g (g.key)}
+					<div>
+						<div class="mb-1.5 text-[12.5px] font-bold text-text-1">
+							{g.label}{#if g.max}<span class="ml-1 text-[11px] font-medium text-text-3">/{g.max}</span>{/if}
+						</div>
+						<ul class="flex flex-col gap-1.5">
+							{#each g.bars as bar (bar.venueName)}
+								<li class="grid grid-cols-[12rem_1fr_3rem] items-center gap-2.5">
+									<span
+										class="flex min-w-0 items-center gap-1.5 text-[12px] {bar.isOwn ? 'font-semibold text-text-1' : 'text-text-2'}"
+										title={bar.venueName}
+									>
+										{#if bar.isOwn}<span class="shrink-0 text-warning">▶</span>{/if}
+										<span class="truncate">{bar.venueName}</span>
+									</span>
+									<span class="h-2 overflow-hidden rounded-full bg-surface-2">
+										{#if bar.star != null && g.max}
+											<span
+												class="block h-full rounded-full transition-all duration-500 {starColor(bar.star, g.max)} {bar.isOwn ? '' : 'opacity-70'}"
+												style="width:{starWidth(bar.star, g.max)}%"
+											></span>
+										{/if}
+									</span>
+									<span
+										class="text-right text-[12.5px] font-bold tabular-nums {bar.star == null || !g.max
+											? 'text-text-3'
+											: starZone(bar.star, g.max) === 'green'
+												? 'text-success'
+												: starZone(bar.star, g.max) === 'yellow'
+													? 'text-warning'
+													: 'text-danger'}"
+									>
+										{bar.star != null ? bar.star.toFixed(1) : '—'}
+									</span>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/each}
+			</div>
+		{/if}
 	{/if}
 </SectionCard>
 
