@@ -40,6 +40,7 @@ import {
 	getResponseQueue,
 	getReviews,
 	getMentions,
+	correctMention,
 	getPortfolioScore,
 	getOsBundle,
 	getVenueSettings,
@@ -146,6 +147,10 @@ export function makeServerApi(event: RequestEvent) {
 			withRetry((t) => getReviews(venueSlug, filters, t, fo())),
 		getMentions: (venueSlug: string, filters: MentionFilters = {}) =>
 			withRetry((t) => getMentions(venueSlug, filters, t, fo())),
+		correctMention: (
+			venueSlug: string,
+			body: { reviewId: string; targetKey: string; orig_granular_key: string; new_granular_key: string }
+		) => withRetry((t) => correctMention(venueSlug, body, t, fo())),
 		patchVenueSettings: (venueSlug: string, patch: Parameters<typeof patchVenueSettings>[1]) =>
 			withRetry((t) => patchVenueSettings(venueSlug, patch, t, fo())),
 		getVenueGranularCatalog: (venueSlug: string) =>

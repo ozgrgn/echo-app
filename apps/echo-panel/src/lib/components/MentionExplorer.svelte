@@ -8,6 +8,7 @@
 <script lang="ts">
 	import { getSubcategoryLabel } from '@talkwo/echo-core';
 	import type { MentionRow } from '@talkwo/echo-ui';
+	import { Pencil, Check, X } from '@lucide/svelte';
 
 	interface Props {
 		items: MentionRow[];
@@ -15,9 +16,64 @@
 		filter?: 'all' | 'negative' | 'positive';
 		onfilter?: (f: 'all' | 'negative' | 'positive') => void;
 		loading?: boolean;
+		/** Superadmin-only: enables the per-mention granular_key correction control. */
+		canCorrect?: boolean;
+		/** {granular_key → label_tr} for the correction picker (all 185 catalog keys). */
+		granularLabels?: Record<string, string>;
+		/** Called when a superadmin picks a new granular_key for a mislabeled mention.
+		 *  Returns a promise so the row can show a pending/failed state. */
+		oncorrect?: (m: MentionRow, newGranularKey: string) => Promise<void>;
 	}
 
-	let { items, filter = 'all', onfilter, loading = false }: Props = $props();
+	let {
+		items,
+		filter = 'all',
+		onfilter,
+		loading = false,
+		canCorrect = false,
+		granularLabels = {},
+		oncorrect
+	}: Props = $props();
+
+	// Sorted (label) list of catalog keys for the picker <select>.
+	const catalogOptions = $derived(
+		Object.entries(granularLabels)
+			.map(([key, label]) => ({ key, label }))
+			.sort((a, b) => a.label.localeCompare(b.label, 'tr'))
+	);
+
+	// Row-local edit state: which mention is being corrected + the chosen key + status.
+	let editingKey = $state<string | null>(null); // `${reviewId}:${targetKey}` of the open row
+	let picked = $state('');
+	let saving = $state(false);
+	let errorMsg = $state('');
+
+	function rowId(m: MentionRow): string {
+		return `${m.reviewId}:${m.targetKey ?? m.target_text ?? ''}`;
+	}
+	function openEdit(m: MentionRow) {
+		editingKey = rowId(m);
+		picked = m.granular_key ?? '';
+		errorMsg = '';
+	}
+	function cancelEdit() {
+		editingKey = null;
+		picked = '';
+		errorMsg = '';
+	}
+	async function saveEdit(m: MentionRow) {
+		if (!oncorrect || !picked || picked === m.granular_key) return cancelEdit();
+		saving = true;
+		errorMsg = '';
+		try {
+			await oncorrect(m, picked);
+			cancelEdit();
+		} catch (e) {
+			errorMsg = e instanceof Error ? e.message : 'Kaydedilemedi';
+		} finally {
+			saving = false;
+		}
+	}
 
 	// Split an excerpt around the target_text occurrence so we can wrap it in a
 	// colored mark. Case-insensitive, first match only; falls back to whole-string.
@@ -88,7 +144,55 @@
 							<span>·</span>
 							<span>{m.publishedDate.slice(0, 10)}</span>
 						{/if}
+						<!-- Superadmin: correct a mislabeled mention's category. Opens an inline picker. -->
+						{#if canCorrect && m.granular_key && editingKey !== rowId(m)}
+							<button
+								type="button"
+								onclick={() => openEdit(m)}
+								class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-semibold text-brand hover:bg-surface-2"
+								title="Kategoriyi düzelt (yanlış sınıflandırılmışsa)"
+							>
+								<Pencil size={11} strokeWidth={2.5} /> düzelt
+							</button>
+						{/if}
 					</div>
+
+					<!-- Inline correction picker (superadmin). Change effect note: applies on the
+					     next scoring tick, not instantly. -->
+					{#if canCorrect && editingKey === rowId(m)}
+						<div class="mt-1.5 flex flex-wrap items-center gap-2 rounded-lg bg-surface-2 p-2">
+							<select
+								bind:value={picked}
+								disabled={saving}
+								class="max-w-[240px] rounded-md border border-border bg-surface-1 px-2 py-1 text-[12px] text-text-1"
+							>
+								{#each catalogOptions as o (o.key)}
+									<option value={o.key}>{o.label}</option>
+								{/each}
+							</select>
+							<button
+								type="button"
+								onclick={() => saveEdit(m)}
+								disabled={saving || picked === m.granular_key}
+								class="inline-flex items-center gap-1 rounded-md bg-brand px-2 py-1 text-[11.5px] font-semibold text-white disabled:opacity-50"
+							>
+								<Check size={12} strokeWidth={2.5} /> {saving ? '…' : 'Kaydet'}
+							</button>
+							<button
+								type="button"
+								onclick={cancelEdit}
+								disabled={saving}
+								class="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11.5px] text-text-3 hover:bg-surface-1"
+							>
+								<X size={12} strokeWidth={2.5} />
+							</button>
+							{#if errorMsg}
+								<span class="text-[11px] text-danger">{errorMsg}</span>
+							{:else}
+								<span class="text-[10.5px] text-text-3">bir dahaki puanlamada yansır</span>
+							{/if}
+						</div>
+					{/if}
 				</div>
 
 				<!-- Signed polarity score. -->

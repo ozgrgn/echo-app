@@ -686,6 +686,8 @@ export interface MentionRow {
   polarity: number;
   excerpt: string;
   target_text: string | null;
+  /** Re-analysis-stable anchor (target_text or excerpt-hash) — echo back to correctMention. */
+  targetKey?: string;
 }
 
 export interface MentionFilters {
@@ -723,6 +725,28 @@ export async function getMentions(
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!res.ok) throw new Error(`getMentions failed: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Correct one mention's granular_key (superadmin). Fixes an ABSA mislabel WITHOUT touching
+ * absa_result — the correction lives in mention_overrides and applies read-time to scoring +
+ * /v1/mentions. Anchored by {reviewId, targetKey} so an ABSA re-analysis doesn't wipe it.
+ * Takes effect on the NEXT scoring tick (not instant).
+ */
+export async function correctMention(
+  venueSlug: string,
+  body: { reviewId: string; targetKey: string; orig_granular_key: string; new_granular_key: string },
+  token: string,
+  opts?: FetchOpts
+): Promise<{ ok: boolean }> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/venues/${encodeURIComponent(venueSlug)}/mention-overrides`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error(`correctMention failed: ${res.status}`);
   return res.json();
 }
 

@@ -173,6 +173,43 @@
 	// count (accuracy spot-checks — "bu 18 mention hangi cümleler?"). Null = whole dept.
 	let mentionScope = $state<{ key: string; label: string } | null>(null);
 
+	// ── Superadmin: per-mention granular_key correction (fix an ABSA mislabel) ──
+	const isSuperadmin = $derived(data.session?.isSuperadmin ?? false);
+	// Catalog labels for the correction picker — loaded once, superadmin only (185 keys).
+	let granularLabels = $state<Record<string, string>>({});
+	$effect(() => {
+		if (isSuperadmin && Object.keys(granularLabels).length === 0) {
+			fetch('/api/os/data?resource=granularLabels')
+				.then((r) => (r.ok ? r.json() : { labels: {} }))
+				.then((d) => (granularLabels = d.labels ?? d ?? {}))
+				.catch(() => {});
+		}
+	});
+	// Correct one mention → PATCH the override, then optimistically relabel it in the list so
+	// the fix shows immediately (the score itself updates on the next scoring tick).
+	async function correctMention(m: MentionRow, newGranularKey: string) {
+		const res = await fetch('/api/mention-override', {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				reviewId: m.reviewId,
+				targetKey: m.targetKey ?? m.target_text ?? '',
+				orig_granular_key: m.granular_key,
+				new_granular_key: newGranularKey
+			})
+		});
+		if (!res.ok) {
+			const msg = await res.text().catch(() => '');
+			throw new Error(msg || `Düzeltme kaydedilemedi (${res.status})`);
+		}
+		// Optimistic relabel in place (the mention may leave this department on next reload).
+		mentions = mentions.map((row) =>
+			row.reviewId === m.reviewId && (row.targetKey ?? row.target_text) === (m.targetKey ?? m.target_text)
+				? { ...row, granular_key: newGranularKey, granular_label: granularLabels[newGranularKey] ?? row.granular_label }
+				: row
+		);
+	}
+
 	async function loadMentions() {
 		// Scope by the department's GRANULAR KEYS, not its categories. A category no
 		// longer belongs to one department (ROOM feeds hk + fo + mnt + tesis), so a
@@ -477,6 +514,9 @@
 				filter={mentionFilter}
 				onfilter={setMentionFilter}
 				loading={mentionsLoading}
+				canCorrect={isSuperadmin}
+				{granularLabels}
+				oncorrect={correctMention}
 			/>
 		</SectionCard>
 	</div>
