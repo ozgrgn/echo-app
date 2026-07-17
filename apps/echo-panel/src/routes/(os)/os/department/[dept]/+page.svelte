@@ -175,13 +175,16 @@
 
 	// ── Superadmin: per-mention granular_key correction (fix an ABSA mislabel) ──
 	const isSuperadmin = $derived(data.session?.isSuperadmin ?? false);
-	// Catalog labels for the correction picker — loaded once, superadmin only (185 keys).
-	let granularLabels = $state<Record<string, string>>({});
+	// Catalog rows (key + label + category) for the grouped/searchable correction picker —
+	// loaded once, superadmin only.
+	let granularCatalog = $state<
+		{ granular_key: string; label_tr: string; category: string; category_label: string }[]
+	>([]);
 	$effect(() => {
-		if (isSuperadmin && Object.keys(granularLabels).length === 0) {
+		if (isSuperadmin && granularCatalog.length === 0) {
 			fetch('/api/os/data?resource=granularLabels')
-				.then((r) => (r.ok ? r.json() : { labels: {} }))
-				.then((d) => (granularLabels = d.labels ?? d ?? {}))
+				.then((r) => (r.ok ? r.json() : { catalog: [] }))
+				.then((d) => (granularCatalog = d.catalog ?? []))
 				.catch(() => {});
 		}
 	});
@@ -203,9 +206,10 @@
 			throw new Error(msg || `Düzeltme kaydedilemedi (${res.status})`);
 		}
 		// Optimistic relabel in place (the mention may leave this department on next reload).
+		const newLabel = granularCatalog.find((r) => r.granular_key === newGranularKey)?.label_tr;
 		mentions = mentions.map((row) =>
 			row.reviewId === m.reviewId && (row.targetKey ?? row.target_text) === (m.targetKey ?? m.target_text)
-				? { ...row, granular_key: newGranularKey, granular_label: granularLabels[newGranularKey] ?? row.granular_label }
+				? { ...row, granular_key: newGranularKey, granular_label: newLabel ?? row.granular_label }
 				: row
 		);
 	}
@@ -515,7 +519,7 @@
 				onfilter={setMentionFilter}
 				loading={mentionsLoading}
 				canCorrect={isSuperadmin}
-				{granularLabels}
+				{granularCatalog}
 				oncorrect={correctMention}
 			/>
 		</SectionCard>

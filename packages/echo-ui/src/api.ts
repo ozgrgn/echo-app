@@ -1178,19 +1178,30 @@ export async function getVenueSettings(
   return data.settings as EchoVenueSettings;
 }
 
-/** {granular_key → label_tr} map — the panel renders radar's humanized-English
- * alert titles in Turkish with this (catalog stays echo's single source). */
+/** One catalog row for the grouped/searchable mention-correction picker. */
+export interface GranularCatalogRow {
+  granular_key: string;
+  label_tr: string;
+  category: string;
+  category_label: string;
+}
+
+/** {granular_key → label_tr} map (radar title rendering) PLUS a `catalog` array enriched with
+ * category, for the grouped/searchable picker. `labels` stays for existing callers. */
 export async function getGranularLabels(
   token: string,
   opts?: FetchOpts,
-): Promise<Record<string, string>> {
+): Promise<{ labels: Record<string, string>; catalog: GranularCatalogRow[] }> {
   const { base, f } = resolveFetch(opts);
   const res = await f(`${base}/granular-labels`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(`getGranularLabels failed: ${res.status}`);
   const data = await res.json();
-  return (data.labels ?? {}) as Record<string, string>;
+  return {
+    labels: (data.labels ?? {}) as Record<string, string>,
+    catalog: (data.catalog ?? []) as GranularCatalogRow[],
+  };
 }
 
 /** Settings + venue-level meta the settings payload rides with. getVenueSettings

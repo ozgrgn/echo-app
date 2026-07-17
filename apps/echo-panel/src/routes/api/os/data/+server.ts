@@ -50,8 +50,9 @@ export const GET: RequestHandler = async (event) => {
 				);
 			}
 			case 'granularLabels':
-				// {granular_key → label_tr} — alert titles render Turkish with this map.
-				return json({ labels: await api.getGranularLabels() });
+				// {labels: {granular_key → label_tr}} for alert titles, PLUS `catalog` (rows with
+				// category) for the grouped/searchable mention-correction picker.
+				return json(await api.getGranularLabels());
 			case 'venueSettings':
 				// Settings incl. operatingSeasons — the goal form's "Sezon sonu" preset
 				// reads the venue's real season windows from here.

@@ -18,8 +18,8 @@
 		loading?: boolean;
 		/** Superadmin-only: enables the per-mention granular_key correction control. */
 		canCorrect?: boolean;
-		/** {granular_key → label_tr} for the correction picker (all 185 catalog keys). */
-		granularLabels?: Record<string, string>;
+		/** Catalog rows (granular_key + label + category) for the grouped/searchable picker. */
+		granularCatalog?: { granular_key: string; label_tr: string; category: string; category_label: string }[];
 		/** Called when a superadmin picks a new granular_key for a mislabeled mention.
 		 *  Returns a promise so the row can show a pending/failed state. */
 		oncorrect?: (m: MentionRow, newGranularKey: string) => Promise<void>;
@@ -31,22 +31,43 @@
 		onfilter,
 		loading = false,
 		canCorrect = false,
-		granularLabels = {},
+		granularCatalog = [],
 		oncorrect
 	}: Props = $props();
 
-	// Sorted (label) list of catalog keys for the picker <select>.
-	const catalogOptions = $derived(
-		Object.entries(granularLabels)
-			.map(([key, label]) => ({ key, label }))
-			.sort((a, b) => a.label.localeCompare(b.label, 'tr'))
-	);
-
-	// Row-local edit state: which mention is being corrected + the chosen key + status.
+	// Row-local edit state: which mention is being corrected + search text + chosen key + status.
 	let editingKey = $state<string | null>(null); // `${reviewId}:${targetKey}` of the open row
+	let search = $state('');
 	let picked = $state('');
 	let saving = $state(false);
 	let errorMsg = $state('');
+
+	// Catalog filtered by the search box, then grouped by category. Empty search shows the
+	// mention's OWN category first (the likely target — "havuz güvenliği" → another pool key),
+	// so the picker opens on the relevant group instead of 185 flat rows.
+	const filteredGroups = $derived.by(() => {
+		const q = search.trim().toLocaleLowerCase('tr');
+		const rows = q
+			? granularCatalog.filter(
+					(r) =>
+						r.label_tr.toLocaleLowerCase('tr').includes(q) ||
+						r.category_label.toLocaleLowerCase('tr').includes(q)
+				)
+			: granularCatalog;
+		// Group by category_label, sort keys within a group by label.
+		const byCat = new Map<string, { granular_key: string; label_tr: string }[]>();
+		for (const r of rows) {
+			const arr = byCat.get(r.category_label) ?? [];
+			arr.push({ granular_key: r.granular_key, label_tr: r.label_tr });
+			byCat.set(r.category_label, arr);
+		}
+		return [...byCat.entries()]
+			.map(([category, keys]) => ({
+				category,
+				keys: keys.sort((a, b) => a.label_tr.localeCompare(b.label_tr, 'tr'))
+			}))
+			.sort((a, b) => a.category.localeCompare(b.category, 'tr'));
+	});
 
 	function rowId(m: MentionRow): string {
 		return `${m.reviewId}:${m.targetKey ?? m.target_text ?? ''}`;
@@ -54,11 +75,13 @@
 	function openEdit(m: MentionRow) {
 		editingKey = rowId(m);
 		picked = m.granular_key ?? '';
+		search = '';
 		errorMsg = '';
 	}
 	function cancelEdit() {
 		editingKey = null;
 		picked = '';
+		search = '';
 		errorMsg = '';
 	}
 	async function saveEdit(m: MentionRow) {
@@ -157,40 +180,65 @@
 						{/if}
 					</div>
 
-					<!-- Inline correction picker (superadmin). Change effect note: applies on the
-					     next scoring tick, not instantly. -->
+					<!-- Inline correction picker (superadmin): search box + category-grouped list.
+					     185 keys are unusable as a flat <select>, so we group by category and
+					     filter as you type. Applies on the next scoring tick, not instantly. -->
 					{#if canCorrect && editingKey === rowId(m)}
-						<div class="mt-1.5 flex flex-wrap items-center gap-2 rounded-lg bg-surface-2 p-2">
-							<select
-								bind:value={picked}
-								disabled={saving}
-								class="max-w-[240px] rounded-md border border-border bg-surface-1 px-2 py-1 text-[12px] text-text-1"
-							>
-								{#each catalogOptions as o (o.key)}
-									<option value={o.key}>{o.label}</option>
+						<div class="mt-1.5 rounded-lg bg-surface-2 p-2">
+							<div class="mb-1.5 flex items-center gap-2">
+								<!-- svelte-ignore a11y_autofocus -->
+								<input
+									type="text"
+									bind:value={search}
+									disabled={saving}
+									autofocus
+									placeholder="Kategori ara… (ör. havuz, güvenlik)"
+									class="min-w-0 flex-1 rounded-md border border-border bg-surface-1 px-2 py-1 text-[12px] text-text-1"
+								/>
+								<button
+									type="button"
+									onclick={() => saveEdit(m)}
+									disabled={saving || picked === m.granular_key}
+									class="inline-flex items-center gap-1 rounded-md bg-brand px-2 py-1 text-[11.5px] font-semibold text-white disabled:opacity-50"
+								>
+									<Check size={12} strokeWidth={2.5} /> {saving ? '…' : 'Kaydet'}
+								</button>
+								<button
+									type="button"
+									onclick={cancelEdit}
+									disabled={saving}
+									class="inline-flex items-center rounded-md px-1.5 py-1 text-text-3 hover:bg-surface-1"
+									title="İptal"
+								>
+									<X size={12} strokeWidth={2.5} />
+								</button>
+							</div>
+
+							<!-- Grouped, scrollable option list. Selected key highlighted. -->
+							<div class="max-h-56 overflow-y-auto rounded-md border border-border bg-surface-1">
+								{#each filteredGroups as g (g.category)}
+									<div class="sticky top-0 bg-surface-2 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-text-3">
+										{g.category}
+									</div>
+									{#each g.keys as k (k.granular_key)}
+										<button
+											type="button"
+											onclick={() => (picked = k.granular_key)}
+											class="block w-full px-2.5 py-1 text-left text-[12px] transition-colors
+												{picked === k.granular_key ? 'bg-brand-light font-semibold text-brand' : 'text-text-1 hover:bg-surface-2'}"
+										>
+											{k.label_tr}
+										</button>
+									{/each}
 								{/each}
-							</select>
-							<button
-								type="button"
-								onclick={() => saveEdit(m)}
-								disabled={saving || picked === m.granular_key}
-								class="inline-flex items-center gap-1 rounded-md bg-brand px-2 py-1 text-[11.5px] font-semibold text-white disabled:opacity-50"
-							>
-								<Check size={12} strokeWidth={2.5} /> {saving ? '…' : 'Kaydet'}
-							</button>
-							<button
-								type="button"
-								onclick={cancelEdit}
-								disabled={saving}
-								class="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11.5px] text-text-3 hover:bg-surface-1"
-							>
-								<X size={12} strokeWidth={2.5} />
-							</button>
-							{#if errorMsg}
-								<span class="text-[11px] text-danger">{errorMsg}</span>
-							{:else}
-								<span class="text-[10.5px] text-text-3">bir dahaki puanlamada yansır</span>
-							{/if}
+								{#if filteredGroups.length === 0}
+									<p class="px-2.5 py-3 text-center text-[11.5px] text-text-3">Eşleşen kategori yok</p>
+								{/if}
+							</div>
+
+							<p class="mt-1 text-[10.5px] {errorMsg ? 'text-danger' : 'text-text-3'}">
+								{errorMsg || 'bir dahaki puanlamada yansır'}
+							</p>
 						</div>
 					{/if}
 				</div>
