@@ -700,6 +700,9 @@ export interface MentionFilters {
   granularKey?: string;
   /** 'negative' → polarity ≤ -0.2, 'positive' → polarity ≥ +0.2. */
   polarity?: 'negative' | 'positive';
+  /** Lookback window (max|24mo|12mo|6mo|3mo → publishedAt floor). Scopes the mention
+   *  list to the rail's selected window, like the scores. Omit → all time. */
+  window?: string;
   limit?: number;
 }
 
@@ -1378,7 +1381,17 @@ export interface OsPlatformCompare {
     key: string;
     label: string;
     ownGpi: number | null;
-    rivals: { venueSlug: string; venueName: string; gpi: number }[];
+    /** Own venue's native (own-scale) star for this platform — the "Puan" view's own bar. */
+    ownNativeStar: number | null;
+    /** Top of the native scale (5 | 6 | 10) for this platform — shared by own + rivals. */
+    nativeStarMax: number | null;
+    rivals: {
+      venueSlug: string;
+      venueName: string;
+      gpi: number;
+      /** Rival's native star on this platform (own scale). Null → no OTA star here. */
+      nativeStar: number | null;
+    }[];
   }[];
 }
 

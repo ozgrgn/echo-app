@@ -139,6 +139,45 @@
 			return { key: p.key, label: p.label, bars };
 		});
 	});
+
+	// ── Platform comparison — PUAN (native OTA star) ──────────────────────────
+	// Same pivot as platformGroups, but each bar carries the venue's NATIVE star on
+	// that channel (own scale: TA/Google /5, HolidayCheck /6, Booking /10) plus the
+	// platform's max, so the row can render "8.1/10". Null (no OTA star on that
+	// channel) renders as a dash. `max` is per-platform (it differs by channel).
+	type StarBar = { venueName: string; star: number | null; isOwn: boolean };
+	type StarGroup = { key: string; label: string; max: number | null; bars: StarBar[] };
+
+	const platformStarGroups = $derived.by<StarGroup[]>(() => {
+		const pc = data.platformCompare;
+		if (!pc) return [];
+		return pc.platforms.map((p) => {
+			const bars: StarBar[] = [
+				{ venueName: pc.ownVenueName, star: p.ownNativeStar, isOwn: true },
+				...p.rivals.map((r) => ({ venueName: r.venueName, star: r.nativeStar, isOwn: false }))
+			];
+			return { key: p.key, label: p.label, max: p.nativeStarMax, bars };
+		});
+	});
+
+	// Native star → bar width + colour. Normalized on star/max (ratio) so all three
+	// scales (TA/Google 5, HolidayCheck 6, Booking 10) read on one 0-100% axis and the
+	// colour thresholds are scale-independent. Full-scale (not floored like GPI's 50-100
+	// trick): a star bar is a familiar "% of max" and hotels DO span the low end on some
+	// channels, so squashing to a floor would hide a genuinely weak score. Thresholds:
+	// ≥90% green (≈4.5/5, 9/10), ≥80% yellow, else red — one notch stricter than a
+	// human "4 stars is fine", because in this market the field clusters high.
+	function starWidth(star: number, max: number): number {
+		return Math.max(5, Math.min(100, (star / max) * 100));
+	}
+	function starZone(star: number, max: number): 'green' | 'yellow' | 'red' {
+		const ratio = star / max;
+		return ratio >= 0.9 ? 'green' : ratio >= 0.8 ? 'yellow' : 'red';
+	}
+	function starColor(star: number, max: number): string {
+		const z = starZone(star, max);
+		return z === 'green' ? 'bg-success' : z === 'yellow' ? 'bg-warning' : 'bg-danger';
+	}
 </script>
 
 <!-- ── Header: title. The time window is chosen from the global rail selector
@@ -317,6 +356,60 @@
 												: 'text-danger'}"
 								>
 									{bar.score != null ? bar.score.toFixed(1) : '—'}
+								</span>
+							</li>
+						{/each}
+					</ul>
+				</div>
+			{/each}
+		</div>
+	{/if}
+</SectionCard>
+
+<!-- ── Platform Bazlı Karşılaştırma — PUAN (native OTA star) ──────────────────
+     Same layout as the GPI card above, but bars are the venue's native star on each
+     channel (own scale, shown "X.X/max"). GPI (aspect) and Puan (star) can tell
+     different stories — e.g. weak aspect but high star — which is why both live here. -->
+<SectionCard title="Platform Bazlı Karşılaştırma" icon={Building2} hint="puan (OTA)">
+	{#if platformStarGroups.length === 0}
+		<p class="py-6 text-center text-[13px] text-text-3">
+			Bu dönemde platform bazlı puan karşılaştırması için yeterli veri yok.
+		</p>
+	{:else}
+		<div class="flex flex-col gap-4">
+			{#each platformStarGroups as g (g.key)}
+				<div>
+					<div class="mb-1.5 text-[12.5px] font-bold text-text-1">
+						{g.label}{#if g.max}<span class="ml-1 text-[11px] font-medium text-text-3">/{g.max}</span>{/if}
+					</div>
+					<ul class="flex flex-col gap-1.5">
+						{#each g.bars as bar (bar.venueName)}
+							<li class="grid grid-cols-[12rem_1fr_3rem] items-center gap-2.5">
+								<span
+									class="flex min-w-0 items-center gap-1.5 text-[12px] {bar.isOwn ? 'font-semibold text-text-1' : 'text-text-2'}"
+									title={bar.venueName}
+								>
+									{#if bar.isOwn}<span class="shrink-0 text-warning">▶</span>{/if}
+									<span class="truncate">{bar.venueName}</span>
+								</span>
+								<span class="h-2 overflow-hidden rounded-full bg-surface-2">
+									{#if bar.star != null && g.max}
+										<span
+											class="block h-full rounded-full transition-all duration-500 {starColor(bar.star, g.max)} {bar.isOwn ? '' : 'opacity-70'}"
+											style="width:{starWidth(bar.star, g.max)}%"
+										></span>
+									{/if}
+								</span>
+								<span
+									class="text-right text-[12.5px] font-bold tabular-nums {bar.star == null || !g.max
+										? 'text-text-3'
+										: starZone(bar.star, g.max) === 'green'
+											? 'text-success'
+											: starZone(bar.star, g.max) === 'yellow'
+												? 'text-warning'
+												: 'text-danger'}"
+								>
+									{bar.star != null ? bar.star.toFixed(1) : '—'}
 								</span>
 							</li>
 						{/each}
