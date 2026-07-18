@@ -29,6 +29,10 @@
 		valueLabel?: string;
 		/** Optional muted tooltip line per actual point (e.g. '12 mention'). */
 		pointNotes?: (string | null)[];
+		/** Grow to fill the parent's height instead of the fixed `height`. Opt-in;
+		 *  when true the SVG tracks the wrapper's measured height (parent must have
+		 *  a resolved height). `height` still acts as the minimum/fallback. */
+		fill?: boolean;
 	}
 
 	let {
@@ -44,15 +48,18 @@
 		periods = [],
 		daily = false,
 		valueLabel = 'GPI',
-		pointNotes = []
+		pointNotes = [],
+		fill = false
 	}: Props = $props();
 
 	// Measured render width of the wrapper → viewBox width. Keeping 1 SVG unit = 1
 	// CSS px means the chart fills the container edge-to-edge (no letterbox side-gaps)
 	// and text/dots stay pixel-consistent at any width. Falls back to 740 pre-layout.
 	let boxW = $state(740);
+	// Measured wrapper height, used only when `fill` is on; otherwise H = height.
+	let boxH = $state(0);
 	const W = $derived(Math.max(320, boxW));
-	const H = $derived(height);
+	const H = $derived(fill ? Math.max(height, boxH) : height);
 	const pL = 38, pR = 20, pT = 16, pB = 28;
 
 	// Projection shares the last actual point, so total x-slots = actual + (proj-1).
@@ -99,9 +106,15 @@
 			const p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
 			// Catmull-Rom → cubic Bézier control points.
 			const cp1x = p1[0] + ((p2[0] - p0[0]) / 6) * tension;
-			const cp1y = p1[1] + ((p2[1] - p0[1]) / 6) * tension;
 			const cp2x = p2[0] - ((p3[0] - p1[0]) / 6) * tension;
-			const cp2y = p2[1] - ((p3[1] - p1[1]) / 6) * tension;
+			// Clamp control-point Y into the segment's own [min,max] so the spline is
+			// monotone within each segment and never overshoots past the real values
+			// (distant p0/p3 can otherwise push a handle beyond p1..p2 → needle spikes).
+			const loY = Math.min(p1[1], p2[1]);
+			const hiY = Math.max(p1[1], p2[1]);
+			const clampY = (y: number) => Math.min(hiY, Math.max(loY, y));
+			const cp1y = clampY(p1[1] + ((p2[1] - p0[1]) / 6) * tension);
+			const cp2y = clampY(p2[1] - ((p3[1] - p1[1]) / 6) * tension);
 			d += ` C${f(cp1x)} ${f(cp1y)} ${f(cp2x)} ${f(cp2y)} ${f(p2[0])} ${f(p2[1])}`;
 		}
 		return d;
@@ -229,14 +242,20 @@
 	const ttY = $derived(hoverPt ? Math.max(pT, hoverPt[1] - ttH - 8) : 0);
 </script>
 
-<!-- Wrapper measures the available width; the SVG's viewBox tracks it 1:1 so the
-     chart fills edge-to-edge instead of letterboxing to a fixed 740-wide box. -->
-<div bind:clientWidth={boxW} style="width:100%">
+<!-- Wrapper measures available width (and height when `fill`); the SVG's viewBox
+     tracks them 1:1 so the chart fills edge-to-edge with no letterboxing. -->
+<div
+	bind:clientWidth={boxW}
+	bind:clientHeight={boxH}
+	style={fill ? 'width:100%;height:100%;min-height:0' : 'width:100%'}
+>
 <svg
 	bind:this={svgEl}
 	viewBox="0 0 {W} {H}"
 	preserveAspectRatio="none"
-	style="width:100%;height:{height}px;max-height:{height}px;display:block"
+	style={fill
+		? 'width:100%;height:100%;display:block'
+		: `width:100%;height:${height}px;max-height:${height}px;display:block`}
 	role="img"
 	onpointermove={onMove}
 	onpointerleave={onLeave}

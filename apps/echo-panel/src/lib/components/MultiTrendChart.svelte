@@ -9,7 +9,7 @@
 		key: string;
 		label: string;
 		color: string;
-		values: number[]; // oldest→newest
+		values: (number | null)[]; // oldest→newest; null = no data for that period (line breaks)
 		/** Review count for the current window — shown in the legend. */
 		count?: number;
 		emphasis?: boolean;
@@ -22,19 +22,25 @@
 		/** Periods are daily → tick labels read 'DD/MM' not 'MM/YY'. */
 		daily?: boolean;
 		height?: number;
+		/** Grow to fill the parent's height instead of the fixed `height`. Opt-in;
+		 *  `height` still acts as the minimum/fallback. */
+		fill?: boolean;
 	}
-	let { series, periods = [], daily = false, height = 230 }: Props = $props();
+	let { series, periods = [], daily = false, height = 230, fill = false }: Props = $props();
 
 	// Measured render width → viewBox width (1 SVG unit = 1 CSS px), so the chart
 	// fills its container edge-to-edge instead of letterboxing to a fixed 760-wide
 	// box and leaving empty side-gaps. Falls back to 760 before first layout.
 	let boxW = $state(760);
+	// Measured wrapper height, used only when `fill` is on; otherwise H = height.
+	let boxH = $state(0);
 	const W = $derived(Math.max(320, boxW));
-	const H = $derived(height);
+	const H = $derived(fill ? Math.max(height, boxH) : height);
 	const pL = 32, pR = 14, pT = 14, pB = 30;
 
 	const n = $derived(Math.max(1, ...series.map((s) => s.values.length)));
-	const allVals = $derived(series.flatMap((s) => s.values));
+	// Only real (non-null) values drive the y-band; null = missing period (a gap).
+	const allVals = $derived(series.flatMap((s) => s.values).filter((v): v is number => v != null));
 	const lo = $derived(allVals.length ? Math.min(...allVals) : 0);
 	const hi = $derived(allVals.length ? Math.max(...allVals) : 100);
 	// Pad the band a touch so lines never touch the edges.
@@ -62,25 +68,63 @@
 			const p2 = pts[i + 1];
 			const p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
 			const c1x = p1[0] + ((p2[0] - p0[0]) / 6) * tension;
-			const c1y = p1[1] + ((p2[1] - p0[1]) / 6) * tension;
 			const c2x = p2[0] - ((p3[0] - p1[0]) / 6) * tension;
-			const c2y = p2[1] - ((p3[1] - p1[1]) / 6) * tension;
+			// Clamp each control point's Y into the segment's own [min,max]. Plain
+			// Catmull-Rom derives tangents from far neighbours (p0/p3), so a distant
+			// point can push a control handle beyond p1..p2 and the curve overshoots
+			// — for sparse series (isolated points among gaps) that overshoot shoots
+			// to the band edges as visible needle spikes. Clamping makes the spline
+			// monotone within each segment: smooth, but never past the real values.
+			const loY = Math.min(p1[1], p2[1]);
+			const hiY = Math.max(p1[1], p2[1]);
+			const clamp = (y: number) => Math.min(hiY, Math.max(loY, y));
+			const c1y = clamp(p1[1] + ((p2[1] - p0[1]) / 6) * tension);
+			const c2y = clamp(p2[1] - ((p3[1] - p1[1]) / 6) * tension);
 			d += ` C${f(c1x)} ${f(c1y)} ${f(c2x)} ${f(c2y)} ${f(p2[0])} ${f(p2[1])}`;
 		}
 		return d;
 	}
-	function linePath(values: number[]): string {
-		const offset = n - values.length;
-		return smooth(values.map((v, i) => [X(offset + i), Y(v)]));
+	// Split a period-aligned series into contiguous runs of real values (null =
+	// missing period → the line breaks there instead of diving to the baseline).
+	// Values are aligned to the shared axis: value at column i belongs to period i.
+	function segments(values: (number | null)[]): [number, number][][] {
+		const runs: [number, number][][] = [];
+		let cur: [number, number][] = [];
+		values.forEach((v, i) => {
+			if (v == null) {
+				if (cur.length) { runs.push(cur); cur = []; }
+			} else {
+				cur.push([X(i), Y(v)]);
+			}
+		});
+		if (cur.length) runs.push(cur);
+		return runs;
 	}
-	// Area under the emphasized line (down to the baseline) for a soft fill.
-	function areaPath(values: number[]): string {
-		const offset = n - values.length;
+	function linePath(values: (number | null)[]): string {
+		// One smoothed sub-path per contiguous run; gaps stay empty.
+		return segments(values).map((run) => smooth(run)).join(' ');
+	}
+	// Last non-null value + its column index, for the end-of-line marker dot (the
+	// newest period may be null for a sparse platform, so we can't assume the last slot).
+	function lastRealPoint(values: (number | null)[]): { i: number; v: number } | null {
+		for (let i = values.length - 1; i >= 0; i--) {
+			const v = values[i];
+			if (v != null) return { i, v };
+		}
+		return null;
+	}
+	// Area under the emphasized line (down to the baseline) for a soft fill. Filled
+	// per run so gaps don't get a phantom fill spanning the missing periods.
+	function areaPath(values: (number | null)[]): string {
 		const base = H - pB;
-		const top = smooth(values.map((v, i) => [X(offset + i), Y(v)]));
-		const x0 = X(offset).toFixed(1);
-		const x1 = X(n - 1).toFixed(1);
-		return `${top} L${x1} ${base} L${x0} ${base} Z`;
+		return segments(values)
+			.map((run) => {
+				const top = smooth(run);
+				const x0 = run[0][0].toFixed(1);
+				const x1 = run[run.length - 1][0].toFixed(1);
+				return `${top} L${x1} ${base} L${x0} ${base} Z`;
+			})
+			.join(' ');
 	}
 
 	const yticks = $derived([ymax, Math.round((ymin + ymax) / 2), ymin]);
@@ -125,16 +169,16 @@
 	}
 	function onLeave() { hoverI = null; }
 
-	// For a hovered column index, each series' value at that column (series are
-	// right-aligned, so column i maps to values[i - offset]).
+	// For a hovered column index, each series' value at that column. Series are now
+	// period-aligned (column i maps directly to values[i]); a null there means the
+	// series has no data for that period, so it drops out of the tooltip.
 	const hoverRows = $derived.by(() => {
 		if (hoverI === null) return [];
 		return ordered
 			.map((s) => {
-				const offset = n - s.values.length;
-				const vi = hoverI! - offset;
-				if (vi < 0 || vi >= s.values.length) return null;
-				return { label: s.label, color: s.color, value: s.values[vi], count: s.count, emphasis: s.emphasis };
+				const v = s.values[hoverI!];
+				if (v == null) return null;
+				return { label: s.label, color: s.color, value: v, count: s.count, emphasis: s.emphasis };
 			})
 			.filter((r): r is NonNullable<typeof r> => r !== null)
 			.sort((a, b) => b.value - a.value); // highest GPI first
@@ -167,10 +211,14 @@
 	const ttY = $derived(pT + 4);
 </script>
 
-<!-- Wrapper measures available width; viewBox tracks it 1:1 so the chart fills
-     edge-to-edge instead of letterboxing to a fixed 760-wide box. -->
-<div bind:clientWidth={boxW} style="width:100%">
-<svg bind:this={svgEl} viewBox="0 0 {W} {H}" preserveAspectRatio="none" class="w-full" style="height:{H}px" role="img" aria-label="Platform GPI karşılaştırması" onpointermove={onMove} onpointerleave={onLeave}>
+<!-- Wrapper measures available width (and height when `fill`); viewBox tracks them
+     1:1 so the chart fills edge-to-edge instead of letterboxing. -->
+<div
+	bind:clientWidth={boxW}
+	bind:clientHeight={boxH}
+	style={fill ? 'width:100%;height:100%;min-height:0' : 'width:100%'}
+>
+<svg bind:this={svgEl} viewBox="0 0 {W} {H}" preserveAspectRatio="none" class="w-full" style={fill ? 'height:100%' : `height:${H}px`} role="img" aria-label="Platform GPI karşılaştırması" onpointermove={onMove} onpointerleave={onLeave}>
 	<defs>
 		<linearGradient id="{uid}-fill" x1="0" y1="0" x2="0" y2="1">
 			<stop offset="0%" stop-color="var(--color-brand)" stop-opacity="0.18" />
@@ -206,10 +254,11 @@
 			opacity={s.emphasis ? 1 : 0.65}
 			class="mtc-line"
 		/>
-		{#if s.values.length}
-			<circle cx={X(n - 1)} cy={Y(s.values[s.values.length - 1])} r={s.emphasis ? 4 : 2.75} fill={s.color} />
+		{@const last = lastRealPoint(s.values)}
+		{#if last}
+			<circle cx={X(last.i)} cy={Y(last.v)} r={s.emphasis ? 4 : 2.75} fill={s.color} />
 			{#if s.emphasis}
-				<circle cx={X(n - 1)} cy={Y(s.values[s.values.length - 1])} r="7" fill={s.color} opacity="0.18" />
+				<circle cx={X(last.i)} cy={Y(last.v)} r="7" fill={s.color} opacity="0.18" />
 			{/if}
 		{/if}
 	{/each}

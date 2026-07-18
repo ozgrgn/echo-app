@@ -41,31 +41,80 @@
 		goto(`/os/platform/${p}`);
 	}
 
+	// Per-channel review counts (window-scoped) for the density threshold below.
+	const platformCounts = $derived(
+		new Map((channels ?? []).map((c) => [c.platform, c.score.reviewCount]))
+	);
+	// Calendar-month span of the shown window — divisor for the "avg reviews per
+	// month" threshold. Periods can be DAILY, so derive months from first→last
+	// date rather than the raw point count (which would over-divide and hide all
+	// lines). Falls back to 1.
+	const monthsShown = $derived.by(() => {
+		const ps = (data.blendedHistory ?? []).map((p) => p.period).filter(Boolean);
+		if (ps.length < 2) return 1;
+		const ms = new Date(ps[ps.length - 1]).getTime() - new Date(ps[0]).getTime();
+		if (!Number.isFinite(ms) || ms <= 0) return 1;
+		return Math.max(1, ms / (1000 * 60 * 60 * 24 * 30.4));
+	});
+	// A channel line only shows if it averages at least this many reviews per shown
+	// month; sparser channels (e.g. HolidayCheck) make noisy dropout spikes.
+	const MIN_AVG_REVIEWS_PER_MONTH = 5;
+
+	// Blended history is the longest, canonical x-axis; per-channel series align to it.
+	const comparePeriods = $derived((data.blendedHistory ?? []).map((p) => p.period));
+
+	// Align a per-channel series onto the shared axis BY PERIOD (null where the
+	// channel has no snapshot that period). In monthly (wide-window) mode the backend
+	// thins each series to its OWN last-present day per month, so the same month has a
+	// different 'YYYY-MM-DD' per channel — matching on the full date misses almost
+	// every slot → needle spikes. So key on the MONTH when monthly, full day when
+	// genuinely daily (6mo/3mo share real calendar days).
+	const periodKey = (p: string) => (data.chartDaily ? p : p.slice(0, 7));
+	// Exact-50 GPI = the neutral placeholder scoring emits for floor-clearing but
+	// aspect-less (un-ABSA'd) reviews (50 + 50×polarity, polarity 0). Not a real score.
+	// [[echo-chart-spike-neutral-gpi50]]
+	const isNeutralPlaceholder = (gpi: number) => gpi === 50;
+	// Align onto the shared axis, carrying the last real reading forward across
+	// placeholder/missing slots so the line stays continuous (holds flat, no gaps or
+	// troughs). Leading slots before the first real reading stay null.
+	function alignToAxis(points: { period: string; gpi: number }[]): (number | null)[] {
+		const byKey = new Map(
+			points.filter((p) => !isNeutralPlaceholder(p.gpi)).map((p) => [periodKey(p.period), p.gpi])
+		);
+		let last: number | null = null;
+		return comparePeriods.map((period) => {
+			const v = byKey.get(periodKey(period));
+			if (v != null) last = v;
+			return last;
+		});
+	}
+
 	// ── Compare chart — each channel's GPI line + our blended line emphasized.
-	// A channel only appears if it has ≥2 history points (filtered server-side).
+	// A channel only appears if it has ≥2 history points (filtered server-side) AND
+	// clears the review-density threshold above.
 	const compareSeries = $derived([
-		...data.platformHistories.map((ph) => ({
-			key: ph.platform,
-			label: labelFor(ph.platform),
-			color: colorFor(ph.platform),
-			values: ph.points.map((p) => p.gpi),
-			emphasis: false
-		})),
+		...data.platformHistories
+			.filter((ph) => (platformCounts.get(ph.platform) ?? 0) / monthsShown >= MIN_AVG_REVIEWS_PER_MONTH)
+			.map((ph) => ({
+				key: ph.platform,
+				label: labelFor(ph.platform),
+				color: colorFor(ph.platform),
+				values: alignToAxis(ph.points),
+				emphasis: false
+			})),
 		...((data.blendedHistory?.length ?? 0) > 1
 			? [
 					{
 						key: 'all',
 						label: 'GPI (genel)',
 						color: 'var(--color-brand)',
-						values: data.blendedHistory!.map((p) => p.gpi),
+						values: data.blendedHistory!.map((p) => p.gpi) as (number | null)[],
 						emphasis: true
 					}
 				]
 			: [])
 	]);
 	const hasCompare = $derived(compareSeries.length > 1);
-	// Blended history is the longest, canonical x-axis.
-	const comparePeriods = $derived((data.blendedHistory ?? []).map((p) => p.period));
 
 	// ── Per-category comparison — 14 taxonomy rows × the channels we have snapshots
 	// for. Each cell is that channel's headlineScore for the category (— when the

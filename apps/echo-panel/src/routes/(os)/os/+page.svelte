@@ -74,23 +74,80 @@
 	const platformCounts = $derived(
 		new Map((data.channels ?? []).map((c) => [c.platform, c.score.reviewCount]))
 	);
+	// Calendar-month span of the shown window — the divisor for the per-platform
+	// "average reviews per month" threshold. NOTE: history periods can be DAILY
+	// (data.chartDaily), so we must not divide by the raw point count — we derive
+	// months from the first→last period date instead. Falls back to 1.
+	const monthsShown = $derived.by(() => {
+		const ps = (data.history ?? []).map((p) => p.period).filter(Boolean);
+		if (ps.length < 2) return 1;
+		const first = new Date(ps[0]);
+		const last = new Date(ps[ps.length - 1]);
+		const ms = last.getTime() - first.getTime();
+		if (!Number.isFinite(ms) || ms <= 0) return 1;
+		return Math.max(1, ms / (1000 * 60 * 60 * 24 * 30.4)); // ~avg days per month
+	});
+	// A platform line is only meaningful if it averages at least this many reviews
+	// per shown month; sparser platforms (e.g. HolidayCheck with a handful total)
+	// produce noisy dropout spikes, so we omit their line entirely.
+	const MIN_AVG_REVIEWS_PER_MONTH = 5;
+
+	// Canonical x-axis = the blended history periods (the longest, always-present series).
+	const comparePeriods = $derived((data.history ?? []).map((p) => p.period));
+
+	// Align a per-platform series onto the shared (blended) axis BY PERIOD, emitting
+	// one value per axis slot — null where the platform has no data (line breaks there).
+	//
+	// KEY DETAIL: in the monthly (wide-window) mode the backend thins each series to
+	// its OWN last-present day of each month, so the same calendar month ends up with
+	// a different 'YYYY-MM-DD' string per platform (blended 2026-05-31 vs Booking
+	// 2026-05-28). Matching on the full date then misses almost every slot → the line
+	// collapses to sparse points = needle spikes. So we key on the MONTH ('YYYY-MM')
+	// when monthly, and on the full day only when the data is genuinely daily (6mo/3mo,
+	// where all series share real calendar days).
+	const periodKey = (p: string) => (data.chartDaily ? p : p.slice(0, 7));
+	// A GPI of EXACTLY 50 is the neutral placeholder scoring emits when a platform's
+	// reviews cleared the snapshot floor but have no ABSA aspects yet (score.ts:
+	// 50 + 50×polarity, polarity 0 → 50). Those are not real scores — they'd render
+	// as dropout troughs to the band floor. Real scores land off 50 (decimals), so
+	// treating exact-50 as "no reading" is safe. [[echo-chart-spike-neutral-gpi50]]
+	const isNeutralPlaceholder = (gpi: number) => gpi === 50;
+	// Align a per-platform series onto the shared axis, then CARRY FORWARD the last
+	// real reading across placeholder/missing slots so the line stays continuous (no
+	// gaps, no troughs) — a missing period just holds the previous value flat. Leading
+	// slots before the first real reading stay null (nothing to carry yet).
+	function alignToAxis(points: { period: string; gpi: number }[]): (number | null)[] {
+		const byKey = new Map(
+			points.filter((p) => !isNeutralPlaceholder(p.gpi)).map((p) => [periodKey(p.period), p.gpi])
+		);
+		let last: number | null = null;
+		return comparePeriods.map((period) => {
+			const v = byKey.get(periodKey(period));
+			if (v != null) last = v;
+			return last; // carry-forward: null only until the first real reading
+		});
+	}
+
+	// Per-platform channel lines + the blended "GPI (genel)" line on top (emphasized):
+	// the blended line is the venue's overall content score, so each channel reads
+	// against it as a reference. It defines the axis, so it's already 1:1 with
+	// comparePeriods (no alignToAxis needed).
 	const compareSeries = $derived([
-		...((data.platformHistories ?? []).map((ph) => ({
-			key: ph.platform,
-			label: PLATFORM_LABELS[ph.platform] ?? ph.platform,
-			color: PLATFORM_COLOR[ph.platform as keyof typeof PLATFORM_COLOR] ?? '#94a3b8',
-			values: ph.points.map((p) => p.gpi),
-			count: platformCounts.get(ph.platform),
-			emphasis: false
-		}))),
-		// Our own blended line — emphasized, brand color, on top.
+		...((data.platformHistories ?? [])
+			.filter((ph) => (platformCounts.get(ph.platform) ?? 0) / monthsShown >= MIN_AVG_REVIEWS_PER_MONTH)
+			.map((ph) => ({
+				key: ph.platform,
+				label: PLATFORM_LABELS[ph.platform] ?? ph.platform,
+				color: PLATFORM_COLOR[ph.platform as keyof typeof PLATFORM_COLOR] ?? '#94a3b8',
+				values: alignToAxis(ph.points),
+				count: platformCounts.get(ph.platform),
+				emphasis: false
+			}))),
 		...(historyGpi.length > 1
-			? [{ key: 'all', label: 'GPI (genel)', color: 'var(--color-brand)', values: historyGpi, count: hs.reviewCount, emphasis: true }]
+			? [{ key: 'all', label: 'GPI (genel)', color: 'var(--color-brand)', values: historyGpi as (number | null)[], count: hs.reviewCount, emphasis: true }]
 			: [])
 	]);
 	const hasCompare = $derived(compareSeries.length > 1);
-	// Period labels (x-axis) from the blended history — the longest, canonical axis.
-	const comparePeriods = $derived((data.history ?? []).map((p) => p.period));
 
 	// Real KPI sparklines + deltas from history (GPI, review count).
 	// Trailing-8 slice. Generic because the same window must be applied to the value
@@ -396,9 +453,11 @@
 
 <!-- ── Trend + Platforms/Categories row ──────────────────────────────────── -->
 <div class="mb-3.5 grid grid-cols-1 items-stretch gap-3.5 lg:grid-cols-[1.55fr_1fr]">
-	<!-- Left column: reputation trend + platform comparison stacked. -->
+	<!-- Left column: reputation trend + platform comparison stacked. Both cards grow
+	     equally (flex-1) so the column matches the taller right card, and each chart
+	     fills its card (fill) so the extra height isn't dead space under the chart. -->
 	<div class="flex flex-col gap-3.5">
-		<SectionCard title="İtibar trendi (GPI)" icon={TrendingUp} hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'geçmiş birikiyor'}>
+		<SectionCard title="İtibar trendi (GPI)" icon={TrendingUp} fill class="flex-1" hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'geçmiş birikiyor'}>
 			{#snippet action()}
 				{#if hs.gpi >= GPI_TARGET}
 					<span class="inline-flex items-center gap-1.5 rounded-full bg-success-light px-2.5 py-1 text-[11px] font-bold text-success">
@@ -419,7 +478,7 @@
 				<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-text-2"><i class="h-[3px] w-2.5 rounded-sm" style="background:var(--color-text-3)"></i>Hedef {GPI_TARGET}</span>
 			</div>
 			{#if trendHasHistory}
-				<TrendChart actual={trendActual} periods={comparePeriods} daily={data.chartDaily} target={GPI_TARGET} ymin={trendYmin} ymax={trendYmax} height={210} />
+				<TrendChart actual={trendActual} periods={comparePeriods} daily={data.chartDaily} target={GPI_TARGET} ymin={trendYmin} ymax={trendYmax} height={210} fill />
 			{:else}
 				<p class="py-12 text-center text-[13px] text-text-3">
 					Trend için yeterli geçmiş yok — güncel GPI <b class="text-text-1">{hs.gpi.toFixed(1)}</b>.
@@ -429,8 +488,8 @@
 
 		<!-- Platform GPI comparison — our blended line emphasized over each platform. -->
 		{#if hasCompare}
-			<SectionCard title="Platform GPI karşılaştırması" icon={LineChart}>
-				<MultiTrendChart series={compareSeries} periods={comparePeriods} daily={data.chartDaily} height={230} />
+			<SectionCard title="Platform GPI karşılaştırması" icon={LineChart} fill class="flex-1">
+				<MultiTrendChart series={compareSeries} periods={comparePeriods} daily={data.chartDaily} height={230} fill />
 			</SectionCard>
 		{/if}
 	</div>

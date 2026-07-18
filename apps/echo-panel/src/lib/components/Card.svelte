@@ -21,6 +21,9 @@
 		as?: 'div' | 'a' | 'article' | 'section';
 		href?: string;
 		title?: string;
+		/** Fill the parent's height and lay the body out as a column so a flex-1
+		 *  child (e.g. a chart) can grow to occupy the card. Opt-in; off by default. */
+		fill?: boolean;
 		class?: string;
 		children: Snippet;
 	}
@@ -32,6 +35,7 @@
 		as = 'div',
 		href,
 		title,
+		fill = false,
 		class: extra = '',
 		children
 	}: Props = $props();
@@ -55,7 +59,8 @@
 			: ''
 	);
 
-	const cls = $derived(`${base} ${hover} ${toneStripe[tone]} ${padClass} ${extra}`);
+	const fillCls = $derived(fill ? 'flex flex-col h-full' : '');
+	const cls = $derived(`${base} ${hover} ${toneStripe[tone]} ${padClass} ${fillCls} ${extra}`);
 </script>
 
 {#if as === 'a'}

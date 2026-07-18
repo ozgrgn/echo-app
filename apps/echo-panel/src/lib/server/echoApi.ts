@@ -137,7 +137,14 @@ export function makeServerApi(event: RequestEvent) {
 		// OS bundle: one call feeding a whole /os page (perf). 401-refresh comes free via withRetry.
 		getOsBundle: (
 			venueSlug: string,
-			opts: { lens: OsLens; window?: string; period?: string; chartDaily?: boolean; chartFrom?: string }
+			opts: {
+				lens: OsLens;
+				window?: string;
+				period?: string;
+				chartDaily?: boolean;
+				chartFrom?: string;
+				impactTarget?: number;
+			}
 		) => withRetry((t) => getOsBundle(venueSlug, t, opts, fo())),
 		getVenueSettings: (venueSlug: string) => withRetry((t) => getVenueSettings(venueSlug, t, fo())),
 		getGranularLabels: () => withRetry((t) => getGranularLabels(t, fo())),

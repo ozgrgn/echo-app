@@ -18,11 +18,14 @@
 		/** Optional rich content on the right (badge etc.) — overrides hint. */
 		action?: Snippet;
 		padding?: 'sm' | 'md' | 'lg';
+		/** Fill parent height; body grows to occupy the card (for a chart that should
+		 *  stretch vertically). Opt-in; off by default so existing cards are unchanged. */
+		fill?: boolean;
 		class?: string;
 		children: Snippet;
 	}
 
-	let { title, icon: Icon, hint, action, padding = 'sm', class: extra = '', children }: Props = $props();
+	let { title, icon: Icon, hint, action, padding = 'sm', fill = false, class: extra = '', children }: Props = $props();
 
 	// Sentence-case the hint (first letter up, rest untouched) for a tidier header —
 	// authors write hints lowercase ("son 30 gün"); we present them "Son 30 gün".
@@ -33,7 +36,7 @@
 	);
 </script>
 
-<Card {padding} class={extra}>
+<Card {padding} {fill} class={extra}>
 	<div class="mb-3 flex items-center justify-between gap-2">
 		<span class="flex items-center gap-2 text-sm font-bold text-text-1">
 			{#if Icon}
@@ -47,5 +50,13 @@
 			<span class="text-[11.5px] text-text-3">{hintDisplay}</span>
 		{/if}
 	</div>
-	{@render children()}
+	{#if fill}
+		<!-- Body grows to fill remaining card height; min-h-0 lets it shrink so a
+		     percentage-height chart inside resolves against a real box. -->
+		<div class="flex min-h-0 flex-1 flex-col">
+			{@render children()}
+		</div>
+	{:else}
+		{@render children()}
+	{/if}
 </Card>

@@ -198,7 +198,7 @@
 
 	<!-- ── Quick movement lists ──────────────────────────────────────────────── -->
 	<div class="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
-		<SectionCard title="Düşüşte olanlar" icon={TrendingDown} hint="öncelik">
+		<SectionCard title="Düşüşte olanlar" icon={TrendingDown} hint="öncelik · trend son 30 gün">
 			{#if declining.length === 0}
 				<p class="py-4 text-center text-[13px] text-text-3">Düşüşte departman yok.</p>
 			{:else}
@@ -220,7 +220,7 @@
 			{/if}
 		</SectionCard>
 
-		<SectionCard title="Yükselişte olanlar" icon={TrendingUp} hint="momentum">
+		<SectionCard title="Yükselişte olanlar" icon={TrendingUp} hint="momentum · trend son 30 gün">
 			{#if improving.length === 0}
 				<p class="py-4 text-center text-[13px] text-text-3">Yükselişte departman yok.</p>
 			{:else}

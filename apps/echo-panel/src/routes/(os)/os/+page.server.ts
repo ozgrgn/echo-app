@@ -3,6 +3,7 @@ import type { ResponseStats } from '@talkwo/echo-ui';
 import type { ResponseRateRow } from '$lib/mock/os';
 import { error } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
+import { listRadarGoals } from '$lib/server/radarApi';
 import { parseOsWindow, windowParam, windowChartMode } from '$lib/config/window';
 
 // Human labels for the response breakdown (backend slices carry a raw platform key).
@@ -70,6 +71,25 @@ export const load: PageServerLoad = async (event) => {
 	const w = windowParam(window);
 	const chart = windowChartMode(window, new Date());
 
+	// ── Goal-driven hedef ────────────────────────────────────────────────────
+	// The venue's radar GPI goal (Hedefler panel, reviews.gpi) drives BOTH the chart's
+	// "Hedef" line and the impact lifts, via the bundle's ?impactTarget= — one number,
+	// the one the owner actually committed to, instead of a hardcoded constant. Radar
+	// unreachable / no goal set → undefined → the backend falls back to its constant.
+	// Fetched BEFORE the bundle (the bundle needs the target); radar answers in well
+	// under the bundle's own latency, and failure is swallowed (never blocks the page).
+	let gpiGoalTarget: number | undefined;
+	const tenantKey = event.locals.session?.tenantKey;
+	if (tenantKey) {
+		try {
+			const goals = await listRadarGoals({ tenantKey, venueSlug }, event.fetch);
+			const g = goals.find((r) => r.goal?.metricPath === 'reviews.gpi');
+			if (g && Number.isFinite(g.goal.target)) gpiGoalTarget = g.goal.target;
+		} catch {
+			// radar yok/erişilemedi → sabit hedefe düş (sayfa asla bundan kırılmaz)
+		}
+	}
+
 	// The OS bundle drives the whole page; the response-stats endpoint feeds ONLY the
 	// "Yanıt Yönetimi" breakdown. Run them in parallel, but never let a response-stats
 	// failure 404 the whole lens — the card renders its empty state instead. (It used
@@ -86,7 +106,8 @@ export const load: PageServerLoad = async (event) => {
 				window: w,
 				period: requestPeriod,
 				chartDaily: chart.daily,
-				chartFrom: chart.from
+				chartFrom: chart.from,
+				impactTarget: gpiGoalTarget
 			})
 			.catch(() => null),
 		// Same window as everything else on the page, so the card's rows and the

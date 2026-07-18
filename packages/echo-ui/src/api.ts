@@ -1455,7 +1455,16 @@ export interface OsBundleResponse {
 export async function getOsBundle(
   venueSlug: string,
   token: string,
-  opts: { lens: OsLens; window?: string; period?: string; chartDaily?: boolean; chartFrom?: string },
+  opts: {
+    lens: OsLens;
+    window?: string;
+    period?: string;
+    chartDaily?: boolean;
+    chartFrom?: string;
+    /** Goal-driven impact target (the venue's radar reviews.gpi goal). The backend
+     *  computes the hedef line + impact lifts toward this instead of its constant. */
+    impactTarget?: number;
+  },
   fetchOpts?: FetchOpts
 ): Promise<OsBundleResponse> {
   const { base, f } = resolveFetch(fetchOpts);
@@ -1466,6 +1475,7 @@ export async function getOsBundle(
     params.set('chartDaily', '1');
     if (opts.chartFrom) params.set('chartFrom', opts.chartFrom);
   }
+  if (opts.impactTarget != null) params.set('impactTarget', String(opts.impactTarget));
   const res = await f(`${base}/os/${encodeURIComponent(venueSlug)}?${params.toString()}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
