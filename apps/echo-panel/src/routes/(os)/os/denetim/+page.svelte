@@ -97,7 +97,8 @@
 	<section class="ygg-section">
 		<h3>1. Yorum Platformları — Aylık İstatistik</h3>
 		<p class="ygg-note">
-			Şikâyet = 5 üzerinden 2 ve altı puanlı yorum; Olumlu = 4 ve üzeri. Başarı oranı = şikâyet olmayan yorum payı.
+			Şikâyet/Olumlu: misafirin açık "tavsiye eder misiniz?" cevabı varsa (HolidayCheck) o esas alınır;
+			diğer platformlarda 5 üzerinden ≤2 şikâyet, ≥4 olumlu sayılır. Başarı oranı = şikâyet olmayan yorum payı.
 		</p>
 		{#each r.reviews as p}
 			<h4>{PLATFORM_LABEL[p.platform] ?? p.platform}</h4>
