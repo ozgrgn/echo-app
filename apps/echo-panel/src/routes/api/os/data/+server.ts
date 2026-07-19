@@ -8,7 +8,7 @@
  * network with locals.session.token.
  *
  * GET /api/os/data?resource=<name>&venueSlug=<slug>&...params
- *   resources: departments | departmentDetail | departmentKeyTrend | responseStats | responseQueue | mentions
+ *   resources: departments | departmentDetail | departmentKeyTrend | responseStats | responseQueue | mentions | metricMeta
  */
 
 import { json, error } from '@sveltejs/kit';
@@ -49,6 +49,10 @@ export const GET: RequestHandler = async (event) => {
 					await api.getDepartmentKeyTrend(venueSlug, deptKey, granularKey, { platform, window })
 				);
 			}
+			case 'metricMeta':
+				// "How is this calculated?" registry — static per deploy, the client
+				// caches the whole list after the first popover open.
+				return json(await api.getMetricMetas());
 			case 'granularLabels':
 				// {labels: {granular_key → label_tr}} for alert titles, PLUS `catalog` (rows with
 				// category) for the grouped/searchable mention-correction picker.

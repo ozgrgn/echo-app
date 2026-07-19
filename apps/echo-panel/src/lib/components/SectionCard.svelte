@@ -8,11 +8,14 @@
 	import type { Snippet } from 'svelte';
 	import type { Icon as IconType } from '@lucide/svelte';
 	import Card from './Card.svelte';
+	import MetricInfo from './MetricInfo.svelte';
 
 	interface Props {
 		title: string;
 		/** Lucide icon component, e.g. import { TrendingUp } and pass `icon={TrendingUp}`. */
 		icon?: typeof IconType;
+		/** Metric-registry id (`reviews.*`) — renders a "?" popover next to the title. */
+		metricId?: string;
 		/** Muted hint on the right of the header (e.g. "son 30 gün"). */
 		hint?: string;
 		/** Optional rich content on the right (badge etc.) — overrides hint. */
@@ -25,7 +28,7 @@
 		children: Snippet;
 	}
 
-	let { title, icon: Icon, hint, action, padding = 'sm', fill = false, class: extra = '', children }: Props = $props();
+	let { title, icon: Icon, metricId, hint, action, padding = 'sm', fill = false, class: extra = '', children }: Props = $props();
 
 	// Sentence-case the hint (first letter up, rest untouched) for a tidier header —
 	// authors write hints lowercase ("son 30 gün"); we present them "Son 30 gün".
@@ -43,6 +46,9 @@
 				<Icon size={16} class="text-text-3" strokeWidth={2} />
 			{/if}
 			{title}
+			{#if metricId}
+				<MetricInfo {metricId} align="left" />
+			{/if}
 		</span>
 		{#if action}
 			{@render action()}

@@ -1204,6 +1204,32 @@ export async function getGranularLabels(
   };
 }
 
+/** One entry of the "how is this calculated?" registry (GET /v1/meta/metrics).
+ * Ids live in the shared `reviews.*` metricPath namespace. Faz 0 renders
+ * shortHelp/caveats in widget popovers; methodology is the assistant's evidence. */
+export interface MetricMeta {
+  id: string;
+  label: string;
+  shortHelp: string;
+  methodology: string;
+  dataSource: string;
+  caveats: string[];
+  constants?: Record<string, number | string>;
+}
+
+export async function getMetricMetas(
+  token: string,
+  opts?: FetchOpts,
+): Promise<{ metrics: MetricMeta[] }> {
+  const { base, f } = resolveFetch(opts);
+  const res = await f(`${base}/meta/metrics`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`getMetricMetas failed: ${res.status}`);
+  const data = await res.json();
+  return { metrics: (data.metrics ?? []) as MetricMeta[] };
+}
+
 /** Settings + venue-level meta the settings payload rides with. getVenueSettings
  * (above) narrows to `settings` for the existing settings page; this returns the
  * full body — operatingSeasons feeds the goal form's "Sezon sonu" preset. */

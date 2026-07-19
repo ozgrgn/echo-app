@@ -220,6 +220,7 @@
 <div class="mb-3.5 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
 	<StatTile
 		label="Genel GPI"
+		metricId="reviews.gpi"
 		value={data.hotelScore.gpi.toFixed(1)}
 		tone={gpiTone}
 		emphasis="primary"
@@ -227,6 +228,7 @@
 	/>
 	<StatTile
 		label="RPI"
+		metricId="reviews.rpi"
 		value={data.hotelScore.rpi?.toFixed(1) ?? '—'}
 		caption="100 = pazar ortalaması"
 	/>
@@ -237,13 +239,14 @@
 	/>
 	<StatTile
 		label="Pazar Ortalaması"
+		metricId="reviews.competitors"
 		value={competitorAvg.toFixed(1)}
 		caption="{data.competitors.length} rakip GPI ort."
 	/>
 </div>
 
 <!-- ── GPI comparison bars ───────────────────────────────────────────────── -->
-<SectionCard title="Genel GPI Karşılaştırması" icon={BarChart3} hint="GPI azalan" class="mb-3.5">
+<SectionCard title="Genel GPI Karşılaştırması" icon={BarChart3} metricId="reviews.competitors" hint="GPI azalan" class="mb-3.5">
 	<ul class="flex flex-col gap-2">
 		{#each allRows as row (row.venueSlug)}
 			<li
@@ -280,7 +283,7 @@
 </SectionCard>
 
 <!-- ── Category heatmap ──────────────────────────────────────────────────── -->
-<SectionCard title="Kategori Bazlı Karşılaştırma" icon={Grid3x3} hint="yeşil ≥72 · sarı 62-71 · kırmızı <62" class="mb-3.5">
+<SectionCard title="Kategori Bazlı Karşılaştırma" icon={Grid3x3} metricId="reviews.categories.score" hint="yeşil ≥72 · sarı 62-71 · kırmızı <62" class="mb-3.5">
 	<div class="overflow-x-auto">
 		<table class="min-w-full border-collapse text-sm">
 			<thead>
@@ -320,7 +323,7 @@
      One card, one metric at a time chosen by the header toggle: GPI (pure aspect,
      0-100) or Puan (native OTA star, own scale). Same layout; only the value/scale/
      colour differ. Per-platform scores come from persisted per-channel snapshots. -->
-<SectionCard title="Platform Bazlı Karşılaştırma" icon={Building2}>
+<SectionCard title="Platform Bazlı Karşılaştırma" icon={Building2} metricId="reviews.platforms.compare">
 	{#snippet action()}
 		<div class="inline-flex rounded-lg border border-border bg-surface-1 p-0.5 text-[11.5px] font-semibold">
 			<button

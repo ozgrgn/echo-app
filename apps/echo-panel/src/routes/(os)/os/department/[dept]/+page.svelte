@@ -410,7 +410,7 @@
 	     than showing one, which reads as an unfinished product. The trend now takes the
 	     full width. Bring them back with the Goal model, not before. -->
 	<div class="mb-3.5">
-		<SectionCard title="Departman skoru trendi" icon={trendDown ? TrendingDown : TrendingUp}>
+		<SectionCard title="Departman skoru trendi" icon={trendDown ? TrendingDown : TrendingUp} metricId="reviews.departments.gpi">
 			{#snippet action()}
 				<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold {trendDown ? 'bg-danger-light text-danger' : 'bg-success-light text-success'}">
 					{trendLabel}
@@ -429,7 +429,7 @@
 
 	<!-- Full category breakdown (alt kırılım) — REAL -->
 	<div class="mb-3.5">
-		<SectionCard title="{detail.label} kategorileri · tümü" icon={ListTree} hint="{breakdown.length} kategori · skor · mention · trend">
+		<SectionCard title="{detail.label} kategorileri · tümü" icon={ListTree} metricId="reviews.departments.gpi" hint="{breakdown.length} kategori · skor · mention · trend">
 			{#if breakdown.length === 0}
 				<p class="py-6 text-center text-[13px] text-text-3">Bu departman için kategori skoru yok.</p>
 			{:else}
@@ -485,12 +485,12 @@
 
 	<!-- Complaints + leverage — REAL -->
 	<div class="mb-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-2">
-		<SectionCard title="Skoru düşüren şikâyetler" icon={CircleAlert} hint="en sık">
+		<SectionCard title="Skoru düşüren şikâyetler" icon={CircleAlert} metricId="reviews.mentions.top" hint="en sık">
 			<!-- detail.reviewCount IS the department's mentionCount (departments.ts) —
 			     label the share denominator honestly as mentions, not reviews. -->
 			<MentionList items={issues} tone="issue" total={detail.reviewCount} unit="mention" emptyText="Şikâyet kaydı yok." />
 		</SectionCard>
-		<SectionCard title="Hedefe en hızlı yol" icon={Rocket} hint="kaldıraç sıralı">
+		<SectionCard title="Hedefe en hızlı yol" icon={Rocket} metricId="reviews.impact" hint="kaldıraç sıralı">
 			<OpportunityList items={opportunities} />
 		</SectionCard>
 	</div>
@@ -498,7 +498,7 @@
 	<!-- Sentence-level mentions across this department's categories — REAL.
 	     The id is the scroll anchor for the breakdown rows' mention-count buttons. -->
 	<div id="dept-mentions" class="scroll-mt-4">
-		<SectionCard title="Mentions · {detail.label}" icon={MessageSquare} class="mb-3.5">
+		<SectionCard title="Mentions · {detail.label}" icon={MessageSquare} metricId="reviews.mentions.top" class="mb-3.5">
 			{#snippet action()}
 				{#if mentionScope}
 					<button
@@ -526,7 +526,7 @@
 	</div>
 
 	<!-- Response analytics — real venue-wide rates only; unreachable → empty state. -->
-	<SectionCard title="Yanıt Yönetimi · {detail.label}" icon={MessageCircleReply} hint="duygu">
+	<SectionCard title="Yanıt Yönetimi · {detail.label}" icon={MessageCircleReply} metricId="reviews.responseRate" hint="duygu">
 		{#if respAnalytics}
 			<ResponseAnalytics
 				overallRate={respAnalytics.overallRate}

@@ -159,6 +159,7 @@
 	<div class="mb-3.5 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
 		<StatTile
 			label="İyi durumda"
+			metricId="reviews.departments.gpi"
 			value={`${scored.filter((x) => gpiZone(x.score) === 'green').length}/${scored.length}`}
 			tone="success"
 			emphasis="primary"
@@ -185,7 +186,7 @@
 	</div>
 
 	<!-- ── Department grid ───────────────────────────────────────────────────── -->
-	<SectionCard title="Departmanlar" icon={Users} hint="tıkla → ekip detayı" class="mb-3.5">
+	<SectionCard title="Departmanlar" icon={Users} metricId="reviews.departments.gpi" hint="tıkla → ekip detayı" class="mb-3.5">
 		<div class="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4">
 			{#each scored as d (d.key)}
 				<DeptCard dept={d} onenter={enterDept} />

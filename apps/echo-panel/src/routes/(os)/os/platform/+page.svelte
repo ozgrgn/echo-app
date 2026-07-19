@@ -212,7 +212,7 @@
 </div>
 
 <!-- Shared GPI trend across channels. -->
-<SectionCard title="İtibar trendi · tüm kanallar" icon={TrendingUp} hint="son 24 dönem" class="mb-3.5">
+<SectionCard title="İtibar trendi · tüm kanallar" icon={TrendingUp} metricId="reviews.platforms.compare" hint="son 24 dönem" class="mb-3.5">
 	{#if hasCompare}
 		<MultiTrendChart series={compareSeries} periods={comparePeriods} daily={data.chartDaily} height={240} />
 	{:else}
@@ -223,7 +223,7 @@
 </SectionCard>
 
 <!-- Per-category comparison across channels. -->
-<SectionCard title="Kategori karşılaştırması" icon={Layers} hint="{catRows.length} kategori · GPI">
+<SectionCard title="Kategori karşılaştırması" icon={Layers} metricId="reviews.categories.score" hint="{catRows.length} kategori · GPI">
 	{#if channels.length === 0 || catRows.length === 0}
 		<p class="py-8 text-center text-[13px] text-text-3">Bu dönemde kanal bazlı kategori verisi yok.</p>
 	{:else}

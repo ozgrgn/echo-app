@@ -12,6 +12,7 @@
 	import { osState } from '$lib/stores/osState.svelte';
 
 	import StatTile from '$lib/components/StatTile.svelte';
+	import MetricInfo from '$lib/components/MetricInfo.svelte';
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import TrendChart from '$lib/components/TrendChart.svelte';
 	import PlatformRow from '$lib/components/PlatformRow.svelte';
@@ -405,6 +406,7 @@
 	     (GPI_SAF_ASPECT_PLAN.md): Yıldız = market/reputation, GPI = review content/aspect. -->
 	<StatTile
 		label="Yıldız Ortalaması"
+		metricId="reviews.avgStarRating"
 		value={hs.avgStarRating != null ? `${hs.avgStarRating.toFixed(1)}` : '—'}
 		tone="success"
 		emphasis="primary"
@@ -418,6 +420,7 @@
 	     (GPI_SAF_ASPECT_PLAN.md.) -->
 	<StatTile
 		label="Genel GPI"
+		metricId="reviews.gpi"
 		value={hs.gpi.toFixed(1)}
 		tone={zoneTone(hs.gpi)}
 		caption="içerik analizi · hedef {GPI_TARGET}"
@@ -428,6 +431,7 @@
 	{#if !hideComp}
 		<StatTile
 			label="RPI"
+			metricId="reviews.rpi"
 			value={rpiValue?.toFixed(1) ?? '—'}
 			tone={rpiValue !== null ? (rpiValue >= 100 ? 'success' : 'warning') : 'neutral'}
 			caption={competitorAvg !== null ? `${(data.competitors ?? []).length} rakip · ort ${competitorAvg.toFixed(1)}` : 'rakip endeksi'}
@@ -435,6 +439,7 @@
 	{/if}
 	<StatTile
 		label={reviewCountLabel}
+		metricId="reviews.reviewCount"
 		value={hs.reviewCount.toLocaleString('tr-TR')}
 		caption={reviewDelta > 0 ? `bu dönem +${reviewDelta.toLocaleString('tr-TR')} yeni` : 'bu dönem'}
 		trend={reviewSpark}
@@ -444,6 +449,7 @@
 	     Re-add the delta when the trend is actually computed. -->
 	<StatTile
 		label="Yanıt Oranı"
+		metricId="reviews.responseRate"
 		value="%{responseRatePct}"
 		tone={responseRatePct === 0 ? 'danger' : responseRatePct >= 60 ? 'success' : 'warning'}
 		caption="hedef %80"
@@ -457,7 +463,7 @@
 	     equally (flex-1) so the column matches the taller right card, and each chart
 	     fills its card (fill) so the extra height isn't dead space under the chart. -->
 	<div class="flex flex-col gap-3.5">
-		<SectionCard title="İtibar trendi (GPI)" icon={TrendingUp} fill class="flex-1" hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'geçmiş birikiyor'}>
+		<SectionCard title="İtibar trendi (GPI)" icon={TrendingUp} metricId="reviews.gpi.trend" fill class="flex-1" hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'geçmiş birikiyor'}>
 			{#snippet action()}
 				{#if hs.gpi >= GPI_TARGET}
 					<span class="inline-flex items-center gap-1.5 rounded-full bg-success-light px-2.5 py-1 text-[11px] font-bold text-success">
@@ -488,13 +494,13 @@
 
 		<!-- Platform GPI comparison — our blended line emphasized over each platform. -->
 		{#if hasCompare}
-			<SectionCard title="Platform GPI karşılaştırması" icon={LineChart} fill class="flex-1">
+			<SectionCard title="Platform GPI karşılaştırması" icon={LineChart} metricId="reviews.platforms.compare" fill class="flex-1">
 				<MultiTrendChart series={compareSeries} periods={comparePeriods} daily={data.chartDaily} height={230} fill />
 			</SectionCard>
 		{/if}
 	</div>
 
-	<SectionCard title="Platformlar" icon={Globe} hint="ok: son 30 gün · tıkla → evren" class="h-full">
+	<SectionCard title="Platformlar" icon={Globe} metricId="reviews.platforms.gpi" hint="ok: son 30 gün · tıkla → evren" class="h-full">
 		<div class="-mx-1">
 			{#each platforms as p (p.key)}
 				<PlatformRow platform={p} onenter={enterPlatform} />
@@ -502,6 +508,7 @@
 		</div>
 		<div class="mb-2 mt-4 flex items-center gap-2 border-t border-border pt-3 text-[13px] font-bold text-text-1">
 			<Activity size={15} class="text-text-3" strokeWidth={2} />Kategori hareketi
+			<MetricInfo metricId="reviews.categories.sentiment" align="left" />
 			{#if CATEGORY_MOVEMENT_SENTIMENT}
 				<!-- Counts follow the selected window; arrows always compare the last 30 days
 				     (window-independent cohort). Label makes the two time scales explicit. -->
@@ -520,23 +527,23 @@
 
 <!-- ── Issues / Praises ──────────────────────────────────────────────────── -->
 <div class="mb-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-2">
-	<SectionCard title="En çok bahsedilen sorunlar" icon={CircleAlert} hint={mentionPeriodLabel}>
+	<SectionCard title="En çok bahsedilen sorunlar" icon={CircleAlert} metricId="reviews.mentions.top" hint={mentionPeriodLabel}>
 		<MentionList items={allIssues} tone="issue" total={hs.reviewCount} />
 	</SectionCard>
-	<SectionCard title="En çok övülenler" icon={ThumbsUp} hint={mentionPeriodLabel}>
+	<SectionCard title="En çok övülenler" icon={ThumbsUp} metricId="reviews.mentions.top" hint={mentionPeriodLabel}>
 		<MentionList items={allPraises} tone="praise" total={hs.reviewCount} />
 	</SectionCard>
 </div>
 
 <!-- ── Impact analysis: "neyi düzeltirsem GPI artar?" (REAL leverage) ─────── -->
-<SectionCard title="Neyi düzeltirsem GPI artar?" icon={Rocket} hint="gerçek kaldıraç · hedef {GPI_TARGET}" class="mb-3.5">
+<SectionCard title="Neyi düzeltirsem GPI artar?" icon={Rocket} metricId="reviews.impact" hint="gerçek kaldıraç · hedef {GPI_TARGET}" class="mb-3.5">
 	<ImpactList impact={data.impact ?? null} />
 </SectionCard>
 
 <!-- ── Management response analytics ──────────────────────────────────────── -->
 <!-- responseBreakdown is null when /v1/responses/stats is unreachable — show an honest
      empty state, never a fabricated breakdown (the old fallback served mock rows). -->
-<SectionCard title="Yanıt Yönetimi" icon={MessageCircleReply} hint="platform · duygu · pazar" class="mb-3.5">
+<SectionCard title="Yanıt Yönetimi" icon={MessageCircleReply} metricId="reviews.responseRate" hint="platform · duygu · pazar" class="mb-3.5">
 	{#if data.responseBreakdown}
 		<ResponseAnalytics
 			overallRate={hs.responseStats.rate}
@@ -553,12 +560,12 @@
 </SectionCard>
 
 <!-- ── Audience segments: who is reviewing you (language + trip type) ──────── -->
-<SectionCard title="Kitle profili" icon={PieChart} hint="dil · memnuniyet" class="mb-3.5">
+<SectionCard title="Kitle profili" icon={PieChart} metricId="reviews.segments" hint="dil · memnuniyet" class="mb-3.5">
 	<SegmentBreakdown data={data.segments ?? null} venueGpi={hs.gpi} />
 </SectionCard>
 
 <!-- ── Departments ───────────────────────────────────────────────────────── -->
-<SectionCard title="Departmanlar" icon={Users} hint="tıkla → ekip detayı">
+<SectionCard title="Departmanlar" icon={Users} metricId="reviews.departments.gpi" hint="tıkla → ekip detayı">
 	{#if depts.length === 0}
 		<p class="px-1 py-2 text-sm text-text-3">
 			Departman skoru henüz yok — yorumlar departmanlara yönlendirildikçe dolar.

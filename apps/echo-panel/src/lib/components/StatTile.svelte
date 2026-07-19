@@ -11,11 +11,14 @@
 	import Card from './Card.svelte';
 	import DeltaBadge from './DeltaBadge.svelte';
 	import Sparkline from './Sparkline.svelte';
+	import MetricInfo from './MetricInfo.svelte';
 
 	type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'brand';
 
 	interface Props {
 		label: string;
+		/** Metric-registry id (`reviews.*`) — renders a "?" popover next to the label. */
+		metricId?: string;
 		/** Already-formatted display value, e.g. "70.6", "%0", "196", "−3.4". */
 		value: string;
 		tone?: Tone;
@@ -44,6 +47,7 @@
 
 	let {
 		label,
+		metricId,
 		value,
 		tone = 'neutral',
 		emphasis = 'secondary',
@@ -99,7 +103,12 @@
 	class="flex h-full min-h-[124px] flex-col {isPrimary ? 'shadow-raised' : ''}"
 >
 	<div class="flex items-start justify-between gap-2">
-		<span class="text-[10.5px] font-semibold uppercase tracking-[0.04em] text-text-3">{label}</span>
+		<span class="flex items-center gap-1 text-[10.5px] font-semibold uppercase tracking-[0.04em] text-text-3">
+			{label}
+			{#if metricId}
+				<MetricInfo {metricId} align="left" />
+			{/if}
+		</span>
 		{#if critical}
 			<DeltaBadge value={0} critical {criticalLabel} />
 		{:else if delta !== undefined}

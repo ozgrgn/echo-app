@@ -287,7 +287,7 @@
 
 {#if activeTab === 'genel'}
 	<!-- GPI trend for this platform — REAL series from history (fallback in mock). -->
-	<SectionCard title="İtibar trendi · {label}" icon={TrendingUp} hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'güncel'} class="mb-3.5">
+	<SectionCard title="İtibar trendi · {label}" icon={TrendingUp} metricId="reviews.platforms.gpi" hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'güncel'} class="mb-3.5">
 		{#if trendHasHistory}
 			<TrendChart actual={trendActual} periods={trendPeriods} daily={data.chartDaily} ymin={trendYmin} ymax={trendYmax} color={color} height={200} />
 		{:else}
@@ -313,20 +313,20 @@
 			</div>
 		</SectionCard>
 
-		<SectionCard title="Kategoriler · {label}" icon={Activity} hint="14 · ABSA">
+		<SectionCard title="Kategoriler · {label}" icon={Activity} metricId="reviews.categories.score" hint="14 · ABSA">
 			{#each categories.slice(0, 7) as c (c.label)}
 				<CategoryBar label={c.label} score={c.score} trend={c.trend} />
 			{/each}
 		</SectionCard>
 	</div>
 
-	<SectionCard title="Önce neyi düzelt?" icon={Rocket} hint="en yüksek kaldıraç" class="mb-3.5">
+	<SectionCard title="Önce neyi düzelt?" icon={Rocket} metricId="reviews.impact" hint="en yüksek kaldıraç" class="mb-3.5">
 		<OpportunityList items={opportunities} />
 	</SectionCard>
 
 	<!-- Response analytics scoped to this platform — REAL via /v1/responses/stats only;
 	     unreachable → honest empty state (never a fabricated slice). -->
-	<SectionCard title="Yanıt Yönetimi · {label}" icon={MessageCircleReply} hint="duygu">
+	<SectionCard title="Yanıt Yönetimi · {label}" icon={MessageCircleReply} metricId="reviews.responseRate" hint="duygu">
 		{#if respAnalytics}
 			<ResponseAnalytics
 				overallRate={respAnalytics.overallRate}
@@ -343,14 +343,14 @@
 	</SectionCard>
 {:else if activeTab === 'kategoriler'}
 	<!-- Kategoriler — full 14-category list, mention-sorted. -->
-	<SectionCard title="Tüm kategoriler · {label}" icon={Activity} hint="{categories.length} · ABSA">
+	<SectionCard title="Tüm kategoriler · {label}" icon={Activity} metricId="reviews.categories.score" hint="{categories.length} · ABSA">
 		{#each categories as c (c.label)}
 			<CategoryBar label={c.label} score={c.score} trend={c.trend} />
 		{/each}
 	</SectionCard>
 {:else if activeTab === 'yorumlar'}
 	<!-- Yorumlar — sentence-level semantic mentions (REAL via /v1/mentions). -->
-	<SectionCard title="Mentions · {label}" icon={MessageSquare} hint="cümle düzeyi · ABSA">
+	<SectionCard title="Mentions · {label}" icon={MessageSquare} metricId="reviews.mentions.top" hint="cümle düzeyi · ABSA">
 		<MentionExplorer
 			items={mentions}
 			filter={mentionFilter}
@@ -365,6 +365,7 @@
 		<div class="mb-3.5 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
 			<StatTile
 				label="Yanıt oranı"
+				metricId="reviews.responseRate"
 				value="%{Math.round(respStats.rate * 100)}"
 				tone={respStats.rate >= 0.7 ? 'success' : 'warning'}
 				caption="{respStats.withResponse}/{respStats.total} yorum"
