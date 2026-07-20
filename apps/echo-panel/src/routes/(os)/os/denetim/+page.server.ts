@@ -41,6 +41,17 @@ export interface YggReport {
 		departments: { key: string; label: string; months: Record<string, Record<string, number>> }[];
 		topics: { key: string; label: string; total: number; months: Record<string, number> }[];
 	} | null;
+	dining: {
+		outlets: {
+			id: string;
+			label: string;
+			kind: 'alacarte' | 'pavilion';
+			months: Record<
+				string,
+				{ bookings: number; pax: number; freeBookings: number; revenue: Record<string, number> }
+			>;
+		}[];
+	} | null;
 	warnings: string[];
 }
 
