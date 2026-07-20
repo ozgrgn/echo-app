@@ -331,42 +331,9 @@
 		</section>
 	{/if}
 
-	<!-- 6. A la carte & pavilion sales -->
-	{#if r.dining?.outlets.length}
-		<section class="ygg-section">
-			<h3>6. Ekstra Satışlar — A La Carte & Pavilyon</h3>
-			<p class="ygg-note">
-				Hücreler: rezervasyon / kişi / ciro. Ciro yalnızca ücretli rezervasyonlardan hesaplanır —
-				ücretsiz kullanım hakları (paket dahilindeki ziyaretler) ve iptal edilenler tutara girmez.
-			</p>
-			<table>
-				<thead>
-					<tr>
-						<th>Restoran</th>
-						{#each r.months as m}<th>{monthShort(m)}</th>{/each}
-					</tr>
-				</thead>
-				<tbody>
-					{#each r.dining.outlets as o}
-						<tr>
-							<td>{o.label}{o.kind === 'pavilion' ? ' (Pavilyon)' : ''}</td>
-							{#each r.months as m}
-								{@const e = o.months[m]}
-								<td>
-									{#if e}
-										{e.bookings} rez · {e.pax} kişi
-										{#each Object.entries(e.revenue) as [cur, amt]}
-											<br /><strong>{amt.toLocaleString('tr-TR')} {cur}</strong>
-										{/each}
-									{:else}—{/if}
-								</td>
-							{/each}
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</section>
-	{/if}
+	<!-- Ekstra Satışlar (a la carte + pavilyon) bölümü şimdilik kaldırıldı —
+	     rezervasyon kayıtlarındaki ciro eksik girildiği için (owner, 2026-07-20).
+	     Veri backend'de hazır (r.dining); geri almak için git geçmişindeki bölümü koy. -->
 
 	<footer class="mt-8 border-t border-black/30 pt-2 text-xs">
 		Bu rapor ECHO tarafından {new Date(r.generatedAt).toLocaleString('tr-TR')} itibarıyla canlı kayıtlardan
