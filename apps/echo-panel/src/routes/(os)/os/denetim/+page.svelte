@@ -108,52 +108,39 @@
 			{@const curYear = r.from.slice(0, 4)}
 			{@const prevYear = r.prevMonths[0]?.slice(0, 4) ?? ''}
 			<h4>{PLATFORM_LABEL[p.platform] ?? p.platform}</h4>
+			<!-- Deck layout: months as rows, the two seasons side by side. -->
 			<table>
 				<thead>
 					<tr>
 						<th></th>
-						{#each r.months as m}<th>{monthShort(m)}</th>{/each}
+						<th colspan="3" class="ygg-yearhead">{prevYear} {PLATFORM_LABEL[p.platform] ?? p.platform}</th>
+						<th colspan="3" class="ygg-yearhead">{curYear} {PLATFORM_LABEL[p.platform] ?? p.platform}</th>
+					</tr>
+					<tr>
+						<th></th>
+						<th>Toplam Yorum</th>
+						<th>Tavsiye Etmeyen / Şikâyet</th>
+						<th>Başarı Oranı</th>
+						<th>Toplam Yorum</th>
+						<th>Tavsiye Etmeyen / Şikâyet</th>
+						<th>Başarı Oranı</th>
 					</tr>
 				</thead>
 				<tbody>
-					{#if prev}
-						<tr class="ygg-prev">
-							<td>Toplam Yorum ({prevYear})</td>
-							{#each r.prevMonths as m}<td>{num(prev.months[m]?.total)}</td>{/each}
+					{#each r.months as m, i}
+						{@const pm = r.prevMonths[i]}
+						{@const pe = prev?.months[pm]}
+						{@const ce = p.months[m]}
+						<tr>
+							<td>{monthShort(m).toUpperCase()}</td>
+							<td class="ygg-prevcell">{num(pe?.total)}</td>
+							<td class="ygg-prevcell">{num(pe?.complaints)}</td>
+							<td class="ygg-prevcell">{pe ? pct(pe.total, pe.complaints) : '—'}</td>
+							<td>{num(ce?.total, m)}</td>
+							<td>{num(ce?.complaints, m)}</td>
+							<td>{m > currentMonth ? '—' : ce ? pct(ce.total, ce.complaints) : '—'}</td>
 						</tr>
-					{/if}
-					<tr>
-						<td>Toplam Yorum ({curYear})</td>
-						{#each r.months as m}<td>{num(p.months[m]?.total, m)}</td>{/each}
-					</tr>
-					{#if prev}
-						<tr class="ygg-prev">
-							<td>Şikâyet ({prevYear})</td>
-							{#each r.prevMonths as m}<td>{num(prev.months[m]?.complaints)}</td>{/each}
-						</tr>
-					{/if}
-					<tr>
-						<td>Şikâyet ({curYear})</td>
-						{#each r.months as m}<td>{num(p.months[m]?.complaints, m)}</td>{/each}
-					</tr>
-					<tr>
-						<td>Olumlu ({curYear})</td>
-						{#each r.months as m}<td>{num(p.months[m]?.positives, m)}</td>{/each}
-					</tr>
-					{#if prev}
-						<tr class="ygg-prev">
-							<td>Başarı Oranı ({prevYear})</td>
-							{#each r.prevMonths as m}
-								<td>{prev.months[m] ? pct(prev.months[m].total, prev.months[m].complaints) : '—'}</td>
-							{/each}
-						</tr>
-					{/if}
-					<tr>
-						<td>Başarı Oranı ({curYear})</td>
-						{#each r.months as m}
-							<td>{p.months[m] ? pct(p.months[m].total, p.months[m].complaints) : '—'}</td>
-						{/each}
-					</tr>
+					{/each}
 				</tbody>
 			</table>
 		{/each}
@@ -426,6 +413,14 @@
 	}
 	.ygg-prev td {
 		color: #777;
+		background: #fafafa;
+	}
+	.ygg-yearhead {
+		background: #e2e6ec;
+		font-weight: 700;
+	}
+	.ygg-prevcell {
+		color: #555;
 		background: #fafafa;
 	}
 
