@@ -27,7 +27,10 @@
 		if (!total) return '—';
 		return `%${(((total - complaints) / total) * 100).toFixed(1).replace('.', ',')}`;
 	}
-	function num(v: number | undefined): string {
+	// Months that haven't happened yet render as em-dash, not a misleading zero.
+	const currentMonth = new Date().toISOString().slice(0, 7);
+	function num(v: number | undefined, m?: string): string {
+		if (m && m > currentMonth) return '—';
 		return v ? String(v) : '0';
 	}
 
@@ -121,7 +124,7 @@
 					{/if}
 					<tr>
 						<td>Toplam Yorum ({curYear})</td>
-						{#each r.months as m}<td>{num(p.months[m]?.total)}</td>{/each}
+						{#each r.months as m}<td>{num(p.months[m]?.total, m)}</td>{/each}
 					</tr>
 					{#if prev}
 						<tr class="ygg-prev">
@@ -131,11 +134,11 @@
 					{/if}
 					<tr>
 						<td>Şikâyet ({curYear})</td>
-						{#each r.months as m}<td>{num(p.months[m]?.complaints)}</td>{/each}
+						{#each r.months as m}<td>{num(p.months[m]?.complaints, m)}</td>{/each}
 					</tr>
 					<tr>
 						<td>Olumlu ({curYear})</td>
-						{#each r.months as m}<td>{num(p.months[m]?.positives)}</td>{/each}
+						{#each r.months as m}<td>{num(p.months[m]?.positives, m)}</td>{/each}
 					</tr>
 					{#if prev}
 						<tr class="ygg-prev">
@@ -174,7 +177,7 @@
 				{#each reviewTopicsHead as t}
 					<tr>
 						<td>{t.label}</td>
-						{#each r.months as m}<td>{num(t.months[m])}</td>{/each}
+						{#each r.months as m}<td>{num(t.months[m], m)}</td>{/each}
 						<td><strong>{t.total}</strong></td>
 					</tr>
 				{/each}
@@ -182,7 +185,7 @@
 					{@const tm = tailMonths(reviewTopicsTail)}
 					<tr>
 						<td><em>Diğer ({reviewTopicsTail.length} konu)</em></td>
-						{#each r.months as m}<td>{num(tm[m])}</td>{/each}
+						{#each r.months as m}<td>{num(tm[m], m)}</td>{/each}
 						<td><strong>{reviewTopicsTail.reduce((a, t) => a + t.total, 0)}</strong></td>
 					</tr>
 				{/if}
@@ -270,7 +273,7 @@
 							<td>{d.label}</td>
 							{#each r.months as m}
 								<td>
-									{num(d.months[m]?.negative)} / {num(d.months[m]?.suggestion)} / {num(d.months[m]?.positive)}
+									{num(d.months[m]?.negative, m)} / {num(d.months[m]?.suggestion, m)} / {num(d.months[m]?.positive, m)}
 								</td>
 							{/each}
 							<td>
@@ -284,7 +287,7 @@
 						<td>Toplam (tüm kayıtlar)</td>
 						{#each r.months as m}
 							{@const t = r.feedback.sentimentTotals[m]}
-							<td>{num(t?.negative)} / {num(t?.suggestion)} / {num(t?.positive)}</td>
+							<td>{num(t?.negative, m)} / {num(t?.suggestion, m)} / {num(t?.positive, m)}</td>
 						{/each}
 						<td></td>
 					</tr>
@@ -312,7 +315,7 @@
 					{#each fbTopicsHead as t}
 						<tr>
 							<td>{t.label}</td>
-							{#each r.months as m}<td>{num(t.months[m])}</td>{/each}
+							{#each r.months as m}<td>{num(t.months[m], m)}</td>{/each}
 							<td><strong>{t.total}</strong></td>
 						</tr>
 					{/each}
@@ -320,7 +323,7 @@
 						{@const tm = tailMonths(fbTopicsTail)}
 						<tr>
 							<td><em>Diğer ({fbTopicsTail.length} konu)</em></td>
-							{#each r.months as m}<td>{num(tm[m])}</td>{/each}
+							{#each r.months as m}<td>{num(tm[m], m)}</td>{/each}
 							<td><strong>{fbTopicsTail.reduce((a, t) => a + t.total, 0)}</strong></td>
 						</tr>
 					{/if}

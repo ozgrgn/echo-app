@@ -61,15 +61,15 @@ export const load: PageServerLoad = async (event) => {
 	if (!venueSlug) throw error(401, 'Not authenticated');
 	const token = locals.session?.token;
 
-	// Default range: this year's season so far (Apr → current month). The season
-	// convention (Apr–Nov operating window) matches the venue's YGG reporting
-	// period; ?from=&to= (YYYY-MM) override for past-season audits.
+	// Default range: the FULL season (Apr–Nov of the current season year), matching
+	// the YGG deck's column layout — future months render as em-dashes, so the same
+	// document simply fills in as the season progresses. Before April we're still
+	// reporting on the previous season. ?from=&to= (YYYY-MM) override for archives.
 	const now = new Date();
-	const year = now.getUTCFullYear();
-	const currentMonth = `${year}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-	const defaultFrom = `${year}-04`;
-	const from = url.searchParams.get('from') ?? (currentMonth < defaultFrom ? `${year - 1}-04` : defaultFrom);
-	const to = url.searchParams.get('to') ?? (currentMonth < defaultFrom ? `${year - 1}-11` : currentMonth);
+	const currentMonth = now.toISOString().slice(0, 7);
+	const seasonYear = currentMonth < `${now.getUTCFullYear()}-04` ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
+	const from = url.searchParams.get('from') ?? `${seasonYear}-04`;
+	const to = url.searchParams.get('to') ?? `${seasonYear}-11`;
 
 	// locals.apiBaseUrl already ends with /v1 (see apiBaseUrl.ts).
 	const res = await fetch(
