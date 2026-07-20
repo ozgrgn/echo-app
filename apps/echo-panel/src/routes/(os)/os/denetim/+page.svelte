@@ -411,10 +411,6 @@
 		background: #f7f7f7;
 		font-weight: 600;
 	}
-	.ygg-prev td {
-		color: #777;
-		background: #fafafa;
-	}
 	.ygg-yearhead {
 		background: #e2e6ec;
 		font-weight: 700;
