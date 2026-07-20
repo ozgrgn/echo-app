@@ -24,8 +24,11 @@ export interface YggReport {
 	from: string;
 	to: string;
 	months: string[];
+	/** Same months, previous year — the slide-style comparison axis. */
+	prevMonths: string[];
 	generatedAt: string;
 	reviews: { platform: string; months: Record<string, YggMonthStats> }[];
+	reviewsPrevYear: { platform: string; months: Record<string, YggMonthStats> }[];
 	topics: { key: string; label: string; total: number; months: Record<string, number> }[];
 	surveys: {
 		sent: Record<string, number>;

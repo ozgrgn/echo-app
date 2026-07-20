@@ -101,6 +101,9 @@
 			diğer platformlarda 5 üzerinden ≤2 şikâyet, ≥4 olumlu sayılır. Başarı oranı = şikâyet olmayan yorum payı.
 		</p>
 		{#each r.reviews as p}
+			{@const prev = r.reviewsPrevYear.find((x) => x.platform === p.platform)}
+			{@const curYear = r.from.slice(0, 4)}
+			{@const prevYear = r.prevMonths[0]?.slice(0, 4) ?? ''}
 			<h4>{PLATFORM_LABEL[p.platform] ?? p.platform}</h4>
 			<table>
 				<thead>
@@ -110,20 +113,40 @@
 					</tr>
 				</thead>
 				<tbody>
+					{#if prev}
+						<tr class="ygg-prev">
+							<td>Toplam Yorum ({prevYear})</td>
+							{#each r.prevMonths as m}<td>{num(prev.months[m]?.total)}</td>{/each}
+						</tr>
+					{/if}
 					<tr>
-						<td>Toplam Yorum</td>
+						<td>Toplam Yorum ({curYear})</td>
 						{#each r.months as m}<td>{num(p.months[m]?.total)}</td>{/each}
 					</tr>
+					{#if prev}
+						<tr class="ygg-prev">
+							<td>Şikâyet ({prevYear})</td>
+							{#each r.prevMonths as m}<td>{num(prev.months[m]?.complaints)}</td>{/each}
+						</tr>
+					{/if}
 					<tr>
-						<td>Şikâyet (≤2)</td>
+						<td>Şikâyet ({curYear})</td>
 						{#each r.months as m}<td>{num(p.months[m]?.complaints)}</td>{/each}
 					</tr>
 					<tr>
-						<td>Olumlu (≥4)</td>
+						<td>Olumlu ({curYear})</td>
 						{#each r.months as m}<td>{num(p.months[m]?.positives)}</td>{/each}
 					</tr>
+					{#if prev}
+						<tr class="ygg-prev">
+							<td>Başarı Oranı ({prevYear})</td>
+							{#each r.prevMonths as m}
+								<td>{prev.months[m] ? pct(prev.months[m].total, prev.months[m].complaints) : '—'}</td>
+							{/each}
+						</tr>
+					{/if}
 					<tr>
-						<td>Başarı Oranı</td>
+						<td>Başarı Oranı ({curYear})</td>
 						{#each r.months as m}
 							<td>{p.months[m] ? pct(p.months[m].total, p.months[m].complaints) : '—'}</td>
 						{/each}
@@ -360,6 +383,10 @@
 	.ygg-total td {
 		background: #f7f7f7;
 		font-weight: 600;
+	}
+	.ygg-prev td {
+		color: #777;
+		background: #fafafa;
 	}
 
 	@media print {
