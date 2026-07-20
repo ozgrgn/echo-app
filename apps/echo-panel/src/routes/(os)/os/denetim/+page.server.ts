@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 
 /**
  * /os/denetim — YGG (management review / audit) snapshot loader.
@@ -62,8 +62,11 @@ export interface YggReport {
 
 export const load: PageServerLoad = async (event) => {
 	const { locals, fetch, url } = event;
+	// This page breaks out of the (os) layout (+page@.svelte) for a clean,
+	// chrome-free printable document — the os layout's auth guard is skipped
+	// with it, so the login redirect lives here.
 	const venueSlug = locals.session?.venueSlug;
-	if (!venueSlug) throw error(401, 'Not authenticated');
+	if (!venueSlug) throw redirect(303, `/login?redirectTo=${encodeURIComponent(url.pathname)}`);
 	const token = locals.session?.token;
 
 	// Default range: the FULL season (Apr–Nov of the current season year), matching
