@@ -57,6 +57,107 @@
 		q_recommend: 'Tavsiye eder misiniz?'
 	};
 	const OPTION_LABEL: Record<string, string> = { yes: 'Evet', maybe: 'Belki', no: 'Hayır' };
+
+	// ── Charts (inline SVG, print-safe) ─────────────────────────────────────
+	// Palette validated with the dataviz six-checks script (blue/orange pair:
+	// all PASS on the light surface). 2025 rides as gray context (emphasis form).
+	const C = { cur: '#2a78d6', prev: '#9a9992', neg: '#eb6834', neutral: '#b5b4ae', grid: '#ececea' };
+
+	type MonthStats = { total: number; complaints: number; positives: number };
+	interface Pt {
+		i: number;
+		v: number | null;
+	}
+
+	function sumMonth(
+		list: { months: Record<string, MonthStats> }[],
+		m: string,
+		field: 'total' | 'complaints'
+	): number {
+		return list.reduce((a, p) => a + (p.months[m]?.[field] ?? 0), 0);
+	}
+
+	// Series over the full season axis; the current season stops at this month.
+	const vol26: Pt[] = $derived(
+		r.months.map((m, i) => ({ i, v: m > currentMonth ? null : sumMonth(r.reviews, m, 'total') }))
+	);
+	const vol25: Pt[] = $derived(
+		r.months.map((_, i) => ({ i, v: sumMonth(r.reviewsPrevYear, r.prevMonths[i], 'total') }))
+	);
+	function successPts(list: { months: Record<string, MonthStats> }[], months: string[], cutoff: boolean): Pt[] {
+		return months.map((m, i) => {
+			if (cutoff && r.months[i] > currentMonth) return { i, v: null };
+			const t = sumMonth(list, m, 'total');
+			const c = sumMonth(list, m, 'complaints');
+			return { i, v: t ? ((t - c) / t) * 100 : null };
+		});
+	}
+	const succ26: Pt[] = $derived(successPts(r.reviews, r.months, true));
+	const succ25: Pt[] = $derived(successPts(r.reviewsPrevYear, r.prevMonths, false));
+
+	// Line-chart geometry (shared by both line charts).
+	const LW = 760, LH = 200, LPAD = { l: 40, r: 64, t: 12, b: 22 };
+	function xPos(i: number): number {
+		return LPAD.l + (i * (LW - LPAD.l - LPAD.r)) / Math.max(1, r.months.length - 1);
+	}
+	function yScale(min: number, max: number): (v: number) => number {
+		return (v) => LH - LPAD.b - ((v - min) / (max - min)) * (LH - LPAD.t - LPAD.b);
+	}
+	function pathOf(pts: Pt[], y: (v: number) => number): string {
+		let d = '';
+		for (const p of pts) {
+			if (p.v == null) continue;
+			d += (d ? ' L' : 'M') + `${xPos(p.i).toFixed(1)},${y(p.v).toFixed(1)}`;
+		}
+		return d;
+	}
+	function lastPt(pts: Pt[]): Pt | null {
+		const filled = pts.filter((p) => p.v != null);
+		return filled.length ? filled[filled.length - 1] : null;
+	}
+	function niceTicks(min: number, max: number, n = 4): number[] {
+		const span = max - min || 1;
+		const step = Math.pow(10, Math.floor(Math.log10(span / n)));
+		const s = [1, 2, 5, 10].map((k) => k * step).find((k) => span / k <= n + 1) ?? step;
+		const out: number[] = [];
+		for (let v = Math.ceil(min / s) * s; v <= max; v += s) out.push(Math.round(v * 100) / 100);
+		return out;
+	}
+	const volMax = $derived(Math.max(...vol26.map((p) => p.v ?? 0), ...vol25.map((p) => p.v ?? 0)) * 1.12 || 10);
+	const succVals = $derived([...succ26, ...succ25].filter((p) => p.v != null).map((p) => p.v as number));
+	const succMin = $derived(Math.max(0, Math.floor(Math.min(80, ...succVals) / 5) * 5 - 5));
+	const yVol = $derived(yScale(0, volMax));
+	const ySucc = $derived(yScale(succMin, 100));
+
+	// MGB monthly sentiment (grouped columns).
+	const fbMonths = $derived(
+		r.feedback
+			? r.months
+					.filter((m) => m <= currentMonth)
+					.map((m) => ({
+						m,
+						olumlu: r.feedback!.sentimentTotals[m]?.positive ?? 0,
+						sikayet: r.feedback!.sentimentTotals[m]?.negative ?? 0,
+						oneri: r.feedback!.sentimentTotals[m]?.suggestion ?? 0
+					}))
+			: []
+	);
+	const fbMax = $derived(Math.max(...fbMonths.flatMap((e) => [e.olumlu, e.sikayet, e.oneri]), 1) * 1.15);
+
+	// Top review complaint topics (horizontal bars, single sequential hue).
+	const topTopics = $derived(r.topics.slice(0, 8));
+	const topicMax = $derived(Math.max(...topTopics.map((t) => t.total), 1));
+
+	/** Column with a 4px rounded data-end and a square baseline. */
+	function colPath(x: number, yTop: number, w: number, yBase: number): string {
+		const rr = Math.min(4, w / 2);
+		return `M${x},${yBase} L${x},${yTop + rr} Q${x},${yTop} ${x + rr},${yTop} L${x + w - rr},${yTop} Q${x + w},${yTop} ${x + w},${yTop + rr} L${x + w},${yBase} Z`;
+	}
+	/** Horizontal bar with a 4px rounded data-end, square at the left baseline. */
+	function rowPath(x0: number, y: number, w: number, h: number): string {
+		const rr = Math.min(4, h / 2);
+		return `M${x0},${y} L${x0 + w - rr},${y} Q${x0 + w},${y} ${x0 + w},${y + rr} L${x0 + w},${y + h - rr} Q${x0 + w},${y + h} ${x0 + w - rr},${y + h} L${x0},${y + h} Z`;
+	}
 </script>
 
 <svelte:head>
@@ -95,6 +196,122 @@
 			· Kaynak: ECHO (yorum platformları + otel içi anket + MGB kayıtları)
 		</p>
 	</header>
+
+	<!-- 0. Overview charts -->
+	<section class="ygg-section">
+		<h3>Genel Görünüm</h3>
+
+		<div class="ygg-chartgrid">
+			<figure>
+				<figcaption>
+					Toplam yorum hacmi (tüm platformlar)
+					<span class="ygg-legend">
+						<i style="background:{C.cur}"></i>{r.from.slice(0, 4)}
+						<i style="background:{C.prev}"></i>{r.prevMonths[0]?.slice(0, 4)}
+					</span>
+				</figcaption>
+				<svg viewBox="0 0 {LW} {LH}" role="img" aria-label="Aylık toplam yorum sayısı, iki sezon">
+					{#each niceTicks(0, volMax) as t}
+						<line x1={LPAD.l} x2={LW - LPAD.r} y1={yVol(t)} y2={yVol(t)} stroke={C.grid} stroke-width="1" />
+						<text x={LPAD.l - 6} y={yVol(t) + 3} class="ygg-tick" text-anchor="end">{t}</text>
+					{/each}
+					{#each r.months as m, i}
+						<text x={xPos(i)} y={LH - 6} class="ygg-tick" text-anchor="middle">{monthShort(m).slice(0, 3)}</text>
+					{/each}
+					<path d={pathOf(vol25, yVol)} fill="none" stroke={C.prev} stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+					<path d={pathOf(vol26, yVol)} fill="none" stroke={C.cur} stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+					{#each [{ pts: vol25, c: C.prev, yy: r.prevMonths[0]?.slice(0, 4) }, { pts: vol26, c: C.cur, yy: r.from.slice(0, 4) }] as s}
+						{@const lp = lastPt(s.pts)}
+						{#if lp}
+							<circle cx={xPos(lp.i)} cy={yVol(lp.v!)} r="4" fill={s.c} stroke="#fff" stroke-width="2" />
+							<text x={xPos(lp.i) + 8} y={yVol(lp.v!) + 4} class="ygg-endlabel">{s.yy}: {lp.v}</text>
+						{/if}
+					{/each}
+					{#each vol26 as p}
+						{#if p.v != null}<circle cx={xPos(p.i)} cy={yVol(p.v)} r="7" fill="transparent"><title>{monthShort(r.months[p.i])}: {p.v} yorum</title></circle>{/if}
+					{/each}
+				</svg>
+			</figure>
+
+			<figure>
+				<figcaption>
+					Başarı oranı % (şikâyet olmayan yorum payı)
+					<span class="ygg-legend">
+						<i style="background:{C.cur}"></i>{r.from.slice(0, 4)}
+						<i style="background:{C.prev}"></i>{r.prevMonths[0]?.slice(0, 4)}
+					</span>
+				</figcaption>
+				<svg viewBox="0 0 {LW} {LH}" role="img" aria-label="Aylık başarı oranı, iki sezon">
+					{#each niceTicks(succMin, 100) as t}
+						<line x1={LPAD.l} x2={LW - LPAD.r} y1={ySucc(t)} y2={ySucc(t)} stroke={C.grid} stroke-width="1" />
+						<text x={LPAD.l - 6} y={ySucc(t) + 3} class="ygg-tick" text-anchor="end">%{t}</text>
+					{/each}
+					{#each r.months as m, i}
+						<text x={xPos(i)} y={LH - 6} class="ygg-tick" text-anchor="middle">{monthShort(m).slice(0, 3)}</text>
+					{/each}
+					<path d={pathOf(succ25, ySucc)} fill="none" stroke={C.prev} stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+					<path d={pathOf(succ26, ySucc)} fill="none" stroke={C.cur} stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+					{#each [{ pts: succ25, c: C.prev, yy: r.prevMonths[0]?.slice(0, 4) }, { pts: succ26, c: C.cur, yy: r.from.slice(0, 4) }] as s}
+						{@const lp = lastPt(s.pts)}
+						{#if lp}
+							<circle cx={xPos(lp.i)} cy={ySucc(lp.v!)} r="4" fill={s.c} stroke="#fff" stroke-width="2" />
+							<text x={xPos(lp.i) + 8} y={ySucc(lp.v!) + 4} class="ygg-endlabel">{s.yy}: %{lp.v!.toFixed(1).replace('.', ',')}</text>
+						{/if}
+					{/each}
+					{#each succ26 as p}
+						{#if p.v != null}<circle cx={xPos(p.i)} cy={ySucc(p.v)} r="7" fill="transparent"><title>{monthShort(r.months[p.i])}: %{p.v.toFixed(1)}</title></circle>{/if}
+					{/each}
+				</svg>
+			</figure>
+
+			{#if fbMonths.length}
+				{@const yFb = yScale(0, fbMax)}
+				{@const groupW = (LW - LPAD.l - LPAD.r) / r.months.length}
+				{@const colW = Math.min(18, (groupW - 16) / 3)}
+				<figure>
+					<figcaption>
+						MGB geri bildirim dağılımı
+						<span class="ygg-legend">
+							<i style="background:{C.cur}"></i>Olumlu
+							<i style="background:{C.neg}"></i>Şikâyet
+							<i style="background:{C.neutral}"></i>Öneri
+						</span>
+					</figcaption>
+					<svg viewBox="0 0 {LW} {LH}" role="img" aria-label="Aylık misafir geri bildirim dağılımı">
+						{#each niceTicks(0, fbMax) as t}
+							<line x1={LPAD.l} x2={LW - LPAD.r} y1={yFb(t)} y2={yFb(t)} stroke={C.grid} stroke-width="1" />
+							<text x={LPAD.l - 6} y={yFb(t) + 3} class="ygg-tick" text-anchor="end">{t}</text>
+						{/each}
+						{#each fbMonths as e, gi}
+							{@const gx = LPAD.l + gi * groupW + groupW / 2}
+							<text x={gx} y={LH - 6} class="ygg-tick" text-anchor="middle">{monthShort(e.m).slice(0, 3)}</text>
+							{#each [{ v: e.olumlu, c: C.cur, n: 'Olumlu' }, { v: e.sikayet, c: C.neg, n: 'Şikâyet' }, { v: e.oneri, c: C.neutral, n: 'Öneri' }] as col, ci}
+								{@const x = gx - (colW * 3 + 4) / 2 + ci * (colW + 2)}
+								<path d={colPath(x, yFb(col.v), colW, LH - LPAD.b)} fill={col.c}>
+									<title>{monthShort(e.m)} — {col.n}: {col.v}</title>
+								</path>
+							{/each}
+						{/each}
+					</svg>
+				</figure>
+			{/if}
+
+			<figure>
+				<figcaption>Yorumlarda en sık şikâyet konuları (sezon toplamı)</figcaption>
+				<svg viewBox="0 0 {LW} {topTopics.length * 30 + 10}" role="img" aria-label="En sık şikâyet konuları">
+					{#each topTopics as t, i}
+						{@const y = i * 30 + 6}
+						{@const w = ((LW - 260) * t.total) / topicMax}
+						<text x="196" y={y + 13} class="ygg-tick" text-anchor="end">{t.label}</text>
+						<path d={rowPath(204, y, Math.max(w, 6), 18)} fill={C.cur}>
+							<title>{t.label}: {t.total} şikâyet</title>
+						</path>
+						<text x={204 + Math.max(w, 6) + 6} y={y + 13} class="ygg-endlabel">{t.total}</text>
+					{/each}
+				</svg>
+			</figure>
+		</div>
+	</section>
 
 	<!-- 1. Platform review stats -->
 	<section class="ygg-section">
@@ -389,6 +606,60 @@
 	.ygg-total td {
 		background: #f7f7f7;
 		font-weight: 600;
+	}
+	.ygg-chartgrid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 1.25rem;
+	}
+	.ygg-chartgrid figure {
+		margin: 0;
+		border: 1px solid #e4e4e2;
+		border-radius: 8px;
+		padding: 0.6rem 0.75rem;
+		break-inside: avoid-page;
+	}
+	.ygg-chartgrid figcaption {
+		font-size: 0.8rem;
+		font-weight: 600;
+		margin-bottom: 0.35rem;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+	.ygg-legend {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.7rem;
+		font-weight: 400;
+		color: #555;
+	}
+	.ygg-legend i {
+		display: inline-block;
+		width: 10px;
+		height: 10px;
+		border-radius: 3px;
+	}
+	.ygg-chartgrid svg {
+		width: 100%;
+		height: auto;
+		display: block;
+	}
+	:global(.ygg-tick) {
+		font-size: 10px;
+		fill: #6b6a66;
+	}
+	:global(.ygg-endlabel) {
+		font-size: 11px;
+		font-weight: 600;
+		fill: #0b0b0b;
+	}
+	@media (max-width: 900px) {
+		.ygg-chartgrid {
+			grid-template-columns: 1fr;
+		}
 	}
 	.ygg-yearhead {
 		background: #e2e6ec;
