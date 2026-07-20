@@ -188,8 +188,8 @@
 			{@const curYY = r.from.slice(2, 4)}
 			{@const prevYY = prevSurvey?.year.slice(2, 4) ?? ''}
 			<p class="ygg-note">
-				%100 = tüm cevaplar "mükemmel". Cevap sayısı ayda {Object.values(r.surveys.responded).join(' / ')}
-				(gönderilen: {Object.values(r.surveys.sent).join(' / ')}).
+				%100 = tüm cevaplar "mükemmel". Aylık cevap sayısı:
+				{Object.entries(r.surveys.responded).sort().map(([m, v]) => `${monthShort(m)} ${v}`).join(' · ')}.
 				{#if prevSurvey}{prevSurvey.year} kolonları geçmiş sezon raporundan elle aktarılmıştır.{/if}
 			</p>
 			<table>
