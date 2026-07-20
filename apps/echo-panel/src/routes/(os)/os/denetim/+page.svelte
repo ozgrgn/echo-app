@@ -184,22 +184,34 @@
 	<section class="ygg-section">
 		<h3>3. Otel İçi Anket — Kategori Puanları</h3>
 		{#if r.surveys}
+			{@const prevSurvey = r.surveysPrevYear}
+			{@const curYY = r.from.slice(2, 4)}
+			{@const prevYY = prevSurvey?.year.slice(2, 4) ?? ''}
 			<p class="ygg-note">
 				%100 = tüm cevaplar "mükemmel". Cevap sayısı ayda {Object.values(r.surveys.responded).join(' / ')}
 				(gönderilen: {Object.values(r.surveys.sent).join(' / ')}).
+				{#if prevSurvey}{prevSurvey.year} kolonları geçmiş sezon raporundan elle aktarılmıştır.{/if}
 			</p>
 			<table>
 				<thead>
 					<tr>
 						<th>Kategori</th>
-						{#each r.months as m}<th>{monthShort(m)}</th>{/each}
+						{#each r.months as m}
+							{#if prevSurvey}<th class="ygg-prevcell">{monthShort(m).slice(0, 3)}.{prevYY}</th>{/if}
+							<th>{monthShort(m).slice(0, 3)}.{curYY}</th>
+						{/each}
 					</tr>
 				</thead>
 				<tbody>
 					{#each r.surveys.categories as c}
+						{@const pc = prevSurvey?.categories.find((x) => x.key === c.key)}
 						<tr>
 							<td>{c.label}</td>
-							{#each r.months as m}
+							{#each r.months as m, i}
+								{#if prevSurvey}
+									{@const pv = pc?.months[r.prevMonths[i]]}
+									<td class="ygg-prevcell">{pv != null ? `%${pv.toFixed(2).replace('.', ',')}` : '—'}</td>
+								{/if}
 								<td>{c.months[m] ? `%${c.months[m].pct.toFixed(2).replace('.', ',')}` : '—'}</td>
 							{/each}
 						</tr>
