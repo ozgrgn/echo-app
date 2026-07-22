@@ -20,9 +20,13 @@ import {
 	previewRadarGoal,
 	deleteRadarGoal,
 	muteRadarAlert,
-	getRadarMetricSeries
+	getRadarMetricSeries,
+	getRadarThread,
+	createRadarThread,
+	createRadarThreadFromAlert
 } from '$lib/server/radarApi';
 import type { RadarScope, RadarAlertCard } from '$lib/server/radarApi';
+import { chatUser } from '$lib/server/session';
 import type { RequestHandler } from './$types';
 
 /** ECHO panel is the REPUTATION lens of the shared radar store. PMS-domain cards
@@ -33,9 +37,13 @@ const reputationOnly = (cards: RadarAlertCard[]) =>
 
 export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 	if (!locals.session) throw error(401, 'Not authenticated');
+	// Per-user identity (OTP sessions only) — radar scopes THREADS by it. Read-only
+	// surfaces (alerts/goals) work with or without it.
+	const user = chatUser(locals.session);
 	const scope: RadarScope = {
 		tenantKey: locals.session.tenantKey,
-		venueSlug: locals.session.venueSlug
+		venueSlug: locals.session.venueSlug,
+		...(user ? { userSub: user.sub } : {})
 	};
 
 	const resource = url.searchParams.get('resource') ?? 'all';
@@ -47,6 +55,13 @@ export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 				return json({ goals: await listRadarGoals(scope, fetch) });
 			case 'threads':
 				return json({ threads: await listRadarThreads(scope, fetch) });
+			case 'thread': {
+				// Full thread (messages + followUps) — chat surface, per-user only.
+				if (!user) throw error(403, 'Sohbet için OTP girişi gerekli');
+				const threadId = url.searchParams.get('threadId');
+				if (!threadId) throw error(400, 'threadId required');
+				return json(await getRadarThread(scope, threadId, fetch));
+			}
 			case 'series': {
 				// Alert-detail chart. Same path discipline as the goal whitelist's spirit:
 				// reviews.* only — radar enforces it again on its side.
@@ -68,6 +83,9 @@ export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 					alerts: alerts.status === 'fulfilled' ? reputationOnly(alerts.value) : [],
 					goals: goals.status === 'fulfilled' ? goals.value : [],
 					threads: threads.status === 'fulfilled' ? threads.value : [],
+					// Chat/threads interactivity flag: true only for OTP sessions (per-user
+					// identity). Legacy clientSecret + demo stay read-only (G6 rule).
+					chatEnabled: !!user,
 					partial:
 						alerts.status === 'rejected' ||
 						goals.status === 'rejected' ||
@@ -99,15 +117,41 @@ const GOALABLE_PATHS = [
 // previewGoal is the confirm-modal dry-run: same validation, nothing persisted.
 export const POST: RequestHandler = async ({ request, locals, fetch }) => {
 	if (!locals.session) throw error(401, 'Not authenticated');
+	const user = chatUser(locals.session);
 	const scope: RadarScope = {
 		tenantKey: locals.session.tenantKey,
-		venueSlug: locals.session.venueSlug
+		venueSlug: locals.session.venueSlug,
+		...(user ? { userSub: user.sub } : {})
 	};
 
 	const body = await request.json().catch(() => null);
 	const action = body?.action;
-	if (!body || !['setGoal', 'previewGoal', 'deleteGoal', 'muteAlert'].includes(action))
+	if (
+		!body ||
+		!['setGoal', 'previewGoal', 'deleteGoal', 'muteAlert', 'threadFromAlert', 'newThread'].includes(
+			action
+		)
+	)
 		throw error(400, 'Unknown action');
+
+	// Thread-creating actions are chat surface — per-user identity required (G6).
+	if (action === 'threadFromAlert' || action === 'newThread') {
+		if (!user) throw error(403, 'Sohbet için OTP girişi gerekli');
+		try {
+			if (action === 'threadFromAlert') {
+				const fingerprint = String(body.fingerprint ?? '');
+				if (!fingerprint) throw error(400, 'fingerprint required');
+				return json(await createRadarThreadFromAlert(scope, fingerprint, fetch));
+			}
+			const title = body.title ? String(body.title).slice(0, 120) : undefined;
+			return json(await createRadarThread(scope, { title }, fetch));
+		} catch (e) {
+			if (e && typeof e === 'object' && 'status' in e) throw e;
+			const msg = e instanceof Error ? e.message : 'Konu açılamadı';
+			const m = /\b(4\d\d|5\d\d)\b/.exec(msg);
+			throw error(m ? Number(m[1]) : 502, msg);
+		}
+	}
 
 	if (action === 'muteAlert') {
 		const fingerprint = String(body.fingerprint ?? '');

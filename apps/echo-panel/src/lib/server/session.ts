@@ -199,3 +199,35 @@ export function clearSession(cookies: Cookies): void {
 		cookies.delete(name, { path: '/' });
 	}
 }
+
+/**
+ * Decode the session JWT's {sub, role} WITHOUT verifying (the backend already
+ * verified it when it minted the cookie; this is identity display/routing only).
+ * Returns null for malformed tokens.
+ */
+export function tokenClaims(token: string): { sub: string; role: string } | null {
+	try {
+		const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+		const sub = String(payload?.sub ?? '');
+		const role = String(payload?.role ?? '');
+		return sub ? { sub, role } : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * The per-user chat identity, or null when this session may not use chat/threads.
+ * Rule (G6): threads are PER USER on radar's side — only an OTP session carries a
+ * real staff identity. Legacy clientSecret logins (role 'panel') and demo sessions
+ * share one tenant identity, so chat stays off for them (a shared conversation
+ * would leak between users; demo additionally awaits the LLM quota guardrails).
+ */
+export function chatUser(
+	session: (SessionIdentity & { token: string }) | null
+): { sub: string; role: string } | null {
+	if (!session || session.isDemo) return null;
+	const claims = tokenClaims(session.token);
+	if (!claims || claims.role === 'panel') return null;
+	return claims;
+}

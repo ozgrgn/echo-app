@@ -51,12 +51,15 @@ function createOsState() {
 		selectedThreadId: string | null;
 		/** semantic id flagged by the assistant's highlightComponent UI-action */
 		highlighted: { component: string; effect: string } | null;
+		/** "?" popover → "Asistana sor" handoff (A1): the panel consumes and clears it. */
+		askMetric: { metricId: string; window?: string; currentValue?: number } | null;
 	}>({
 		lens: { kind: 'genel' },
 		period: 'monthly',
 		filters: {},
 		selectedThreadId: null,
-		highlighted: null
+		highlighted: null,
+		askMetric: null
 	});
 
 	// The set of visible components is lens-derived; pages may extend it but this
@@ -134,6 +137,18 @@ function createOsState() {
 		},
 		clearHighlight() {
 			state.highlighted = null;
+		},
+
+		// ── "?" → assistant handoff (metric methodology, G5 Faz 1) ──────────────
+		get askMetric() {
+			return state.askMetric;
+		},
+		/** MetricInfo popover's "Asistana sor" writes here; AssistantPanel reacts. */
+		askAssistant(req: { metricId: string; window?: string; currentValue?: number }) {
+			state.askMetric = req;
+		},
+		clearAskMetric() {
+			state.askMetric = null;
 		}
 	};
 }

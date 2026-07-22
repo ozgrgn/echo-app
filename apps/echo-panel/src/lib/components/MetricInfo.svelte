@@ -27,7 +27,9 @@
 </script>
 
 <script lang="ts">
-	import { CircleHelp } from '@lucide/svelte';
+	import { CircleHelp, Sparkles } from '@lucide/svelte';
+	import { page } from '$app/state';
+	import { osState } from '$lib/stores/osState.svelte';
 
 	interface Props {
 		/** `reviews.*` metricPath id — must exist in the backend registry. */
@@ -57,6 +59,15 @@
 				failed = true;
 			}
 		}
+	}
+
+	// "Asistana sor" (A1): hand the metric off to the assistant panel via osState.
+	// The panel opens a thread and fires the explainEchoMetric forceTool — the same
+	// registry entry this popover renders, so the two can never disagree.
+	function askAssistant() {
+		const w = page.url.searchParams.get('window');
+		osState.askAssistant({ metricId, ...(w ? { window: w } : {}) });
+		open = false;
 	}
 
 	// Close on outside pointer-down / Escape. Listeners are per-instance but only
@@ -118,6 +129,12 @@
 						{/each}
 					</ul>
 				{/if}
+				<button
+					onclick={askAssistant}
+					class="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-talkwo/10 px-2.5 py-1.5 text-[11px] font-bold normal-case tracking-normal text-talkwo transition-colors hover:bg-talkwo/20"
+				>
+					<Sparkles size={12} />Asistana sor
+				</button>
 			{:else if failed}
 				<p class="text-[11.5px] font-normal normal-case tracking-normal text-text-3">
 					Açıklama şu an yüklenemedi.

@@ -23,6 +23,14 @@ const TOKEN_TTL_S = 120; // per-call, short-lived — minted fresh each request
 export interface RadarScope {
 	tenantKey: string;
 	venueSlug: string; // == radar venueId
+	/**
+	 * Per-user identity for radar's thread scoping (threads are PER USER on radar's
+	 * side — userId = token sub). OTP sessions carry the staff id; when absent the
+	 * token falls back to the shared 'echo-panel' sub, which is fine for the READ
+	 * surfaces (alerts/goals) but chat/threads must not be offered (they'd be a
+	 * tenant-shared conversation). The proxy enforces that rule.
+	 */
+	userSub?: string;
 }
 
 /** Active alert card from radar's alert_states (written by snapshotScan). */
@@ -111,12 +119,17 @@ function mintRadarToken(scope: RadarScope): string {
 	const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
 	const payload = b64url(
 		JSON.stringify({
-			sub: 'echo-panel',
+			// Per-user sub (OTP staff id, 'echo:' prefixed to avoid colliding with radar's own
+			// admin ids) — radar scopes threads by this. Fallback 'echo-panel' = shared reads only.
+			sub: scope.userSub ? `echo:${scope.userSub}` : 'echo-panel',
 			type: 'session',
 			role: 'viewer',
 			tenantKey: scope.tenantKey,
 			venueId: scope.venueSlug,
 			aud: 'radar',
+			// Assistant surface: narrows radar's toolset to the reputation lens and unlocks
+			// the methodology explainer (radar auth.middleware → buildToolsetForTurn).
+			surface: 'echo',
 			iat: now,
 			exp: now + TOKEN_TTL_S
 		})
@@ -262,4 +275,78 @@ export async function listRadarThreads(scope: RadarScope, fetchFn: typeof fetch 
 		fetchFn
 	);
 	return data.threads ?? [];
+}
+
+// ── Threads + chat (A1 — Sohbet/Gündem go-live) ─────────────────────────────────
+// Radar's assist threads are per-user (scope.userSub → token sub). The /api/agenda
+// proxy only exposes these to OTP sessions (a real user identity); legacy
+// clientSecret sessions get read-only surfaces.
+
+/** Full thread with messages (+ followUps for alert threads). */
+export async function getRadarThread(scope: RadarScope, threadId: string, fetchFn: typeof fetch = fetch) {
+	const t = encodeURIComponent(scope.tenantKey);
+	const v = encodeURIComponent(scope.venueSlug);
+	return radarGet<{ thread: RadarThread & { messages?: unknown[] }; followUps?: unknown[] }>(
+		scope,
+		`/api/assist/${t}/${v}/threads/${encodeURIComponent(threadId)}`,
+		fetchFn
+	);
+}
+
+/** Open (or continue — deduped by sourceRef) the thread of an alert. Radar derives
+ * seed/persona/followUps/analyzeInstruction from the alert record. */
+export async function createRadarThreadFromAlert(
+	scope: RadarScope,
+	fingerprint: string,
+	fetchFn: typeof fetch = fetch
+) {
+	const t = encodeURIComponent(scope.tenantKey);
+	const v = encodeURIComponent(scope.venueSlug);
+	return radarPost<{
+		thread: RadarThread;
+		created?: boolean;
+		analyzeInstruction?: string | null;
+		followUps?: { label: string; content: string }[];
+		presentation?: string;
+		analysisEnabled?: boolean;
+	}>(scope, `/api/assist/${t}/${v}/threads/from-alert`, { sourceRef: fingerprint }, fetchFn);
+}
+
+/** Create a manual chat thread (the Sohbet tab's "new conversation"). */
+export async function createRadarThread(
+	scope: RadarScope,
+	body: { title?: string },
+	fetchFn: typeof fetch = fetch
+) {
+	const t = encodeURIComponent(scope.tenantKey);
+	const v = encodeURIComponent(scope.venueSlug);
+	return radarPost<{ thread: RadarThread }>(
+		scope,
+		`/api/assist/${t}/${v}/threads`,
+		{ title: body.title, source: 'manual' },
+		fetchFn
+	);
+}
+
+/** One chat turn over SSE. Returns the RAW upstream Response so the caller can pipe
+ * res.body straight through (text/event-stream: token | tool | done | error). */
+export async function streamRadarChat(
+	scope: RadarScope,
+	threadId: string,
+	body: { content: string; displayContent?: string; forceTool?: { name: string; args?: Record<string, unknown> } },
+	fetchFn: typeof fetch = fetch
+): Promise<Response> {
+	const t = encodeURIComponent(scope.tenantKey);
+	const v = encodeURIComponent(scope.venueSlug);
+	return fetchFn(
+		`${baseUrl()}/api/assist/${t}/${v}/threads/${encodeURIComponent(threadId)}/stream`,
+		{
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${mintRadarToken(scope)}`,
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(body)
+		}
+	);
 }

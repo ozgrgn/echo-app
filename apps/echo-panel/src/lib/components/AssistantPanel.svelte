@@ -9,6 +9,7 @@
 	import { osState } from '$lib/stores/osState.svelte';
 	import { MOCK_THREADS, MOCK_BRIEF, MOCK_STREAM, type ThreadStatus } from '$lib/mock/assistant';
 	import TalkwoMark from './TalkwoMark.svelte';
+	import AssistantChat from './AssistantChat.svelte';
 
 	// Active venue name for the scope header (from the SSR session, via the OS layout).
 	// Required, not defaulted: the old default hardcoded one real customer's hotel name,
@@ -63,6 +64,8 @@
 		categoryLabel?: string;
 		sendCount?: number;
 		lastSentAt?: string;
+		/** Radar presentation contract: false → action_required card, no LLM analysis. */
+		analysisEnabled?: boolean;
 	};
 	type GoalReport = {
 		goal: { goalId: string; label?: string; metricPath: string; target: number; deadline?: string | null };
@@ -86,6 +89,124 @@
 	let goals = $state<GoalReport[]>([]);
 	let threads = $state<Thread[]>([]);
 
+	// ── A1: live chat/threads. chatEnabled comes from the proxy (OTP sessions only —
+	// radar threads are per-user; clientSecret/demo sessions stay read-only, G6).
+	let chatEnabled = $state(false);
+	type OpenThread = {
+		threadId: string;
+		title?: string;
+		analyzeInstruction?: string | null;
+		followUps?: { label: string; content: string }[];
+		/** Auto-sent first turn (e.g. "?" → explainEchoMetric forceTool). */
+		initialForce?: {
+			content: string;
+			displayContent?: string;
+			forceTool?: { name: string; args?: Record<string, unknown> };
+		};
+	};
+	let openThread = $state<OpenThread | null>(null);
+	let threadBusy = $state(false);
+
+	async function refreshThreads() {
+		try {
+			const res = await fetch('/api/agenda?resource=threads');
+			if (res.ok) threads = (await res.json()).threads ?? [];
+		} catch {
+			/* list refresh is best-effort */
+		}
+	}
+
+	/** Alert detail → "Analiz et": open (or continue) the alert's thread and jump in. */
+	async function analyzeAlert(a: AlertCard) {
+		if (threadBusy) return;
+		threadBusy = true;
+		try {
+			const res = await fetch('/api/agenda', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'threadFromAlert', fingerprint: a.fingerprint })
+			});
+			if (!res.ok) throw new Error(`analiz ${res.status}`);
+			const data = await res.json();
+			const tid = data.thread?.threadId;
+			if (!tid) throw new Error('threadId yok');
+			openThread = {
+				threadId: tid,
+				title: data.thread?.title ?? a.title,
+				analyzeInstruction: data.analyzeInstruction ?? null,
+				followUps: data.followUps ?? []
+			};
+			alertDetail = null;
+			void refreshThreads();
+		} catch {
+			loadError = 'Analiz konusu açılamadı';
+		} finally {
+			threadBusy = false;
+		}
+	}
+
+	// "?" popover → "Asistana sor" handoff: open a thread and fire the
+	// explainEchoMetric forceTool with the widget's context (G5 Faz 1).
+	$effect(() => {
+		const req = osState.askMetric;
+		if (!req || demo) return;
+		osState.clearAskMetric();
+		section = 'chat';
+		if (!chatEnabled) return; // OTP notice renders in the chat section
+		void (async () => {
+			if (threadBusy) return;
+			threadBusy = true;
+			try {
+				const res = await fetch('/api/agenda', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ action: 'newThread', title: `Nasıl hesaplanır? · ${req.metricId}` })
+				});
+				if (!res.ok) throw new Error(`thread ${res.status}`);
+				const data = await res.json();
+				const tid = data.thread?.threadId;
+				if (!tid) throw new Error('threadId yok');
+				openThread = {
+					threadId: tid,
+					title: data.thread?.title ?? 'Nasıl hesaplanır?',
+					initialForce: {
+						content: `${req.metricId} metriğinin ne olduğunu ve nasıl hesaplandığını açıkla.`,
+						displayContent: 'Nasıl hesaplanır?',
+						forceTool: { name: 'explainEchoMetric', args: { ...req } }
+					}
+				};
+				void refreshThreads();
+			} catch {
+				loadError = 'Asistan konusu açılamadı';
+			} finally {
+				threadBusy = false;
+			}
+		})();
+	});
+
+	/** Sohbet → "Yeni sohbet": create a manual thread and open it. */
+	async function newChat() {
+		if (threadBusy) return;
+		threadBusy = true;
+		try {
+			const res = await fetch('/api/agenda', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'newThread' })
+			});
+			if (!res.ok) throw new Error(`sohbet ${res.status}`);
+			const data = await res.json();
+			const tid = data.thread?.threadId;
+			if (!tid) throw new Error('threadId yok');
+			openThread = { threadId: tid, title: data.thread?.title ?? 'Yeni sohbet' };
+			void refreshThreads();
+		} catch {
+			loadError = 'Sohbet açılamadı';
+		} finally {
+			threadBusy = false;
+		}
+	}
+
 	$effect(() => {
 		if (demo) return; // demo branch renders fixtures, never fetches
 		let cancelled = false;
@@ -100,6 +221,7 @@
 				alerts = (data.alerts ?? []).filter((a: AlertCard) => a.category === 'reputation');
 				goals = data.goals ?? [];
 				threads = data.threads ?? [];
+				chatEnabled = !!data.chatEnabled;
 				// Label maps for render-time repair — fetch as soon as the list needs them
 				// (not only on detail open): echo label_tr for granular keys, echo dept
 				// labels for department tokens.
@@ -643,8 +765,21 @@
 		{/each}
 	</nav>
 
-	<div class="flex-1 overflow-y-auto p-3 [scrollbar-width:none]">
-		{#if loading}
+	<div class="flex-1 {openThread ? 'overflow-hidden' : 'overflow-y-auto'} p-3 [scrollbar-width:none]">
+		{#if openThread}
+			<!-- A1: an open assist thread takes over the content area (all sections route here). -->
+			<AssistantChat
+				threadId={openThread.threadId}
+				title={openThread.title}
+				analyzeInstruction={openThread.analyzeInstruction ?? null}
+				followUps={openThread.followUps ?? []}
+				initialForce={openThread.initialForce}
+				onback={() => {
+					openThread = null;
+					void refreshThreads();
+				}}
+			/>
+		{:else if loading}
 			<div class="flex flex-col gap-2.5">
 				{#each [0, 1, 2] as i (i)}
 					<div class="h-16 animate-pulse rounded-xl bg-surface-2"></div>
@@ -670,13 +805,19 @@
 			{:else}
 				<div class="flex flex-col gap-2.5">
 					{#each threads as t (t.threadId ?? t.title)}
-						<button class="flex items-center gap-3 rounded-xl border border-border bg-surface-1 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-hover">
+						<button
+							disabled={!chatEnabled || !t.threadId}
+							onclick={() => {
+								if (t.threadId) openThread = { threadId: t.threadId, title: t.title };
+							}}
+							class="flex items-center gap-3 rounded-xl border border-border bg-surface-1 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-hover disabled:cursor-default disabled:hover:translate-y-0 disabled:hover:shadow-none"
+						>
 							<span class="grid h-7 w-7 flex-none place-items-center rounded-lg bg-talkwo/10 text-talkwo">
 								<MessagesSquare size={14} />
 							</span>
 							<span class="min-w-0 flex-1">
 								<span class="block truncate text-[12.5px] font-bold text-text-1">{t.title ?? 'Konu'}</span>
-								<span class="mt-0.5 block text-[11px] text-text-3">{t.source === 'alert' ? 'uyarıdan' : t.source === 'goal' ? 'hedeften' : 'manuel'}</span>
+								<span class="mt-0.5 block text-[11px] text-text-3">{t.source === 'alert' ? 'uyarıdan' : t.source === 'goal' ? 'hedeften' : 'sohbet'}</span>
 							</span>
 						</button>
 					{/each}
@@ -730,7 +871,17 @@
 					{/if}
 
 					<div class="mt-3 flex flex-wrap items-center gap-1.5">
-						<button onclick={() => goalFromAlert(a)} class="rounded-lg bg-talkwo px-2.5 py-1.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90">Hedef belirle</button>
+						{#if chatEnabled && a.analysisEnabled !== false}
+						<!-- A1 (K4): "Analiz et" artık görünür — uyarının thread'ini açar, forced-evidence analiz orada. -->
+						<button
+							disabled={threadBusy}
+							onclick={() => void analyzeAlert(a)}
+							class="rounded-lg bg-talkwo px-2.5 py-1.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+						>
+							{threadBusy ? 'Açılıyor…' : 'Analiz et'}
+						</button>
+					{/if}
+					<button onclick={() => goalFromAlert(a)} class="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1">Hedef belirle</button>
 						<span class="ml-auto text-[10px] font-bold uppercase tracking-wide text-text-3">Sustur:</span>
 						<button onclick={() => muteAlert(a.fingerprint, '7d')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 hover:border-text-3 hover:text-text-1">7g</button>
 						<button onclick={() => muteAlert(a.fingerprint, '30d')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 hover:border-text-3 hover:text-text-1">30g</button>
@@ -927,34 +1078,61 @@
 					{/each}
 				</div>
 			{/if}
-		{:else}
-			<!-- Sohbet — passive until A1 (K6): the space is claimed, the promise visible. -->
+		{:else if !chatEnabled}
+			<!-- Chat needs a per-user identity (radar threads are per-user, G6) — OTP girişi şart.
+			     Legacy clientSecret + demo oturumları bu yüzden okur ama konuşamaz. -->
 			<div class="flex h-full flex-col items-center justify-center px-6 text-center">
 				<div class="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface-2 text-text-3">
 					<Sparkles size={20} />
 				</div>
-				<p class="text-[13px] font-semibold text-text-1">Asistan yakında</p>
+				<p class="text-[13px] font-semibold text-text-1">Asistan OTP girişiyle açılır</p>
 				<p class="mt-1.5 text-[12px] leading-relaxed text-text-3">
-					Gündemi, uyarıları ve hedefleri konuşabileceğiniz asistan bu alana bağlanacak.
+					Sohbetler kişiye özeldir. Telefonla (OTP) giriş yaptığınızda asistan burada aktif olur.
 				</p>
+			</div>
+		{:else}
+			<!-- Sohbet (A1): manuel konular + yeni sohbet. Uyarı/hedef konuları Gündem'de. -->
+			<div class="flex flex-col gap-2.5">
+				<button
+					disabled={threadBusy}
+					onclick={() => void newChat()}
+					class="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-3 text-[12.5px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1 disabled:opacity-50"
+				>
+					<Plus size={15} />{threadBusy ? 'Açılıyor…' : 'Yeni sohbet'}
+				</button>
+				{#each threads.filter((t) => t.source === 'manual') as t (t.threadId ?? t.title)}
+					<button
+						onclick={() => {
+							if (t.threadId) openThread = { threadId: t.threadId, title: t.title };
+						}}
+						class="flex items-center gap-3 rounded-xl border border-border bg-surface-1 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-hover"
+					>
+						<span class="grid h-7 w-7 flex-none place-items-center rounded-lg bg-talkwo/10 text-talkwo">
+							<MessagesSquare size={14} />
+						</span>
+						<span class="min-w-0 flex-1 truncate text-[12.5px] font-bold text-text-1">{t.title ?? 'Sohbet'}</span>
+					</button>
+				{/each}
 			</div>
 		{/if}
 	</div>
 
-	<!-- Composer: visible but passive (K6 — "disabled input + yakında"). -->
-	<div class="border-t border-border p-3">
-		<div class="flex items-end gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2.5 opacity-60">
-			<textarea
-				rows="1"
-				disabled
-				placeholder="Sor… (yakında)"
-				class="max-h-20 flex-1 resize-none bg-transparent text-[13px] leading-snug text-text-1 outline-none placeholder:text-text-3"
-			></textarea>
-			<button disabled class="grid h-8 w-8 flex-none cursor-not-allowed place-items-center rounded-lg bg-talkwo/40 text-white" title="Yakında">
-				<ArrowUp size={16} />
-			</button>
+	{#if !chatEnabled && !openThread}
+		<!-- Composer: passive placeholder for identity-less sessions (OTP unlocks chat). -->
+		<div class="border-t border-border p-3">
+			<div class="flex items-end gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2.5 opacity-60">
+				<textarea
+					rows="1"
+					disabled
+					placeholder="Sor… (OTP girişiyle)"
+					class="max-h-20 flex-1 resize-none bg-transparent text-[13px] leading-snug text-text-1 outline-none placeholder:text-text-3"
+				></textarea>
+				<button disabled class="grid h-8 w-8 flex-none cursor-not-allowed place-items-center rounded-lg bg-talkwo/40 text-white" title="OTP girişiyle">
+					<ArrowUp size={16} />
+				</button>
+			</div>
 		</div>
-	</div>
+	{/if}
 {:else}
 	<!-- Thread tabs (horizontal, scrollable) -->
 	<div class="flex items-center gap-1.5 overflow-x-auto border-b border-border bg-surface-2/40 px-3 py-2.5 [scrollbar-width:none]">
