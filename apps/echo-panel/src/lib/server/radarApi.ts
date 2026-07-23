@@ -86,6 +86,8 @@ export interface RadarGoalPace {
 
 export interface RadarThread {
 	threadId?: string;
+	/** Radar serializes lean Mongo docs — the id arrives as `_id`, not `threadId`. */
+	_id?: string;
 	title?: string;
 	source?: 'manual' | 'alert' | 'goal' | string;
 	status?: string;

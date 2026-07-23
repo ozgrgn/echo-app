@@ -79,7 +79,9 @@
 			suggestedDeadline?: string | null;
 		} | null;
 	};
-	type Thread = { threadId?: string; title?: string; source?: string; status?: string };
+	// Radar returns lean Mongo docs: the id arrives as `_id` (no threadId field).
+	type Thread = { threadId?: string; _id?: string; title?: string; source?: string; status?: string };
+	const threadIdOf = (t: Thread | null | undefined) => t?.threadId ?? t?._id ?? null;
 
 	type SectionKey = 'agenda' | 'alerts' | 'goals' | 'chat';
 	let section = $state<SectionKey>('agenda');
@@ -128,7 +130,7 @@
 			});
 			if (!res.ok) throw new Error(`analiz ${res.status}`);
 			const data = await res.json();
-			const tid = data.thread?.threadId;
+			const tid = threadIdOf(data.thread);
 			if (!tid) throw new Error('threadId yok');
 			openThread = {
 				threadId: tid,
@@ -164,7 +166,7 @@
 				});
 				if (!res.ok) throw new Error(`thread ${res.status}`);
 				const data = await res.json();
-				const tid = data.thread?.threadId;
+				const tid = threadIdOf(data.thread);
 				if (!tid) throw new Error('threadId yok');
 				openThread = {
 					threadId: tid,
@@ -196,7 +198,7 @@
 			});
 			if (!res.ok) throw new Error(`sohbet ${res.status}`);
 			const data = await res.json();
-			const tid = data.thread?.threadId;
+			const tid = threadIdOf(data.thread);
 			if (!tid) throw new Error('threadId yok');
 			openThread = { threadId: tid, title: data.thread?.title ?? 'Yeni sohbet' };
 			void refreshThreads();
@@ -804,11 +806,12 @@
 				</div>
 			{:else}
 				<div class="flex flex-col gap-2.5">
-					{#each threads as t (t.threadId ?? t.title)}
+					{#each threads as t (threadIdOf(t) ?? t.title)}
 						<button
-							disabled={!chatEnabled || !t.threadId}
+							disabled={!chatEnabled || !threadIdOf(t)}
 							onclick={() => {
-								if (t.threadId) openThread = { threadId: t.threadId, title: t.title };
+								const tid = threadIdOf(t);
+								if (tid) openThread = { threadId: tid, title: t.title };
 							}}
 							class="flex items-center gap-3 rounded-xl border border-border bg-surface-1 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-hover disabled:cursor-default disabled:hover:translate-y-0 disabled:hover:shadow-none"
 						>
@@ -1100,10 +1103,11 @@
 				>
 					<Plus size={15} />{threadBusy ? 'Açılıyor…' : 'Yeni sohbet'}
 				</button>
-				{#each threads.filter((t) => t.source === 'manual') as t (t.threadId ?? t.title)}
+				{#each threads.filter((t) => t.source === 'manual') as t (threadIdOf(t) ?? t.title)}
 					<button
 						onclick={() => {
-							if (t.threadId) openThread = { threadId: t.threadId, title: t.title };
+							const tid = threadIdOf(t);
+							if (tid) openThread = { threadId: tid, title: t.title };
 						}}
 						class="flex items-center gap-3 rounded-xl border border-border bg-surface-1 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-hover"
 					>
