@@ -24,15 +24,22 @@
 	let { venueName, demo = false }: { venueName: string; demo?: boolean } = $props();
 
 	// Scope label tracks the active lens (the assistant's identity shifts per lens).
-	const scopeLabel = $derived(
-		osState.lens.kind === 'platform'
-			? `${osState.lens.platform} uzmanı`
-			: osState.lens.kind === 'department'
-				? `${osState.lens.department} uzmanı`
-				: osState.lens.kind === 'competitors'
-					? 'Rekabet analisti'
-					: 'Otel geneli'
-	);
+	// Pages don't always push their platform/department into osState — a missing key
+	// must fall back to the general label, never render "undefined uzmanı".
+	const PLATFORM_CHIP: Record<string, string> = {
+		tripadvisor: 'TripAdvisor',
+		booking: 'Booking',
+		google: 'Google',
+		holidaycheck: 'HolidayCheck'
+	};
+	const scopeLabel = $derived.by(() => {
+		const lens = osState.lens;
+		if (lens.kind === 'platform' && lens.platform)
+			return `${PLATFORM_CHIP[lens.platform] ?? lens.platform} uzmanı`;
+		if (lens.kind === 'department' && lens.department) return `${lens.department} uzmanı`;
+		if (lens.kind === 'competitors') return 'Rekabet analisti';
+		return 'Otel geneli';
+	});
 
 	let active = $state('t-agenda');
 
