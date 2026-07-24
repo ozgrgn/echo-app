@@ -39,6 +39,49 @@
 	let { threadId, title, analyzeInstruction = null, followUps = [], initialForce, onback }: Props =
 		$props();
 
+	// Minimal, dependency-free markdown for assistant bubbles. The model emits panel
+	// markdown (### headings, **bold**, - lists, `code`); rendering it raw read as
+	// noise. SAFETY: the raw text is HTML-ESCAPED FIRST, then a small whitelist of
+	// markdown spans is re-introduced — no other HTML can survive, so {@html} is safe.
+	function escapeHtml(s: string): string {
+		return s
+			.replaceAll('&', '&amp;')
+			.replaceAll('<', '&lt;')
+			.replaceAll('>', '&gt;')
+			.replaceAll('"', '&quot;');
+	}
+	function mdInline(s: string): string {
+		return s
+			.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+			.replace(/`([^`]+)`/g, '<code class="rounded bg-surface-2 px-1 text-[11.5px]">$1</code>');
+	}
+	function renderMarkdown(text: string): string {
+		const lines = escapeHtml(text).split('\n');
+		const out: string[] = [];
+		let inList = false;
+		for (const line of lines) {
+			const h = line.match(/^\s{0,3}(#{1,4})\s+(.*)$/);
+			const li = line.match(/^\s*[-*•]\s+(.*)$/);
+			if (li) {
+				if (!inList) {
+					out.push('<ul class="my-1 list-disc space-y-0.5 pl-4">');
+					inList = true;
+				}
+				out.push(`<li>${mdInline(li[1])}</li>`);
+				continue;
+			}
+			if (inList) {
+				out.push('</ul>');
+				inList = false;
+			}
+			if (h) out.push(`<div class="mt-2 mb-0.5 font-bold">${mdInline(h[2])}</div>`);
+			else if (line.trim() === '') out.push('<div class="h-1.5"></div>');
+			else out.push(`<div>${mdInline(line)}</div>`);
+		}
+		if (inList) out.push('</ul>');
+		return out.join('');
+	}
+
 	// Persona badge labels (radar personaCatalog keys → short Turkish labels).
 	const PERSONA_LABEL: Record<string, string> = {
 		reputation: 'İtibar',
@@ -255,8 +298,10 @@
 								{PERSONA_LABEL[m.persona]}
 							</span>
 						{/if}
-						<div class="max-w-[92%] whitespace-pre-wrap rounded-2xl rounded-bl-md border border-border bg-surface-1 px-3 py-2 text-[12.5px] leading-relaxed text-text-1">
-							{m.content}{#if streaming && i === visible.length - 1}<span class="animate-pulse">▍</span>{/if}
+						<div class="max-w-[92%] rounded-2xl rounded-bl-md border border-border bg-surface-1 px-3 py-2 text-[12.5px] leading-relaxed text-text-1">
+							<!-- eslint-disable-next-line svelte/no-at-html-tags — content is HTML-escaped
+							     before whitelist markdown spans are re-added (renderMarkdown). -->
+							{@html renderMarkdown(m.content ?? '')}{#if streaming && i === visible.length - 1}<span class="animate-pulse">▍</span>{/if}
 						</div>
 					</div>
 				{/if}
