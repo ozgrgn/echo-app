@@ -5,7 +5,9 @@
   scope header · thread tabs · daily brief · stream of active topics · composer.
 -->
 <script lang="ts">
-	import { Sparkles, Ellipsis, Plus, ArrowUp, GitCompare, Bell, BellOff, Target, MessagesSquare, ListTodo, TrendingDown, TrendingUp, Minus, Pencil, Trash2 } from '@lucide/svelte';
+	import { Sparkles, Ellipsis, Plus, ArrowUp, GitCompare, Bell, BellOff, Target, MessagesSquare, ListTodo, TrendingDown, TrendingUp, Minus, Pencil, Trash2, ArrowRight } from '@lucide/svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { osState } from '$lib/stores/osState.svelte';
 	import { MOCK_THREADS, MOCK_BRIEF, MOCK_STREAM, type ThreadStatus } from '$lib/mock/assistant';
 	import TalkwoMark from './TalkwoMark.svelte';
@@ -104,6 +106,27 @@
 	};
 	/** Statünün davet ettiği aksiyon: id sözleşme anahtarı, value varsa önerilen değer. */
 	type GoalAction = { id: string; label: string; value?: string | number };
+
+	/**
+	 * Hedefin metriği → o konunun DETAY SAYFASI (owner, 26 Tem: "F&B GPI hedefiyse F&B
+	 * departmanına, TripAdvisor'sa oraya gitsin"). Hedef kartı bir özet; asıl inceleme
+	 * canvas'ta yapılır, o yüzden kart oradan bir kapı açar.
+	 * Pencere (?window=) korunur — kullanıcı 6 aya bakıyorsa detay da 6 ay açılsın.
+	 */
+	function goalLink(metricPath: string): { href: string; label: string } | null {
+		const w = page.url.searchParams.get('window');
+		const q = w ? `?window=${encodeURIComponent(w)}` : '';
+		let m: RegExpExecArray | null;
+		if ((m = /^reviews\.departments\.([a-z0-9_]+)\.gpi$/.exec(metricPath)))
+			return { href: `/os/department/${m[1]}${q}`, label: 'Departmana git' };
+		if ((m = /^reviews\.platforms\.([a-z0-9_]+)\./.exec(metricPath)))
+			return { href: `/os/platform/${m[1]}${q}`, label: 'Platforma git' };
+		if (metricPath === 'reviews.rpi') return { href: `/os/competitors${q}`, label: 'Rakiplere git' };
+		// reviews.gpi / avgStarRating / responseRate / reviewCount → hepsi Genel lenste
+		if (/^reviews\.(gpi|avgStarRating|responseRate|reviewCount)$/.test(metricPath))
+			return { href: `/os${q}`, label: 'Genel görünüme git' };
+		return null;
+	}
 	// Radar returns lean Mongo docs: the id arrives as `_id` (no threadId field).
 	type Thread = { threadId?: string; _id?: string; title?: string; source?: string; status?: string };
 	const threadIdOf = (t: Thread | null | undefined) => t?.threadId ?? t?._id ?? null;
@@ -1269,6 +1292,16 @@
 							{/if}
 							{#if g.goal.deadline}
 								<p class="mt-1 text-[10px] text-text-3">son tarih {g.goal.deadline}</p>
+							{/if}
+							{#if goalLink(g.goal.metricPath)}
+								{@const link = goalLink(g.goal.metricPath)!}
+								<!-- Hedefin konusuna DERİN BAĞLANTI: kart özet, inceleme canvas'ta. -->
+								<button
+									onclick={() => goto(link.href)}
+									class="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-talkwo transition-opacity hover:opacity-80"
+								>
+									{link.label}<ArrowRight size={11} />
+								</button>
 							{/if}
 							{#if g.primary}
 								{@const primary = g.primary}
