@@ -783,6 +783,13 @@
 				analyzeInstruction={openThread.analyzeInstruction ?? null}
 				followUps={openThread.followUps ?? []}
 				initialForce={openThread.initialForce}
+				onrename={(t) => {
+					// Radar auto-named the thread on its first turn — relabel the open header and
+					// the list row in place (no refetch, so the sidebar can't show "Yeni konu").
+					if (openThread) openThread = { ...openThread, title: t };
+					const tid = openThread?.threadId;
+					threads = threads.map((x) => (threadIdOf(x) === tid ? { ...x, title: t } : x));
+				}}
 				onback={() => {
 					openThread = null;
 					void refreshThreads();
@@ -880,22 +887,35 @@
 						</div>
 					{/if}
 
-					<div class="mt-3 flex flex-wrap items-center gap-1.5">
-						{#if chatEnabled && a.analysisEnabled !== false}
-						<!-- A1 (K4): "Analiz et" artık görünür — uyarının thread'ini açar, forced-evidence analiz orada. -->
-						<button
-							disabled={threadBusy}
-							onclick={() => void analyzeAlert(a)}
-							class="rounded-lg bg-talkwo px-2.5 py-1.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-						>
-							{threadBusy ? 'Açılıyor…' : 'Analiz et'}
-						</button>
-					{/if}
-					<button onclick={() => goalFromAlert(a)} class="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1">Hedef belirle</button>
-						<span class="ml-auto text-[10px] font-bold uppercase tracking-wide text-text-3">Sustur:</span>
-						<button onclick={() => muteAlert(a.fingerprint, '7d')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 hover:border-text-3 hover:text-text-1">7g</button>
-						<button onclick={() => muteAlert(a.fingerprint, '30d')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 hover:border-text-3 hover:text-text-1">30g</button>
-						<button onclick={() => muteAlert(a.fingerprint, 'forever')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 hover:border-danger hover:text-danger">kalıcı</button>
+					<!-- TWO rows on purpose: actions above, mute below. One wrapping row let the
+					     mute presets break mid-group in the narrow panel ("kalıcı" alone on a third
+					     line), which read as a stray button. Each row is now a self-contained group;
+					     the action buttons share the width so they stay side by side. -->
+					<div class="mt-3 space-y-2">
+						<div class="flex items-center gap-1.5">
+							{#if chatEnabled && a.analysisEnabled !== false}
+								<!-- A1 (K4): "Analiz et" artık görünür — uyarının thread'ini açar, forced-evidence analiz orada. -->
+								<button
+									disabled={threadBusy}
+									onclick={() => void analyzeAlert(a)}
+									class="flex-1 rounded-lg bg-talkwo px-2.5 py-1.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+								>
+									{threadBusy ? 'Açılıyor…' : 'Analiz et'}
+								</button>
+							{/if}
+							<button
+								onclick={() => goalFromAlert(a)}
+								class="flex-1 rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1"
+							>
+								Hedef belirle
+							</button>
+						</div>
+						<div class="flex items-center gap-1.5">
+							<span class="text-[10px] font-bold uppercase tracking-wide text-text-3">Sustur:</span>
+							<button onclick={() => muteAlert(a.fingerprint, '7d')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 hover:border-text-3 hover:text-text-1">7g</button>
+							<button onclick={() => muteAlert(a.fingerprint, '30d')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 hover:border-text-3 hover:text-text-1">30g</button>
+							<button onclick={() => muteAlert(a.fingerprint, 'forever')} class="rounded-full border border-border px-2 py-1 text-[10.5px] font-semibold text-text-2 hover:border-danger hover:text-danger">kalıcı</button>
+						</div>
 					</div>
 				</div>
 			{:else if alerts.length === 0}

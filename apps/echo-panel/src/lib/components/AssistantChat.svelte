@@ -34,10 +34,24 @@
 			displayContent?: string;
 			forceTool?: { name: string; args?: Record<string, unknown> };
 		};
+		/** Radar auto-names a placeholder thread from the first message; bubble it up so
+		 *  the panel's thread list relabels without a refetch. */
+		onrename?: (title: string) => void;
 		onback: () => void;
 	}
-	let { threadId, title, analyzeInstruction = null, followUps = [], initialForce, onback }: Props =
-		$props();
+	let {
+		threadId,
+		title,
+		analyzeInstruction = null,
+		followUps = [],
+		initialForce,
+		onrename,
+		onback
+	}: Props = $props();
+
+	// Local override of the header label once radar reports the auto-generated title.
+	let liveTitle = $state<string | null>(null);
+	const shownTitle = $derived(liveTitle ?? title ?? 'Konu');
 
 	// Minimal, dependency-free markdown for assistant bubbles. The model emits panel
 	// markdown (### headings, **bold**, - lists, `code`); rendering it raw read as
@@ -51,9 +65,17 @@
 			.replaceAll('"', '&quot;');
 	}
 	function mdInline(s: string): string {
-		return s
-			.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-			.replace(/`([^`]+)`/g, '<code class="rounded bg-surface-2 px-1 text-[11.5px]">$1</code>');
+		return (
+			s
+				// Bold FIRST (** before *), then single-asterisk and underscore italics. Underscores
+				// only count when they hug the word (a_b stays literal, so metric paths and
+				// snake_case keys survive). Alert seeds emit *…* and _Nasıl hesaplandı:_ — before
+				// this they leaked as raw asterisks into the bubble.
+				.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+				.replace(/(^|[\s(])\*([^*\n]+)\*(?=$|[\s).,;:!?])/g, '$1<em>$2</em>')
+				.replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s).,;:!?])/g, '$1<em>$2</em>')
+				.replace(/`([^`]+)`/g, '<code class="rounded bg-surface-2 px-1 text-[11.5px]">$1</code>')
+		);
 	}
 	function renderMarkdown(text: string): string {
 		const lines = escapeHtml(text).split('\n');
@@ -224,6 +246,11 @@
 				messages[liveIdx] = { ...messages[liveIdx], persona: payload.persona };
 				messages = [...messages];
 			}
+			// Thread was auto-named on this turn → relabel header + notify the list.
+			if (typeof payload.title === 'string' && payload.title) {
+				liveTitle = payload.title;
+				onrename?.(payload.title);
+			}
 		} else if (event === 'error') {
 			const msg = String(payload.message ?? 'Asistan yanıt üretemedi');
 			messages[liveIdx] = {
@@ -234,10 +261,19 @@
 		}
 	}
 
+	// Grow the composer with its content (1 line → max-h-24), then shrink back on send.
+	let composerEl = $state<HTMLTextAreaElement | null>(null);
+	function autoGrow() {
+		if (!composerEl) return;
+		composerEl.style.height = 'auto';
+		composerEl.style.height = `${Math.min(composerEl.scrollHeight, 96)}px`;
+	}
+
 	function submit() {
 		const text = draft.trim();
 		if (!text) return;
 		draft = '';
+		if (composerEl) composerEl.style.height = 'auto';
 		void send(text);
 	}
 	function onKeydown(e: KeyboardEvent) {
@@ -258,7 +294,7 @@
 		>
 			<ArrowLeft size={15} />
 		</button>
-		<span class="min-w-0 flex-1 truncate text-[12.5px] font-bold text-text-1">{title ?? 'Konu'}</span>
+		<span class="min-w-0 flex-1 truncate text-[12.5px] font-bold text-text-1">{shownTitle}</span>
 	</div>
 
 	<!-- Messages -->
@@ -338,15 +374,18 @@
 		</div>
 	{/if}
 
-	<!-- Composer -->
-	<div class="flex items-end gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2.5">
+	<!-- Composer — one line tall until the text needs more (autoGrow). A bare rows="1"
+	     textarea still reserved ~2 lines here, which read as an oversized empty box. -->
+	<div class="flex items-end gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2">
 		<textarea
 			rows="1"
 			bind:value={draft}
+			bind:this={composerEl}
+			oninput={autoGrow}
 			onkeydown={onKeydown}
 			disabled={streaming}
 			placeholder={streaming ? 'Asistan yazıyor…' : 'Sorunuzu yazın…'}
-			class="max-h-24 flex-1 resize-none bg-transparent text-[13px] leading-snug text-text-1 outline-none placeholder:text-text-3"
+			class="max-h-24 min-h-[20px] flex-1 resize-none overflow-y-auto bg-transparent py-0.5 text-[13px] leading-5 text-text-1 outline-none placeholder:text-text-3"
 		></textarea>
 		<button
 			onclick={submit}
