@@ -18,13 +18,14 @@
 	import ResponseInbox from '$lib/components/ResponseInbox.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import SubTabs from '$lib/components/SubTabs.svelte';
+	import OsBackNav from '$lib/components/OsBackNav.svelte';
 	import {
 		type MentionRow,
 		type ResponseStats,
 		type ResponseQueueItem
 	} from '@talkwo/echo-ui';
 	import { PLATFORM_COLOR } from '$lib/mock/os';
-	import { Activity, Rocket, ChartBar, Globe, MessageSquare, Swords, MessageCircleReply, TrendingUp } from '@lucide/svelte';
+	import { Activity, Rocket, ChartBar, MessageSquare, Swords, MessageCircleReply, TrendingUp } from '@lucide/svelte';
 
 	let { data } = $props();
 	const ps = $derived(data.platformScore);
@@ -38,8 +39,26 @@
 	const trendHasHistory = $derived((data.history?.length ?? 0) > 1);
 	// Period labels for the x-axis (present only from real history, monthly or daily).
 	const trendPeriods = $derived((data.history ?? []).map((p) => p.period));
-	const trendYmin = $derived(Math.floor(Math.min(...trendActual) - 4));
-	const trendYmax = $derived(Math.ceil(Math.max(...trendActual) + 4));
+	// ── Hedef çizgisi: bu kanala konmuş GPI hedefi (sağ panel → Hedefler) grafikte de görünür.
+	// Grafik GPI ekseninde çizildiği için .gpi hedefini okuruz; kanalın yıldız hedefi
+	// (.rating) ayrı bir eksendir, buraya karışmaz.
+	let platformTarget = $state<number | null>(null);
+	$effect(() => {
+		const p = data.platform;
+		platformTarget = null;
+		void (async () => {
+			try {
+				const res = await fetch(
+					`/api/agenda?resource=goalTarget&path=${encodeURIComponent(`reviews.platforms.${p}.gpi`)}`
+				);
+				if (res.ok) platformTarget = (await res.json()).target ?? null;
+			} catch {
+				/* hedef yoksa grafik hedefsiz çizilir */
+			}
+		})();
+	});
+	const trendYmin = $derived(Math.floor(Math.min(...trendActual, platformTarget ?? Infinity) - 4));
+	const trendYmax = $derived(Math.ceil(Math.max(...trendActual, platformTarget ?? -Infinity) + 4));
 
 	const PLATFORM_LABEL: Record<string, string> = {
 		tripadvisor: 'TripAdvisor',
@@ -48,13 +67,6 @@
 		holidaycheck: 'HolidayCheck'
 	};
 	const label = $derived(PLATFORM_LABEL[data.platform] ?? data.platform);
-
-	// Back to the platform OVERVIEW (index) — the channel-comparison super-dashboard.
-	// Keeps the platform lens active; the overview is the parent of a single channel.
-	function backToOverview() {
-		osState.setLens({ kind: 'platform' });
-		goto('/os/platform');
-	}
 
 	// Quick switcher — jump between platform universes without going back to Genel.
 	const ALL_PLATFORMS = ['tripadvisor', 'booking', 'google', 'holidaycheck'];
@@ -236,20 +248,11 @@
 
 </script>
 
-<!-- Channel switcher (replaces the global LensTabs) — the SAME row the overview page
-     shows: 'Genel' returns to the platform overview, then a pill per channel (active one
-     highlighted). Consistent nav across overview + detail; 'Geri' arrow dropped in favor
-     of the explicit 'Genel' pill. -->
-<div class="mb-3.5 flex flex-wrap items-center gap-2">
-	<!-- 'Genel' = back to the platform OVERVIEW (index). -->
-	<button
-		onclick={backToOverview}
-		class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2"
-	>
-		<Globe size={14} strokeWidth={2} />
-		Genel
-	</button>
-	<span class="mx-0.5 h-5 w-px bg-border"></span>
+<!-- Home (→ main page) + Back (→ platform overview) + channel switcher on one row.
+     The old row had a pill LABELLED "Genel" that actually went to /os/platform (the
+     platform index) — NOT the real Genel home. That name clash is fixed: 🏠 Home now
+     means the main page everywhere, and "← Geri" is the (correctly parented) overview. -->
+<OsBackNav backTo="/os/platform" backLens="platform">
 	{#each ALL_PLATFORMS as p (p)}
 		{@const isActive = p === data.platform}
 		{@const color = PLATFORM_COLOR[p as keyof typeof PLATFORM_COLOR]}
@@ -268,7 +271,7 @@
 			{PLATFORM_LABEL[p]}
 		</button>
 	{/each}
-</div>
+</OsBackNav>
 
 <PlatformHero
 	platform={data.platform}
@@ -289,7 +292,7 @@
 	<!-- GPI trend for this platform — REAL series from history (fallback in mock). -->
 	<SectionCard title="İtibar trendi · {label}" icon={TrendingUp} metricId="reviews.platforms.gpi" hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'güncel'} class="mb-3.5">
 		{#if trendHasHistory}
-			<TrendChart actual={trendActual} periods={trendPeriods} daily={data.chartDaily} ymin={trendYmin} ymax={trendYmax} color={color} height={200} />
+			<TrendChart actual={trendActual} periods={trendPeriods} daily={data.chartDaily} ymin={trendYmin} ymax={trendYmax} color={color} height={200} target={platformTarget ?? undefined} targetLabel={platformTarget ? `Hedef ${platformTarget}` : undefined} />
 		{:else}
 			<p class="py-10 text-center text-[13px] text-text-3">
 				Bu platform için yeterli geçmiş yok — güncel GPI <b class="text-text-1">{ps.gpi.toFixed(1)}</b>.

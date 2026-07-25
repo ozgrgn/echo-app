@@ -61,6 +61,16 @@ export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 			}
 			case 'goals':
 				return json({ goals: await listRadarGoals(scope, fetch) });
+			case 'goalTarget': {
+				// Tek metriğin hedef DEĞERİ — canvas grafiklerinin "Hedef" çizgisi için. Sağ panelde
+				// konan hedef, ilgili grafikte de görünsün (owner: "aynı ana sayfadaki GPI gibi").
+				// Sadece sayı döner; kart/ilerleme değil (grafik ondan fazlasını çizmez).
+				const path = url.searchParams.get('path') ?? '';
+				if (!/^reviews\.[a-zA-Z0-9_.]{1,80}$/.test(path)) throw error(400, 'Geçersiz metrik yolu');
+				const goals = await listRadarGoals(scope, fetch).catch(() => []);
+				const target = goals.find((r) => r.goal?.metricPath === path)?.goal?.target;
+				return json({ target: Number.isFinite(target) ? target : null });
+			}
 			case 'threads':
 				return json({ threads: await listRadarThreads(scope, fetch) });
 			case 'thread': {

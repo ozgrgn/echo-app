@@ -26,6 +26,7 @@
 	import CategoryHistoryModal from '$lib/components/CategoryHistoryModal.svelte';
 	import OpportunityList from '$lib/components/OpportunityList.svelte';
 	import ResponseAnalytics from '$lib/components/ResponseAnalytics.svelte';
+	import OsBackNav from '$lib/components/OsBackNav.svelte';
 	import {
 		type DepartmentDetail,
 		type DepartmentScore,
@@ -35,7 +36,7 @@
 	import { CATEGORIES, getSubcategoryLabel, zoneClass, type CategoryKey } from '@talkwo/echo-core';
 	import {
 		TrendingDown, TrendingUp, ListTree, CircleAlert, Rocket,
-		ArrowLeft, MessageCircleReply, MessageSquare, History, X
+		MessageCircleReply, MessageSquare, History, X
 	} from '@lucide/svelte';
 
 	let { data } = $props();
@@ -107,8 +108,35 @@
 	// Snapshot periods are monthly 'YYYY-MM'; a longer key means a daily series.
 	const trendDaily = $derived((trendPeriods[0]?.length ?? 7) > 7);
 	const trendHasHistory = $derived(trendActual.length > 1);
-	const trendYmin = $derived(trendActual.length ? Math.floor(Math.min(...trendActual) - 6) : 0);
-	const trendYmax = $derived(trendActual.length ? Math.ceil(Math.max(...trendActual) + 6) : 100);
+	// ── Hedef çizgisi (owner: "hedefler ilgili grafiklerde ana sayfadaki GPI gibi görünsün")
+	// Sağ panelde bu departmana hedef konduysa grafikte de çizilir. Radar yoksa/hedef yoksa
+	// null → çizgi çizilmez, grafik eskisi gibi davranır.
+	let deptTarget = $state<number | null>(null);
+	$effect(() => {
+		const key = deptKey;
+		deptTarget = null;
+		void (async () => {
+			try {
+				const res = await fetch(
+					`/api/agenda?resource=goalTarget&path=${encodeURIComponent(`reviews.departments.${key}.gpi`)}`
+				);
+				if (res.ok) deptTarget = (await res.json()).target ?? null;
+			} catch {
+				/* hedef yoksa grafik hedefsiz çizilir */
+			}
+		})();
+	});
+
+	// Hedef, y ekseninin DIŞINDA kalırsa çizgi görünmez → aralığa dahil et (ana sayfadaki
+	// GPI grafiğiyle aynı davranış).
+	const trendYmin = $derived(
+		trendActual.length
+			? Math.floor(Math.min(...trendActual, deptTarget ?? Infinity) - 6)
+			: 0
+	);
+	const trendYmax = $derived(
+		trendActual.length ? Math.ceil(Math.max(...trendActual, deptTarget ?? -Infinity) + 6) : 100
+	);
 	const trendDown = $derived((detail?.trend ?? 0) < 0);
 	const trendLabel = $derived(
 		(detail?.trend ?? 0) < 0 ? 'Düşüşte' : (detail?.trend ?? 0) > 0 ? 'Yükselişte' : 'Sabit'
@@ -345,11 +373,6 @@
 			: null
 	);
 
-	// Back to the Departments list lens — replaces the global LensTabs row.
-	function backToList() {
-		osState.setLens({ kind: 'departments' });
-		goto('/os/departments');
-	}
 	function switchTo(key: string) {
 		if (key === deptKey) return;
 		osState.setLens({ kind: 'department', department: key });
@@ -357,16 +380,8 @@
 	}
 </script>
 
-<!-- Back to Departments list + department switcher on one row. -->
-<div class="mb-3.5 flex flex-wrap items-center gap-2">
-	<button
-		onclick={backToList}
-		class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2"
-	>
-		<ArrowLeft size={15} strokeWidth={2} />
-		Geri
-	</button>
-	<span class="mx-0.5 h-5 w-px bg-border"></span>
+<!-- Home (→ main page) + Back (→ Departments list) + department switcher on one row. -->
+<OsBackNav backTo="/os/departments" backLens="departments">
 	{#each siblings as s (s.key)}
 		{@const active = s.key === deptKey}
 		{@const c = DEPT_COLOR[s.key] ?? 'var(--color-text-3)'}
@@ -380,7 +395,7 @@
 			{s.label}
 		</button>
 	{/each}
-</div>
+</OsBackNav>
 
 {#if loading}
 	<p class="py-16 text-center text-sm text-text-3">Departman yükleniyor…</p>
@@ -417,7 +432,7 @@
 				</span>
 			{/snippet}
 			{#if trendHasHistory}
-				<TrendChart actual={trendActual} periods={trendPeriods} daily={trendDaily} valueLabel="Skor" ymin={trendYmin} ymax={trendYmax} color={color} height={210} />
+				<TrendChart actual={trendActual} periods={trendPeriods} daily={trendDaily} valueLabel="Skor" ymin={trendYmin} ymax={trendYmax} color={color} height={210} target={deptTarget ?? undefined} targetLabel={deptTarget ? `Hedef ${deptTarget}` : undefined} />
 			{:else}
 				<p class="py-14 text-center text-[13px] text-text-3">
 					Bu departman için yeterli geçmiş yok — güncel skor <b class="text-text-1">{score.toFixed(1)}</b>.<br />
