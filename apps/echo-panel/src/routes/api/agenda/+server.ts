@@ -51,8 +51,13 @@ export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 		switch (resource) {
 			case 'alerts':
 			{
+				// `recovered` de AYNI kapıdan geçer: ECHO paneli itibar lensidir, PMS kökenli
+				// "düzeldi" satırları da bu app'in tarayıcısına ulaşmamalı (alerts ile parite).
 				const res = await listRadarAlerts(scope, fetch);
-				return json({ alerts: reputationOnly(res.alerts), recovered: res.recovered });
+				return json({
+					alerts: reputationOnly(res.alerts),
+					recovered: reputationOnly(res.recovered)
+				});
 			}
 			case 'goals':
 				return json({ goals: await listRadarGoals(scope, fetch) });
@@ -84,8 +89,8 @@ export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 				]);
 				return json({
 					alerts: alerts.status === 'fulfilled' ? reputationOnly(alerts.value.alerts) : [],
-					// Auto-resolve ile kapanmış uyarılar ("düzelenler" bölümü).
-					recovered: alerts.status === 'fulfilled' ? alerts.value.recovered : [],
+					// Auto-resolve ile kapanmış uyarılar ("düzelenler") — alerts ile aynı reputation kapısı.
+					recovered: alerts.status === 'fulfilled' ? reputationOnly(alerts.value.recovered) : [],
 					goals: goals.status === 'fulfilled' ? goals.value : [],
 					threads: threads.status === 'fulfilled' ? threads.value : [],
 					// Chat/threads interactivity flag: true only for OTP sessions (per-user

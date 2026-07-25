@@ -79,7 +79,12 @@
 		/** Öncelik puanı (relative — GPI puanı DEĞİL); radar sıralamayı buna göre yapar. */
 		impact?: number | null;
 	};
-	type RecoveredAlert = { fingerprint: string; title?: string; resolvedAt?: string };
+	type RecoveredAlert = {
+		fingerprint: string;
+		title?: string;
+		resolvedAt?: string;
+		category?: string;
+	};
 	type GoalReport = {
 		goal: { goalId: string; label?: string; metricPath: string; target: number; deadline?: string | null };
 		progress?: { now: number | null; gap: number | null; weeklyDelta: number | null; trend: string; reached: boolean };
@@ -243,7 +248,8 @@
 				// ECHO panel is the REPUTATION lens of the shared radar store: PMS-domain
 				// cards (occupancy dips, meter gaps) stay in Atlas — only reputation here.
 				alerts = (data.alerts ?? []).filter((a: AlertCard) => a.category === 'reputation');
-				recovered = data.recovered ?? [];
+				// Sunucu zaten süzüyor; istemcide de süz (savunma derinliği, alerts ile aynı kural).
+				recovered = (data.recovered ?? []).filter((r: RecoveredAlert) => r.category === 'reputation');
 				goals = data.goals ?? [];
 				threads = data.threads ?? [];
 				chatEnabled = !!data.chatEnabled;
