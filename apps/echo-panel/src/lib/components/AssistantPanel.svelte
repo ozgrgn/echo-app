@@ -96,7 +96,14 @@
 			suggestedTarget?: number | null;
 			suggestedDeadline?: string | null;
 		} | null;
+		/** Backend'in tek kelimelik durumu — rozet ve düğmeler bundan türer (radar goalStatus). */
+		status?: string;
+		headline?: string;
+		primary?: GoalAction | null;
+		actions?: GoalAction[];
 	};
+	/** Statünün davet ettiği aksiyon: id sözleşme anahtarı, value varsa önerilen değer. */
+	type GoalAction = { id: string; label: string; value?: string | number };
 	// Radar returns lean Mongo docs: the id arrives as `_id` (no threadId field).
 	type Thread = { threadId?: string; _id?: string; title?: string; source?: string; status?: string };
 	const threadIdOf = (t: Thread | null | undefined) => t?.threadId ?? t?._id ?? null;
@@ -289,16 +296,23 @@
 	// Goal card badge: the mock's "gidişat" chip. A warming-up series must read as
 	// "still filling", not as a flat trend or a failed target; then reached wins;
 	// then weekly direction.
+	// Rozet = backend'in STATÜSÜ. Eskiden panel haftalık trendden kendi yargısını üretiyordu
+	// (aynı karar iki yerde → kart "yolunda" derken cümle "yetişmiyor" diyebiliyordu). Statü
+	// radar'da progress+pace'ten türer; burada sadece etiket/renk eşlemesi var.
+	const GOAL_TONE: Record<string, { label: string; cls: string }> = {
+		reached: { label: 'ulaşıldı', cls: 'bg-success-light text-success' },
+		on_track: { label: 'yolunda', cls: 'bg-success-light text-success' },
+		at_risk: { label: 'riskte', cls: 'bg-warning-light text-warning' },
+		off_track: { label: 'yetişmiyor', cls: 'bg-danger-light text-danger' },
+		regressing: { label: 'uzaklaşıyor', cls: 'bg-danger-light text-danger' },
+		missed: { label: 'süre doldu', cls: 'bg-danger-light text-danger' },
+		untrackable: { label: 'takip edilemiyor', cls: 'bg-surface-2 text-text-3' },
+		warming_up: { label: 'veri birikiyor', cls: 'bg-surface-2 text-text-3' }
+	};
 	const goalTone = (g: GoalReport) =>
-		g.feasibility?.verdict === 'warming_up'
-			? { label: 'veri birikiyor', cls: 'bg-surface-2 text-text-3' }
-			: g.progress?.reached
-				? { label: 'ulaşıldı', cls: 'bg-success-light text-success' }
-				: g.progress?.trend === 'worsening'
-					? { label: 'gidişat: risk', cls: 'bg-danger-light text-danger' }
-					: g.progress?.trend === 'improving'
-						? { label: 'yolunda', cls: 'bg-success-light text-success' }
-						: { label: 'yatay', cls: 'bg-warning-light text-warning' };
+		GOAL_TONE[g.status ?? ''] ??
+		// Eski radar sürümü (statü göndermiyor) → kartı yanlış etiketlemektense nötr kal.
+		{ label: 'izleniyor', cls: 'bg-surface-2 text-text-3' };
 
 	const fmt = (n: number | null | undefined, digits = 1) =>
 		typeof n === 'number' ? n.toFixed(digits).replace(/\.0$/, '') : '—';
@@ -464,6 +478,76 @@
 			if (gKind === 'dept' && gDept && !deptOpts.some((d) => d.key === gDept))
 				deptOpts = [...deptOpts, { key: gDept, label: gDept }];
 		});
+	}
+
+	/**
+	 * Statü düğmeleri (backend goalActions). Her aksiyon MEVCUT bir akışa bağlanır —
+	 * yeni bir yol açmaz: değer değiştirenler formu ön-doldurup owner'a ONAYLATIR
+	 * (tek tıkla sessizce hedef değiştirmeyiz), 'analyze' asistanda konu açar,
+	 * 'close' silme akışının aynısıdır.
+	 */
+	async function runGoalAction(g: GoalReport, act: GoalAction) {
+		switch (act.id) {
+			case 'extend': // süreyi uzat — önerilen tarih formda hazır gelir
+				editGoal(g);
+				if (typeof act.value === 'string') gDeadline = act.value;
+				break;
+			case 'soften': // hedefi gerçekçi değere çek
+			case 'raise': // hedefi yükselt (ulaşılmış hedefi ilerlet)
+				editGoal(g);
+				if (typeof act.value === 'number') gTarget = String(act.value);
+				break;
+			case 'close': // hedefi kaldır — silme akışının kendisi (iki adımlı onay)
+				await deleteGoal(g);
+				break;
+			case 'analyze': {
+				// "Ne yapmalıyım / sebebini incele" → asistanda bu hedefin konusu.
+				if (!chatEnabled) {
+					section = 'chat'; // OTP uyarısı orada görünür
+					break;
+				}
+				const label = g.goal.label ?? g.goal.metricPath;
+				await openGoalThread(g, label);
+				break;
+			}
+			case 'keep': // "aynı ivmeyi sürdür" — bilgi amaçlı, kayıt değişmez
+			case 'wait':
+			default:
+				break;
+		}
+	}
+
+	/** Hedef için asistan konusu aç ve durum cümlesini ilk soru olarak gönder. */
+	async function openGoalThread(g: GoalReport, label: string) {
+		if (threadBusy) return;
+		threadBusy = true;
+		try {
+			const res = await fetch('/api/agenda', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'newThread', title: `Hedef · ${label}` })
+			});
+			if (!res.ok) throw new Error(`thread ${res.status}`);
+			const tid = threadIdOf((await res.json()).thread);
+			if (!tid) throw new Error('threadId yok');
+			openThread = {
+				threadId: tid,
+				title: `Hedef · ${label}`,
+				initialForce: {
+					content:
+						`${label} hedefim ${g.goal.target}${g.goal.deadline ? ` (son tarih ${g.goal.deadline})` : ''}, ` +
+						`şu an ${g.progress?.now ?? '?'}. Durum: ${g.headline ?? g.status}. ` +
+						`Bu hedefe ulaşmak için neye odaklanmalıyım?`,
+					displayContent: g.primary?.label ?? 'Ne yapmalıyım?'
+				}
+			};
+			section = 'chat';
+			void refreshThreads();
+		} catch {
+			loadError = 'Hedef konusu açılamadı';
+		} finally {
+			threadBusy = false;
+		}
 	}
 
 	// Delete: two-step arm-then-confirm on the card itself (no browser confirm popup);
@@ -1167,11 +1251,37 @@
 									</span>
 								{/if}
 							</div>
-							{#if g.feasibility?.evidence}
-								<p class="mt-1.5 text-[11px] leading-relaxed text-text-3">{g.feasibility.evidence}</p>
+							{#if g.pace?.sentence || g.feasibility?.evidence}
+								<!-- pace ÖNCE: son tarihe göre "yetişiyor muyuz" cümlesi, hedefin bugünkü
+								     asıl sorusudur; feasibility (tarihsiz gerçekçilik) yedek. -->
+								<p class="mt-1.5 text-[11px] leading-relaxed text-text-3">
+									{g.pace?.sentence ?? g.feasibility?.evidence}
+								</p>
 							{/if}
 							{#if g.goal.deadline}
 								<p class="mt-1 text-[10px] text-text-3">son tarih {g.goal.deadline}</p>
+							{/if}
+							{#if g.primary}
+								{@const primary = g.primary}
+								<!-- DURUM-GÜDÜMLÜ DÜĞMELER (owner, 26 Tem): backend statüyü ve o statünün
+								     davet ettiği aksiyonları söyler; panel yalnız çizer. Hedef tutturulduysa
+								     "yükselt/koru", uzaklaşıyorsak "sebebini incele" — hep aynı üç düğme değil. -->
+								<div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+									<button
+										onclick={() => runGoalAction(g, primary)}
+										class="rounded-lg bg-talkwo px-2.5 py-1.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90"
+									>
+										{g.primary.label}
+									</button>
+									{#each g.actions ?? [] as act (act.id + act.label)}
+										<button
+											onclick={() => runGoalAction(g, act)}
+											class="rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold text-text-2 transition-colors hover:border-text-3 hover:text-text-1"
+										>
+											{act.label}
+										</button>
+									{/each}
+								</div>
 							{/if}
 						</div>
 					{/each}
