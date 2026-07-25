@@ -176,8 +176,13 @@ async function radarPost<T>(
 export async function listRadarAlerts(scope: RadarScope, fetchFn: typeof fetch = fetch) {
 	const t = encodeURIComponent(scope.tenantKey);
 	const v = encodeURIComponent(scope.venueSlug);
-	const data = await radarGet<{ alerts: RadarAlertCard[] }>(scope, `/api/assist/${t}/${v}/alerts`, fetchFn);
-	return data.alerts ?? [];
+	const data = await radarGet<{ alerts: RadarAlertCard[]; recovered?: RadarAlertCard[] }>(
+		scope,
+		`/api/assist/${t}/${v}/alerts`,
+		fetchFn
+	);
+	// `recovered` = auto-resolve ile kapanan uyarılar (son 30 gün) — panelde "düzelenler".
+	return { alerts: data.alerts ?? [], recovered: data.recovered ?? [] };
 }
 
 /** Goal reports (definition + progress + feasibility), from the /api/os facade. */

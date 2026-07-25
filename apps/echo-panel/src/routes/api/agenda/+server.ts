@@ -50,7 +50,10 @@ export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 	try {
 		switch (resource) {
 			case 'alerts':
-				return json({ alerts: reputationOnly(await listRadarAlerts(scope, fetch)) });
+			{
+				const res = await listRadarAlerts(scope, fetch);
+				return json({ alerts: reputationOnly(res.alerts), recovered: res.recovered });
+			}
 			case 'goals':
 				return json({ goals: await listRadarGoals(scope, fetch) });
 			case 'threads':
@@ -80,7 +83,9 @@ export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 					listRadarThreads(scope, fetch)
 				]);
 				return json({
-					alerts: alerts.status === 'fulfilled' ? reputationOnly(alerts.value) : [],
+					alerts: alerts.status === 'fulfilled' ? reputationOnly(alerts.value.alerts) : [],
+					// Auto-resolve ile kapanmış uyarılar ("düzelenler" bölümü).
+					recovered: alerts.status === 'fulfilled' ? alerts.value.recovered : [],
 					goals: goals.status === 'fulfilled' ? goals.value : [],
 					threads: threads.status === 'fulfilled' ? threads.value : [],
 					// Chat/threads interactivity flag: true only for OTP sessions (per-user

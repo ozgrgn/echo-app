@@ -73,7 +73,13 @@
 		lastSentAt?: string;
 		/** Radar presentation contract: false → action_required card, no LLM analysis. */
 		analysisEnabled?: boolean;
+		/** 'event' = yeni/kötüleşen · 'chronic' = 14+ gündür açık (durum, olay değil). */
+		kind?: 'event' | 'chronic';
+		ageDays?: number;
+		/** Öncelik puanı (relative — GPI puanı DEĞİL); radar sıralamayı buna göre yapar. */
+		impact?: number | null;
 	};
+	type RecoveredAlert = { fingerprint: string; title?: string; resolvedAt?: string };
 	type GoalReport = {
 		goal: { goalId: string; label?: string; metricPath: string; target: number; deadline?: string | null };
 		progress?: { now: number | null; gap: number | null; weeklyDelta: number | null; trend: string; reached: boolean };
@@ -95,8 +101,17 @@
 	let loading = $state(true);
 	let loadError = $state<string | null>(null);
 	let alerts = $state<AlertCard[]>([]);
+	let recovered = $state<RecoveredAlert[]>([]);
 	let goals = $state<GoalReport[]>([]);
 	let threads = $state<Thread[]>([]);
+
+	// Uyarı listesi iki bölüm: OLAY (yeni/kötüleşen) üstte kart, KRONİK (14+ gün) altta satır.
+	// Radar sıralamayı zaten olay-önce + etki-sırasına göre yapıyor; burada sadece ayırıyoruz.
+	// Tavanlar ekranı sakin tutmak için — kesilen sayısı görünür (gizlenmiş olmaz).
+	const EVENT_LIMIT = 8;
+	const CHRONIC_LIMIT = 10;
+	const eventAlerts = $derived(alerts.filter((a) => a.kind !== 'chronic'));
+	const chronicAlerts = $derived(alerts.filter((a) => a.kind === 'chronic'));
 
 	// ── A1: live chat/threads. chatEnabled comes from the proxy (OTP sessions only —
 	// radar threads are per-user; clientSecret/demo sessions stay read-only, G6).
@@ -228,6 +243,7 @@
 				// ECHO panel is the REPUTATION lens of the shared radar store: PMS-domain
 				// cards (occupancy dips, meter gaps) stay in Atlas — only reputation here.
 				alerts = (data.alerts ?? []).filter((a: AlertCard) => a.category === 'reputation');
+				recovered = data.recovered ?? [];
 				goals = data.goals ?? [];
 				threads = data.threads ?? [];
 				chatEnabled = !!data.chatEnabled;
@@ -927,8 +943,11 @@
 					<p class="mt-1.5 text-[12px] text-text-3">Kurallar her sabah taze veriyle çalışıyor.</p>
 				</div>
 			{:else}
+				<!-- İKİ BÖLÜM, TEK SEKME (UYARI_GUNDEM_TASARIM.md §3.5): üstte DEĞİŞENLER (olay),
+				     altta KRONİK (14+ gündür açık, durum). Kronik satır olarak çizilir — kart değil —
+				     çünkü aksiyon aciliyeti yok; ekran sakin kalsın. -->
 				<div class="flex flex-col gap-2.5">
-					{#each alerts as a (a.fingerprint)}
+					{#each eventAlerts.slice(0, EVENT_LIMIT) as a (a.fingerprint)}
 						<button onclick={() => openAlert(a)} class="rounded-xl border border-border bg-surface-1 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-hover {a.severity === 'critical' ? 'border-l-2 border-l-danger' : ''}">
 							<div class="flex items-start gap-2">
 								<span class="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase {sevChip(a.severity)}">{sevLabel(a.severity)}</span>
@@ -943,7 +962,51 @@
 							{/if}
 						</button>
 					{/each}
+					{#if eventAlerts.length > EVENT_LIMIT}
+						<!-- Kesileni GİZLEME, say: "her şeyi gösterdim" yanılsaması olmasın. -->
+						<p class="px-1 text-[11px] text-text-3">+{eventAlerts.length - EVENT_LIMIT} uyarı daha (öncelik sırasına göre alttakiler)</p>
+					{/if}
 				</div>
+
+				{#if chronicAlerts.length}
+					<div class="mt-4">
+						<div class="mb-1.5 flex items-baseline gap-2 px-1">
+							<span class="text-[11px] font-bold uppercase tracking-wide text-text-3">Kronik zayıf alanlar</span>
+							<span class="text-[10.5px] text-text-3">14 günden uzun süredir açık</span>
+						</div>
+						<div class="overflow-hidden rounded-xl border border-border bg-surface-1">
+							{#each chronicAlerts.slice(0, CHRONIC_LIMIT) as a, i (a.fingerprint)}
+								<button
+									onclick={() => openAlert(a)}
+									class="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-surface-2 {i > 0 ? 'border-t border-border' : ''}"
+								>
+									<span class="h-1.5 w-1.5 flex-none rounded-full {a.severity === 'critical' ? 'bg-danger' : 'bg-warning'}"></span>
+									<span class="min-w-0 flex-1 truncate text-[12px] text-text-2">{trText(a, a.title)}</span>
+									{#if a.ageDays}
+										<span class="flex-none text-[10.5px] text-text-3">{a.ageDays}g</span>
+									{/if}
+								</button>
+							{/each}
+						</div>
+						{#if chronicAlerts.length > CHRONIC_LIMIT}
+							<p class="mt-1.5 px-1 text-[11px] text-text-3">+{chronicAlerts.length - CHRONIC_LIMIT} kronik alan daha</p>
+						{/if}
+					</div>
+				{/if}
+
+				{#if recovered.length}
+					<!-- Olumlu geri bildirim: neyin bozuk olduğu kadar neyin DÜZELDİĞİ de görünsün. -->
+					<details class="mt-4 rounded-xl border border-border bg-surface-1 px-3 py-2">
+						<summary class="cursor-pointer text-[11.5px] font-semibold text-success">
+							✓ Son 30 günde düzelen {recovered.length} uyarı
+						</summary>
+						<div class="mt-2 flex flex-col gap-1">
+							{#each recovered as r (r.fingerprint)}
+								<span class="truncate text-[11.5px] text-text-3">{trText(r, r.title)}</span>
+							{/each}
+						</div>
+					</details>
+				{/if}
 			{/if}
 		{:else if section === 'goals'}
 			{#if !showGoalForm}
