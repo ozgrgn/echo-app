@@ -112,20 +112,36 @@
 	// Sağ panelde bu departmana hedef konduysa grafikte de çizilir. Radar yoksa/hedef yoksa
 	// null → çizgi çizilmez, grafik eskisi gibi davranır.
 	let deptTarget = $state<number | null>(null);
+	let deptTargetDeadline = $state<string | null>(null);
 	$effect(() => {
 		const key = deptKey;
 		deptTarget = null;
+		deptTargetDeadline = null;
 		void (async () => {
 			try {
 				const res = await fetch(
 					`/api/agenda?resource=goalTarget&path=${encodeURIComponent(`reviews.departments.${key}.gpi`)}`
 				);
-				if (res.ok) deptTarget = (await res.json()).target ?? null;
+				if (res.ok) {
+					const j = await res.json();
+					deptTarget = j.target ?? null;
+					deptTargetDeadline = j.deadline ?? null;
+				}
 			} catch {
 				/* hedef yoksa grafik hedefsiz çizilir */
 			}
 		})();
 	});
+	// Hedef etiketi: "ne kadar" kadar "ne zamana kadar" da bilgidir (owner, 26 Tem).
+	const TR_M_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+	function shortDate(iso: string | null): string | null {
+		if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+		const [y, m, d] = iso.split('-').map(Number);
+		return `${d} ${TR_M_SHORT[m - 1]}${y !== new Date().getFullYear() ? ` ${y}` : ''}`;
+	}
+	const deptTargetLabel = $derived(
+		deptTargetDeadline ? `Hedef ${shortDate(deptTargetDeadline)} ·` : 'Hedef'
+	);
 
 	// Hedef, y ekseninin DIŞINDA kalırsa çizgi görünmez → aralığa dahil et (ana sayfadaki
 	// GPI grafiğiyle aynı davranış).
@@ -432,7 +448,7 @@
 				</span>
 			{/snippet}
 			{#if trendHasHistory}
-				<TrendChart actual={trendActual} periods={trendPeriods} daily={trendDaily} valueLabel="Skor" ymin={trendYmin} ymax={trendYmax} color={color} height={210} target={deptTarget ?? undefined} targetLabel={deptTarget ? `Hedef ${deptTarget}` : undefined} />
+				<TrendChart actual={trendActual} periods={trendPeriods} daily={trendDaily} valueLabel="Skor" ymin={trendYmin} ymax={trendYmax} color={color} height={210} target={deptTarget ?? undefined} targetLabel={deptTargetLabel} />
 			{:else}
 				<p class="py-14 text-center text-[13px] text-text-3">
 					Bu departman için yeterli geçmiş yok — güncel skor <b class="text-text-1">{score.toFixed(1)}</b>.<br />

@@ -68,8 +68,16 @@ export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 				const path = url.searchParams.get('path') ?? '';
 				if (!/^reviews\.[a-zA-Z0-9_.]{1,80}$/.test(path)) throw error(400, 'Geçersiz metrik yolu');
 				const goals = await listRadarGoals(scope, fetch).catch(() => []);
-				const target = goals.find((r) => r.goal?.metricPath === path)?.goal?.target;
-				return json({ target: Number.isFinite(target) ? target : null });
+				// Aynı metriğe birden çok hedef olabilir → EN YAKIN son tarihli geçerlidir
+				// (tarihi geçmiş elenir, tarihsiz en sona). Ana lens ile aynı kural.
+				const today = new Date().toISOString().slice(0, 10);
+				const g = goals
+					.filter((r) => r.goal?.metricPath === path && Number.isFinite(r.goal.target))
+					.filter((r) => !r.goal.deadline || r.goal.deadline >= today)
+					.sort((a, b) =>
+						(a.goal.deadline ?? '9999-12-31').localeCompare(b.goal.deadline ?? '9999-12-31')
+					)[0];
+				return json({ target: g?.goal.target ?? null, deadline: g?.goal.deadline ?? null });
 			}
 			case 'threads':
 				return json({ threads: await listRadarThreads(scope, fetch) });

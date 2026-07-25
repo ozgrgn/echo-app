@@ -43,20 +43,36 @@
 	// Grafik GPI ekseninde çizildiği için .gpi hedefini okuruz; kanalın yıldız hedefi
 	// (.rating) ayrı bir eksendir, buraya karışmaz.
 	let platformTarget = $state<number | null>(null);
+	let platformTargetDeadline = $state<string | null>(null);
 	$effect(() => {
 		const p = data.platform;
 		platformTarget = null;
+		platformTargetDeadline = null;
 		void (async () => {
 			try {
 				const res = await fetch(
 					`/api/agenda?resource=goalTarget&path=${encodeURIComponent(`reviews.platforms.${p}.gpi`)}`
 				);
-				if (res.ok) platformTarget = (await res.json()).target ?? null;
+				if (res.ok) {
+					const j = await res.json();
+					platformTarget = j.target ?? null;
+					platformTargetDeadline = j.deadline ?? null;
+				}
 			} catch {
 				/* hedef yoksa grafik hedefsiz çizilir */
 			}
 		})();
 	});
+	// Hedef etiketine son tarihi de yaz (owner, 26 Tem) — hedef bir taahhüttür.
+	const TR_M_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+	function shortDate(iso: string | null): string | null {
+		if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+		const [y, m, d] = iso.split('-').map(Number);
+		return `${d} ${TR_M_SHORT[m - 1]}${y !== new Date().getFullYear() ? ` ${y}` : ''}`;
+	}
+	const platformTargetLabel = $derived(
+		platformTargetDeadline ? `Hedef ${shortDate(platformTargetDeadline)} ·` : 'Hedef'
+	);
 	const trendYmin = $derived(Math.floor(Math.min(...trendActual, platformTarget ?? Infinity) - 4));
 	const trendYmax = $derived(Math.ceil(Math.max(...trendActual, platformTarget ?? -Infinity) + 4));
 
@@ -292,7 +308,7 @@
 	<!-- GPI trend for this platform — REAL series from history (fallback in mock). -->
 	<SectionCard title="İtibar trendi · {label}" icon={TrendingUp} metricId="reviews.platforms.gpi" hint={trendHasHistory ? `son ${trendActual.length} dönem` : 'güncel'} class="mb-3.5">
 		{#if trendHasHistory}
-			<TrendChart actual={trendActual} periods={trendPeriods} daily={data.chartDaily} ymin={trendYmin} ymax={trendYmax} color={color} height={200} target={platformTarget ?? undefined} targetLabel={platformTarget ? `Hedef ${platformTarget}` : undefined} />
+			<TrendChart actual={trendActual} periods={trendPeriods} daily={data.chartDaily} ymin={trendYmin} ymax={trendYmax} color={color} height={200} target={platformTarget ?? undefined} targetLabel={platformTargetLabel} />
 		{:else}
 			<p class="py-10 text-center text-[13px] text-text-3">
 				Bu platform için yeterli geçmiş yok — güncel GPI <b class="text-text-1">{ps.gpi.toFixed(1)}</b>.

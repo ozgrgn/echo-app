@@ -60,6 +60,17 @@
 	// Target = the green-zone floor ("reach green"), on the rescaled scale — NOT the old 85
 	// (star-anchored era; unreachable now that GPI maxes ~73 → permanent "below target" red).
 	const GPI_TARGET = $derived(data.impact?.target ?? GPI_GREEN_MIN);
+	// Hedef bir TAAHHÜTTÜR: "ne kadar" kadar "ne zamana kadar" da bilgidir. Son tarih varsa
+	// çizgi etiketine yazılır ("Hedef 85 · 30 Eyl"), yoksa yalnız "Hedef".
+	const TR_MONTHS_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+	function shortDate(iso: string | null | undefined): string | null {
+		if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+		const [y, m, d] = iso.split('-').map(Number);
+		return `${d} ${TR_MONTHS_SHORT[m - 1]}${y !== new Date().getFullYear() ? ` ${y}` : ''}`;
+	}
+	const gpiTargetLabel = $derived(
+		data.gpiGoalDeadline ? `Hedef ${shortDate(data.gpiGoalDeadline)} ·` : 'Hedef'
+	);
 	const historyGpi = $derived((data.history ?? []).map((p) => p.gpi));
 	const trendActual = $derived(historyGpi.length > 0 ? historyGpi : [hs.gpi]);
 	const trendYmin = $derived(Math.floor(Math.min(...trendActual, GPI_TARGET) - 4));
@@ -157,6 +168,51 @@
 	// Per-period NEW reviews (published in the gap since the previous point) — always ≥0.
 	const historyNewReviews = $derived((data.history ?? []).map((p) => p.newReviews ?? 0));
 
+	// ── Review-volume sparkline: fixed 30-day buckets (not raw daily points) ──────
+	// WHY: in the narrow windows (6mo/3mo) the backend returns a DAILY series, so the
+	// raw per-day "new reviews" count is 0–2 on most days and the newest point is a
+	// partial day — a noisy line whose last bar always dips. The other KPIs (GPI/RPI/
+	// star/response) are rolling-window MEASUREMENTS, valid at any instant; a per-period
+	// COUNT is only comparable when every bucket spans the same number of days. So we
+	// re-bucket the daily `newReviews` into equal 30-day slices counting back from today,
+	// matching the "son 6 ay / son 3 ay" rolling-window logic the rest of the page uses.
+	//
+	// Input: `days` = [{ period: 'YYYY-MM-DD', newReviews }] ascending (data.history).
+	// `todayIso` = the newest period in the series (the series always ends at today).
+	// Output: one total per 30-day bucket, OLDEST bucket first, so it feeds the sparkline
+	// left→right like the daily version did.
+	function bucketBy30Days(
+		days: { period: string; newReviews: number }[],
+		todayIso: string
+	): number[] {
+		if (days.length === 0) return [];
+		const DAY_MS = 1000 * 60 * 60 * 24;
+		const today = new Date(todayIso).getTime();
+		// Each day falls into the 30-day slice counting back from today: bucket 0 =
+		// (today-30, today], bucket 1 = (today-60, today-30], … Bucket 0 is a FULL 30-day
+		// slice back from today, so it is never a partial calendar month — the fix's point.
+		const byIndex: number[] = [];
+		let maxIdx = 0;
+		for (const d of days) {
+			const t = new Date(d.period).getTime();
+			if (!Number.isFinite(t)) continue;
+			// idx = whole 30-day slices between this day and today. Future/degenerate dates
+			// (t > today) clamp to bucket 0 so a same-day point still lands in "last 30 days".
+			const idx = Math.max(0, Math.floor((today - t) / (30 * DAY_MS)));
+			byIndex[idx] = (byIndex[idx] ?? 0) + d.newReviews;
+			if (idx > maxIdx) maxIdx = idx;
+		}
+		// Densify holes to 0, then reverse so the sparkline reads oldest→newest (left→right).
+		const dense: number[] = [];
+		for (let i = 0; i <= maxIdx; i++) dense.push(byIndex[i] ?? 0);
+		return dense.reverse();
+	}
+	const historyNewReviews30d = $derived.by(() => {
+		const pts = (data.history ?? []).map((p) => ({ period: p.period, newReviews: p.newReviews ?? 0 }));
+		if (pts.length === 0) return [] as number[];
+		return bucketBy30Days(pts, pts[pts.length - 1].period);
+	});
+
 	// ────────────────────────────────────────────────────────────────────────
 	// GPI delta — the COHORT trend from the backend (recent-30d vs prior-30d PUBLISHED
 	// reviews), window-independent, the SAME signal as every category/department arrow.
@@ -169,9 +225,18 @@
 	// as the GPI card's delta — it's a different unit and read as a GPI-point drop. It's a
 	// real, seasonally-adjusted satisfaction signal that deserves its own surface later
 	// (e.g. a "Memnuniyet Trendi" indicator), not the GPI badge. (GPI_SAF_ASPECT_PLAN.md.)
-	const reviewSpark = $derived(spark(historyNewReviews));
-	// "This period" = new reviews in the newest point's gap (not a delta).
-	const reviewDelta = $derived(historyNewReviews.length > 0 ? historyNewReviews[historyNewReviews.length - 1] : 0);
+	// Sparkline + "bu dönem" both read the 30-day buckets now, so the last bar is a full
+	// 30-day slice (not a partial day) — comparable to the bars before it.
+	const reviewSpark = $derived(spark(historyNewReviews30d));
+	// "This period" = new reviews in the newest FULL 30-day bucket (last 30 days), not a
+	// single partial day. Falls back to the raw daily count if bucketing yielded nothing.
+	const reviewDelta = $derived(
+		historyNewReviews30d.length > 0
+			? historyNewReviews30d[historyNewReviews30d.length - 1]
+			: historyNewReviews.length > 0
+				? historyNewReviews[historyNewReviews.length - 1]
+				: 0
+	);
 
 	type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'brand';
 	function zoneTone(score: number): Tone {
@@ -441,7 +506,7 @@
 		label={reviewCountLabel}
 		metricId="reviews.reviewCount"
 		value={hs.reviewCount.toLocaleString('tr-TR')}
-		caption={reviewDelta > 0 ? `bu dönem +${reviewDelta.toLocaleString('tr-TR')} yeni` : 'bu dönem'}
+		caption={reviewDelta > 0 ? `son 30 günde +${reviewDelta.toLocaleString('tr-TR')} yeni` : 'son 30 günde yeni yorum yok'}
 		trend={reviewSpark}
 	/>
 	<!-- No delta badge: responseStats.rateTrend is hardcoded 0 in scoring (score.ts,
@@ -484,7 +549,7 @@
 				<span class="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-text-2"><i class="h-[3px] w-2.5 rounded-sm" style="background:var(--color-text-3)"></i>Hedef {GPI_TARGET}</span>
 			</div>
 			{#if trendHasHistory}
-				<TrendChart actual={trendActual} periods={comparePeriods} daily={data.chartDaily} target={GPI_TARGET} ymin={trendYmin} ymax={trendYmax} height={210} fill />
+				<TrendChart actual={trendActual} periods={comparePeriods} daily={data.chartDaily} target={GPI_TARGET} targetLabel={gpiTargetLabel} ymin={trendYmin} ymax={trendYmax} height={210} fill />
 			{:else}
 				<p class="py-12 text-center text-[13px] text-text-3">
 					Trend için yeterli geçmiş yok — güncel GPI <b class="text-text-1">{hs.gpi.toFixed(1)}</b>.

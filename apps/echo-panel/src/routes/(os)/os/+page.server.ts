@@ -79,12 +79,25 @@ export const load: PageServerLoad = async (event) => {
 	// Fetched BEFORE the bundle (the bundle needs the target); radar answers in well
 	// under the bundle's own latency, and failure is swallowed (never blocks the page).
 	let gpiGoalTarget: number | undefined;
+	let gpiGoalDeadline: string | null = null;
 	const tenantKey = event.locals.session?.tenantKey;
 	if (tenantKey) {
 		try {
 			const goals = await listRadarGoals({ tenantKey, venueSlug }, event.fetch);
-			const g = goals.find((r) => r.goal?.metricPath === 'reviews.gpi');
-			if (g && Number.isFinite(g.goal.target)) gpiGoalTarget = g.goal.target;
+			// Aynı metriğe BİRDEN ÇOK hedef konabilir (çeyrek hedefi + yıl sonu hedefi gibi).
+			// `find()` rastgele ilkini alıyordu → grafik hangi hedefi çizdiğini bilmiyordu.
+			// Kural: EN YAKIN son tarihli hedef geçerli (üzerinde çalışılan taahhüt odur);
+			// tarihi geçmişler elenir, tarihsizler en sona düşer.
+			const today = new Date().toISOString().slice(0, 10);
+			const gpiGoals = goals
+				.filter((r) => r.goal?.metricPath === 'reviews.gpi' && Number.isFinite(r.goal.target))
+				.filter((r) => !r.goal.deadline || r.goal.deadline >= today)
+				.sort((a, b) => (a.goal.deadline ?? '9999-12-31').localeCompare(b.goal.deadline ?? '9999-12-31'));
+			const g = gpiGoals[0];
+			if (g) {
+				gpiGoalTarget = g.goal.target;
+				gpiGoalDeadline = g.goal.deadline ?? null;
+			}
 		} catch {
 			// radar yok/erişilemedi → sabit hedefe düş (sayfa asla bundan kırılmaz)
 		}
@@ -146,6 +159,9 @@ export const load: PageServerLoad = async (event) => {
 		impact: b.impact,
 		responseBreakdown,
 		window,
-		chartDaily: chart.daily
+		chartDaily: chart.daily,
+		// Grafiğin "Hedef" çizgisinin SON TARİHİ — hedef bir taahhüttür, tarihsiz gösterilirse
+		// "ne zamana kadar" bilgisi kaybolur (owner, 26 Tem). null = tarihsiz hedef ya da hedef yok.
+		gpiGoalDeadline
 	};
 };
