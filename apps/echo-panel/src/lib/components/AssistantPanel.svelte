@@ -866,7 +866,16 @@
 	<nav class="flex items-center gap-1 border-b border-border bg-surface-2/40 px-2 py-2">
 		{#each sections as s (s.key)}
 			<button
-				onclick={() => (section = s.key)}
+				onclick={() => {
+					// Açık bir sohbet BÜTÜN içerik alanını kaplıyor: sekmeyi değiştirip thread'i
+					// kapatmazsak tıklama hiçbir şey yapmıyormuş gibi görünüyordu (owner, 26 Tem).
+					// Sekme değişimi = konudan çık; liste tazelensin (başlık/durum değişmiş olabilir).
+					if (openThread) {
+						openThread = null;
+						void refreshThreads();
+					}
+					section = s.key;
+				}}
 				class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-semibold transition-colors
 					{section === s.key ? 'bg-text-1 text-white' : 'text-text-2 hover:bg-surface-2 hover:text-text-1'}"
 			>
