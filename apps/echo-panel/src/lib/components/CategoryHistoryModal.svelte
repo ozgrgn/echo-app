@@ -9,11 +9,20 @@
   reading the department at, the drill-down starts there; the tabs then let you widen
   it, and switching them refetches only this series, never the page.
 
-  Only monthly-series windows are offered: 3mo/6mo history lives in the DAILY store,
-  which this per-key endpoint doesn't read — so a page sitting on 6mo falls back to the
-  nearest monthly window it can actually plot.
+  EVERY window is offered (Tümü/2Y/1Y/6A/3A) and the page's window always wins. An
+  earlier note here claimed 3mo/6mo "live in the DAILY store, which this per-key
+  endpoint doesn't read", so those two were filtered out and a page on 6mo fell back
+  to 24mo. That is stale: departmentKeyTrendFromSnapshots reads the daily store for
+  EVERY window — narrow ones (3mo/6mo) as raw day points, wide ones thinned to
+  month-ends. Filtering them out dropped exactly the resolution this dialog needs.
+
+  Why it matters beyond tidiness: a wide window's points are CUMULATIVE-ish — on a key
+  with ~1000 lifetime mentions, last month's ~10 move the line by fractions of a point,
+  so a real recent collapse (the row's cohort arrow can read −18) renders as a flat
+  curve. The 3mo/6mo series is a true rolling window, so the drop is actually visible.
 -->
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Dialog } from 'bits-ui';
 	import TrendChart from './TrendChart.svelte';
 	import { zoneClass } from '@talkwo/echo-core';
@@ -51,20 +60,16 @@
 		pageWindow = 'max'
 	}: Props = $props();
 
-	// Monthly-series windows only (see header note).
-	const WINDOWS = OS_WINDOW_TABS.filter((t) => ['max', '24mo', '12mo'].includes(t.key));
-	const MONTHLY: OsWindow[] = ['max', '24mo', '12mo'];
+	// Every window the OS shell offers — the per-key endpoint plots all of them.
+	const WINDOWS = OS_WINDOW_TABS;
 
-	/** The page may sit on a window this endpoint cannot plot (3mo/6mo are daily-store
-	 *  only). Fall back to the widest monthly window rather than fetching a series that
-	 *  comes back empty. */
-	const initialWindow = $derived(MONTHLY.includes(pageWindow) ? pageWindow : '24mo');
-
-	let histWindow = $state<OsWindow>('max');
-	// Re-seed each time the dialog opens for a new key, so it always starts on the page's
-	// horizon — but leave the user's tab choice alone while it stays open.
+	let histWindow = $state<OsWindow>(pageWindow);
+	// Re-seed each time the dialog OPENS for a key, so it starts on the page's horizon —
+	// but leave the user's tab choice alone while it stays open. pageWindow is read
+	// untracked on purpose: it is the seed, not a live binding. Tracking it would let a
+	// window change behind the open dialog stomp the tab the user just picked here.
 	$effect(() => {
-		if (open && granularKey) histWindow = initialWindow;
+		if (open && granularKey) histWindow = untrack(() => pageWindow);
 	});
 
 	let points = $state<TrendPoint[]>([]);
@@ -106,6 +111,9 @@
 	const totalMentions = $derived(points.reduce((n, p) => n + p.mentions, 0));
 	const last = $derived(scored.length ? scored[scored.length - 1] : null);
 	const lastTone = $derived(zoneClass(last?.score));
+	// Name the horizon in the subtitle. Without it the dialog reads as "the" score for the
+	// key and silently disagrees with the row behind it whenever the tab is switched.
+	const windowLabel = $derived(WINDOWS.find((w) => w.key === histWindow)?.label ?? 'Tarihsel');
 </script>
 
 <Dialog.Root {open} {onOpenChange}>
@@ -124,7 +132,7 @@
 						{label}
 					</Dialog.Title>
 					<p class="mt-1 text-xs text-text-3">
-						Tarihsel kategori skoru · {totalMentions} mention
+						{windowLabel} skoru · {totalMentions} mention
 					</p>
 				</div>
 				<div class="flex items-center gap-3">
