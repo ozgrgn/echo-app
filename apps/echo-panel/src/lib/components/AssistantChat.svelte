@@ -11,6 +11,8 @@
 -->
 <script lang="ts">
 	import { ArrowUp, ArrowLeft, Sparkles } from '@lucide/svelte';
+	import { page } from '$app/state';
+	import { parseOsWindow } from '$lib/config/window';
 
 	type ChatMessage = {
 		role: 'user' | 'assistant' | 'tool';
@@ -51,6 +53,11 @@
 
 	// Local override of the header label once radar reports the auto-generated title.
 	let liveTitle = $state<string | null>(null);
+
+	// Sayfada açık olan dönem — her mesajla birlikte gider, böylece asistan skorları
+	// kullanıcının GÖRDÜĞÜ pencereden okur. URL tek doğru kaynak: rail'in pencere seçicisi
+	// ?window= yazar, sohbet de oradan okur (ayrı bir kopya tutmak ikisini ayrıştırırdı).
+	const uiWindow = $derived(parseOsWindow(page.url.searchParams.get('window')));
 	const shownTitle = $derived(liveTitle ?? title ?? 'Konu');
 
 	// Minimal, dependency-free markdown for assistant bubbles. The model emits panel
@@ -187,7 +194,11 @@
 					threadId,
 					content,
 					...(displayContent ? { displayContent } : {}),
-					...(forceTool ? { forceTool } : {})
+					...(forceTool ? { forceTool } : {}),
+					// Sayfada açık olan dönem: asistan skorları AYNI pencereden okusun. Yoksa
+					// sabit 6 aylık snapshot'tan okuyup ekrandaki tabloyla farklı sayı söylüyordu
+					// (owner, 27 Tem). URL tek doğru kaynak — rail seçicisi de oraya yazıyor.
+					...(uiWindow ? { uiWindow } : {})
 				})
 			});
 			if (!res.ok || !res.body) {

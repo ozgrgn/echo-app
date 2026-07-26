@@ -13,6 +13,7 @@ import { error, json } from '@sveltejs/kit';
 import { streamRadarChat } from '$lib/server/radarApi';
 import type { RadarScope } from '$lib/server/radarApi';
 import { chatUser } from '$lib/server/session';
+import { OS_WINDOWS } from '$lib/config/window';
 import type { RequestHandler } from './$types';
 
 const MAX_CONTENT_LENGTH = 4000;
@@ -37,6 +38,14 @@ export const POST: RequestHandler = async ({ request, locals, fetch }) => {
 			? { name: ft.name, args: ft.args && typeof ft.args === 'object' ? ft.args : {} }
 			: undefined;
 
+	// Kullanıcının AÇIK OLDUĞU pencere. Asistan bunu bilmezse departman/alt konu skorlarını
+	// sabit 6 aylık snapshot'tan okur ve sayfadaki tabloyla farklı sayılar söyler — aynı
+	// ekranda iki rakam (owner, 27 Tem). Değer istemciden geldiği için allowlist'ten geçer;
+	// tanınmayan bir şey gelirse hiç gönderilmez (radar varsayılana düşer).
+	const uiWindow = (OS_WINDOWS as readonly string[]).includes(String(body?.uiWindow))
+		? String(body.uiWindow)
+		: undefined;
+
 	const scope: RadarScope = {
 		tenantKey: locals.session.tenantKey,
 		venueSlug: locals.session.venueSlug,
@@ -47,7 +56,8 @@ export const POST: RequestHandler = async ({ request, locals, fetch }) => {
 	const upstream = await streamRadarChat(scope, threadId, {
 		content,
 		...(displayContent ? { displayContent } : {}),
-		...(forceTool ? { forceTool } : {})
+		...(forceTool ? { forceTool } : {}),
+		...(uiWindow ? { uiWindow } : {})
 	});
 
 	if (!upstream.ok || !upstream.body) {

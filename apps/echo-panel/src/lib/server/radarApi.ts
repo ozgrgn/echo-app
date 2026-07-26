@@ -413,7 +413,13 @@ export async function createRadarThread(
 export async function streamRadarChat(
 	scope: RadarScope,
 	threadId: string,
-	body: { content: string; displayContent?: string; forceTool?: { name: string; args?: Record<string, unknown> } },
+	body: {
+		content: string;
+		displayContent?: string;
+		forceTool?: { name: string; args?: Record<string, unknown> };
+		/** Panelde açık olan pencere (3mo/6mo/…) — asistan skorları aynı dönemden okusun. */
+		uiWindow?: string;
+	},
 	fetchFn: typeof fetch = fetch
 ): Promise<Response> {
 	const t = encodeURIComponent(scope.tenantKey);
