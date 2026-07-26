@@ -26,6 +26,19 @@
 			: [...items].sort((a, b) => (b.publishedDate || '').localeCompare(a.publishedDate || ''))
 	);
 
+	/**
+	 * Star badge text, from rating5 (canonical 1–5) — NOT the native `rating` the
+	 * queue also carries. Booking rates 1–10, so the native value rendered "8★" beside
+	 * a chip coloured from 4.1. rating5 keeps full float precision on the wire because
+	 * scoring wants it (see echo-backend ingest/ratingScale.ts: "display rounding is
+	 * the frontend's job"), hence the one-decimal formatting here.
+	 */
+	function starLabel(rating5: number | null): string {
+		if (rating5 == null) return '—';
+		const r = Math.round(rating5 * 10) / 10;
+		return `${Number.isInteger(r) ? r : r.toFixed(1)}★`;
+	}
+
 	// Rating tone follows the canonical 1–5 scale (rating5), not the native one.
 	function ratingTone(r5: number | null): string {
 		if (r5 == null) return 'bg-surface-2 text-text-2';
@@ -87,7 +100,7 @@
 				<button class="min-w-0 text-left" onclick={() => (expandedId = open ? null : r.id)}>
 					<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
 						<span class="rounded px-1.5 py-0.5 text-[11px] font-extrabold {ratingTone(r.rating5)}">
-							{r.rating != null ? `${r.rating}★` : '—'}
+							{starLabel(r.rating5)}
 						</span>
 						{#if r.title}
 							<span class="truncate text-[13px] font-semibold text-text-1">{r.title}</span>
