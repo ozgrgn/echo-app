@@ -21,6 +21,7 @@ import {
 	deleteRadarGoal,
 	muteRadarAlert,
 	getRadarMetricSeries,
+	getRadarBriefing,
 	getRadarThread,
 	createRadarThread,
 	createRadarThreadFromAlert
@@ -79,6 +80,14 @@ export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 						(a.goal.deadline ?? '9999-12-31').localeCompare(b.goal.deadline ?? '9999-12-31')
 					)[0];
 				return json({ target: g?.goal.target ?? null, deadline: g?.goal.deadline ?? null });
+			}
+			case 'briefing': {
+				// Gündem brifingi (G8): puan hareketi + etki sıralı öncelikler + sapan hedefler,
+				// üstüne LLM'in yazdığı paragraf. `all` içine KOYMUYORUZ bilerek — bu tek çağrı
+				// LLM'e gider (~1.5-2.5 sn), diğer üçü saf Mongo'dur. Aynı turda olsaydı sağ
+				// panelin ilk boyanması en yavaş halkaya bağlanırdı; ayrı kalınca sayılar hemen
+				// gelir, paragraf hazır olunca üstüne oturur.
+				return json(await getRadarBriefing(scope, fetch));
 			}
 			case 'threads':
 				return json({ threads: await listRadarThreads(scope, fetch) });

@@ -140,6 +140,26 @@
 	let goals = $state<GoalReport[]>([]);
 	let threads = $state<Thread[]>([]);
 
+	// Gündem brifingi (G8 adım 5). Backend neyin önemli olduğuna karar verir (etki sıralaması,
+	// hedef statüsü, puan hareketi); `text` yalnızca bunun cümleye dökülmüş hali. Bu yüzden
+	// `text` null olsa da geri kalan render edilir — cümle kaybolunca bilgi kaybolmaz.
+	type Briefing = {
+		score: {
+			gpi: number;
+			deltaDay: number | null;
+			deltaWeek: number | null;
+			newReviews: number | null;
+			date: string | null;
+		} | null;
+		priorities: { fingerprint: string; title: string; severity: string; impact: number | null }[];
+		goals: { goalId: string; label: string; target: number; now: number | null; headline: string }[];
+		counts: { activeAlerts: number; criticalAlerts: number; goalsNeedingAttention: number };
+		quiet: boolean;
+		text: string | null;
+	};
+	let briefing = $state<Briefing | null>(null);
+	let briefingLoading = $state(true);
+
 	// Uyarı listesi iki bölüm: OLAY (yeni/kötüleşen) üstte kart, KRONİK (14+ gün) altta satır.
 	// Radar sıralamayı zaten olay-önce + etki-sırasına göre yapıyor; burada sadece ayırıyoruz.
 	// Tavanlar ekranı sakin tutmak için — kesilen sayısı görünür (gizlenmiş olmaz).
@@ -204,6 +224,28 @@
 		}
 	}
 
+	/** Etiket gelmediyse ham anahtardan okunur bir ad üret ("reviews.departments.gpi" →
+	 *  "Departman GPI"). Yalnız YEDEK: doğru ad registry'den, popover üzerinden gelir. */
+	const METRIC_FALLBACK_LABEL: Record<string, string> = {
+		'reviews.gpi': 'Genel GPI',
+		'reviews.gpi.trend': 'İtibar trendi',
+		'reviews.avgStarRating': 'Yıldız ortalaması',
+		'reviews.rpi': 'RPI',
+		'reviews.reviewCount': 'Yorum sayısı',
+		'reviews.responseRate': 'Yanıt oranı',
+		'reviews.departments.gpi': 'Departman GPI',
+		'reviews.platforms.gpi': 'Platform GPI',
+		'reviews.platforms.rating': 'Platform puanı',
+		'reviews.platforms.compare': 'Platform karşılaştırması',
+		'reviews.categories.score': 'Kategori skoru',
+		'reviews.categories.sentiment': 'Kategori hareketi',
+		'reviews.mentions.top': 'Öne çıkan konular',
+		'reviews.impact': 'GPI etki analizi',
+		'reviews.segments': 'Kitle profili',
+		'reviews.competitors': 'Rakip karşılaştırması'
+	};
+	const prettyMetric = (id: string) => METRIC_FALLBACK_LABEL[id] ?? id.split('.').pop() ?? id;
+
 	// "?" popover → "Asistana sor" handoff: open a thread and fire the
 	// explainEchoMetric forceTool with the widget's context (G5 Faz 1).
 	$effect(() => {
@@ -231,7 +273,13 @@
 				const res = await fetch('/api/agenda', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ action: 'newThread', title: `Nasıl hesaplanır? · ${req.metricId}` })
+					// Başlıkta İNSAN ADI: "Nasıl hesaplanır? · Yıldız Ortalaması". Ham metricPath
+					// otelciye hiçbir şey söylemez (owner, 26 Tem). Etiket popover'dan gelir;
+					// yoksa (eski önbellek) anahtarın son parçasını okunur hale getir.
+					body: JSON.stringify({
+						action: 'newThread',
+						title: `Nasıl hesaplanır? · ${req.label ?? prettyMetric(req.metricId)}`
+					})
 				});
 				if (!res.ok) throw new Error(`thread ${res.status} (${res.statusText})`);
 				const data = await res.json();
@@ -241,9 +289,21 @@
 					threadId: tid,
 					title: data.thread?.title ?? 'Nasıl hesaplanır?',
 					initialForce: {
-						content: `${req.metricId} metriğinin ne olduğunu ve nasıl hesaplandığını açıkla.`,
+						// Modele SORUYU insan adıyla ver: ham anahtar görünce cevabı yanlış metriğe
+						// kaydırabiliyordu (avgStarRating soruldu, GPI anlatıldı). Kesin kaynak yine
+						// forceTool: metricId'yi O taşır, model seçmez.
+						content:
+							`"${req.label ?? prettyMetric(req.metricId)}" metriği ne demek ve nasıl hesaplanıyor? ` +
+							`Sadece bu metriği açıkla, başka metriğe geçme.`,
 						displayContent: 'Nasıl hesaplanır?',
-						forceTool: { name: 'explainEchoMetric', args: { ...req } }
+						forceTool: {
+							name: 'explainEchoMetric',
+							args: {
+								metricId: req.metricId,
+								...(req.window ? { window: req.window } : {}),
+								...(typeof req.currentValue === 'number' ? { currentValue: req.currentValue } : {})
+							}
+						}
 					}
 				};
 				void refreshThreads();
@@ -307,6 +367,30 @@
 				if (!cancelled) loadError = e instanceof Error ? e.message : 'Gündem yüklenemedi';
 			} finally {
 				if (!cancelled) loading = false;
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	// Brifing AYRI bir dalgada gelir (proxy'de niye ayrı olduğu orada yazıyor: bu tek çağrı
+	// LLM'e gidiyor). Kendi loading bayrağı var, kendi hatası var ve hatası sayfayı bozmaz —
+	// paragraf gelmezse Gündem yine öncelikleri ve hedefleri gösterir.
+	$effect(() => {
+		if (demo) return;
+		let cancelled = false;
+		(async () => {
+			try {
+				const res = await fetch('/api/agenda?resource=briefing');
+				if (!res.ok) throw new Error(`briefing ${res.status}`);
+				const data = (await res.json()) as Briefing;
+				if (!cancelled) briefing = data;
+			} catch {
+				// Sessiz düşer: brifing bir EKLENTİ katmanı, sağ panelin ön koşulu değil.
+				if (!cancelled) briefing = null;
+			} finally {
+				if (!cancelled) briefingLoading = false;
 			}
 		})();
 		return () => {
@@ -972,39 +1056,149 @@
 				<p class="mt-1.5 text-[12px] leading-relaxed text-text-3">{loadError}</p>
 			</div>
 		{:else if section === 'agenda'}
-			{#if threads.length === 0}
-				<div class="flex h-full flex-col items-center justify-center px-4 text-center">
-					<div class="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface-2 text-text-3">
-						<ListTodo size={20} />
+			<!-- ── Gündem (G8 adım 5): günün tek ekranlık brifingi ─────────────────────────
+			     Sıra bilinçli: önce PUAN (nereye gidiyoruz), sonra BUGÜN İLGİLENİLECEKLER
+			     (etki sırası backend'in), sonra SAPAN HEDEFLER, en sonda açık konular.
+			     Sabah panele bakan otelci önce durum görsün, konu listesi değil. -->
+			<div class="flex flex-col gap-4">
+				<!-- 1. Puan + brifing paragrafı -->
+				{#if briefingLoading}
+					<div class="rounded-xl border border-border bg-surface-1 p-3.5">
+						<div class="h-5 w-24 animate-pulse rounded bg-surface-2"></div>
+						<div class="mt-2.5 h-3 w-full animate-pulse rounded bg-surface-2"></div>
+						<div class="mt-1.5 h-3 w-4/5 animate-pulse rounded bg-surface-2"></div>
 					</div>
-					<p class="text-[13px] font-semibold text-text-1">Henüz konu yok</p>
-					<p class="mt-1.5 text-[12px] leading-relaxed text-text-3">
-						Uyarılardan ve hedeflerden doğan konular burada birikecek.
-						{#if criticalCount}Şu an <b class="text-danger">{criticalCount} kritik uyarı</b> Uyarılar sekmesinde.{/if}
-					</p>
-				</div>
-			{:else}
-				<div class="flex flex-col gap-2.5">
-					{#each threads as t (threadIdOf(t) ?? t.title)}
-						<button
-							disabled={!chatEnabled || !threadIdOf(t)}
-							onclick={() => {
-								const tid = threadIdOf(t);
-								if (tid) openThread = { threadId: tid, title: t.title };
-							}}
-							class="flex items-center gap-3 rounded-xl border border-border bg-surface-1 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-hover disabled:cursor-default disabled:hover:translate-y-0 disabled:hover:shadow-none"
-						>
-							<span class="grid h-7 w-7 flex-none place-items-center rounded-lg bg-talkwo/10 text-talkwo">
-								<MessagesSquare size={14} />
-							</span>
-							<span class="min-w-0 flex-1">
-								<span class="block truncate text-[12.5px] font-bold text-text-1">{t.title ?? 'Konu'}</span>
-								<span class="mt-0.5 block text-[11px] text-text-3">{t.source === 'alert' ? 'uyarıdan' : t.source === 'goal' ? 'hedeften' : 'sohbet'}</span>
-							</span>
-						</button>
-					{/each}
-				</div>
-			{/if}
+				{:else if briefing?.score}
+					{@const s = briefing.score}
+					<div class="rounded-xl border border-border bg-surface-1 p-3.5">
+						<div class="flex items-baseline gap-2">
+							<span class="text-[24px] font-bold leading-none text-text-1">{s.gpi}</span>
+							<span class="text-[11px] font-semibold uppercase tracking-wide text-text-3">GPI</span>
+							{#if s.deltaDay != null}
+								<span class="ml-auto text-[11.5px] font-bold {s.deltaDay > 0 ? 'text-success' : s.deltaDay < 0 ? 'text-danger' : 'text-text-3'}">
+									{s.deltaDay > 0 ? '+' : ''}{s.deltaDay} <span class="font-normal text-text-3">dün</span>
+								</span>
+							{/if}
+							{#if s.deltaWeek != null}
+								<span class="text-[11.5px] font-bold {s.deltaWeek > 0 ? 'text-success' : s.deltaWeek < 0 ? 'text-danger' : 'text-text-3'}">
+									{s.deltaWeek > 0 ? '+' : ''}{s.deltaWeek} <span class="font-normal text-text-3">hafta</span>
+								</span>
+							{/if}
+						</div>
+						{#if s.newReviews != null}
+							<p class="mt-1.5 text-[11px] text-text-3">Dün {s.newReviews} yeni yorum geldi.</p>
+						{/if}
+						{#if briefing.text}
+							<p class="mt-2.5 border-t border-border pt-2.5 text-[12.5px] leading-relaxed text-text-2">{briefing.text}</p>
+						{/if}
+					</div>
+				{/if}
+
+				<!-- 2. Bugün ilgilenilecekler — brifingin ÖNCELİK sırası, tıklayınca uyarı detayı.
+				     Sıralamayı burada YENİDEN hesaplamıyoruz: fingerprint ile listedeki uyarıyı
+				     buluyoruz, böylece Gündem ile Uyarılar sekmesi çelişemez. -->
+				{#if briefing?.priorities?.length}
+					<div>
+						<p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-text-3">Bugün ilgilenilecekler</p>
+						<div class="flex flex-col gap-2">
+							{#each briefing.priorities as p, i (p.fingerprint)}
+								<!-- Başlığı listedeki GERÇEK uyarı kartından çeviriyoruz: trText granular
+								     anahtar/departman etiketlerini onarır, o onarım da kartın kendi
+								     subject'ine dayanır. Kart yoksa (liste henüz gelmediyse) ham başlık. -->
+								{@const card = alerts.find((a) => a.fingerprint === p.fingerprint)}
+								<button
+									onclick={() => {
+										section = 'alerts';
+										if (card) alertDetail = card;
+									}}
+									class="flex items-start gap-2.5 rounded-xl border border-border bg-surface-1 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-hover {p.severity === 'critical' ? 'border-l-2 border-l-danger' : ''}"
+								>
+									<span class="mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md bg-surface-2 text-[10px] font-bold text-text-3">{i + 1}</span>
+									<span class="min-w-0 flex-1">
+										<span class="block text-[12.5px] font-semibold leading-snug text-text-1">{card ? trText(card, p.title) : p.title}</span>
+										<span class="mt-0.5 block text-[10.5px] text-text-3">
+											{p.severity === 'critical' ? 'Kritik' : 'Uyarı'}{p.impact != null ? ` · etki ${p.impact}` : ''}
+										</span>
+									</span>
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<!-- 3. Dikkat isteyen hedefler — headline backend'in verdiği cümledir (goalStatus). -->
+				{#if briefing?.goals?.length}
+					<div>
+						<p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-text-3">Dikkat isteyen hedefler</p>
+						<div class="flex flex-col gap-2">
+							{#each briefing.goals as g (g.goalId)}
+								<button
+									onclick={() => (section = 'goals')}
+									class="flex items-center gap-3 rounded-xl border border-border bg-surface-1 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-hover"
+								>
+									<span class="grid h-7 w-7 flex-none place-items-center rounded-lg bg-warning-light text-warning">
+										<Target size={14} />
+									</span>
+									<span class="min-w-0 flex-1">
+										<span class="block truncate text-[12.5px] font-semibold text-text-1">{g.label}</span>
+										<span class="mt-0.5 block text-[10.5px] text-text-3">
+											{g.now ?? '—'} → {g.target} · {g.headline}
+										</span>
+									</span>
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<!-- 4. Açık konular (eski Gündem içeriği) — brifingin ALTINDA, çünkü bunlar
+				     "devam eden işler", günün durumu değil. -->
+				{#if threads.length}
+					<div>
+						<p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-text-3">Açık konular</p>
+						<div class="flex flex-col gap-2.5">
+							{#each threads as t (threadIdOf(t) ?? t.title)}
+								<button
+									disabled={!chatEnabled || !threadIdOf(t)}
+									onclick={() => {
+										const tid = threadIdOf(t);
+										if (tid) openThread = { threadId: tid, title: t.title };
+									}}
+									class="flex items-center gap-3 rounded-xl border border-border bg-surface-1 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-hover disabled:cursor-default disabled:hover:translate-y-0 disabled:hover:shadow-none"
+								>
+									<span class="grid h-7 w-7 flex-none place-items-center rounded-lg bg-talkwo/10 text-talkwo">
+										<MessagesSquare size={14} />
+									</span>
+									<span class="min-w-0 flex-1">
+										<span class="block truncate text-[12.5px] font-bold text-text-1">{t.title ?? 'Konu'}</span>
+										<span class="mt-0.5 block text-[11px] text-text-3">{t.source === 'alert' ? 'uyarıdan' : t.source === 'goal' ? 'hedeften' : 'sohbet'}</span>
+									</span>
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<!-- Gerçekten sakin bir gün: bunu SÖYLEMEK bilgidir. Boş ekran değil.
+				     Not: LLM'e sormuyoruz — veri yokken model özür dolu paragraf uyduruyor. -->
+				{#if !briefingLoading && !briefing?.priorities?.length && !briefing?.goals?.length && !threads.length}
+					<div class="flex flex-col items-center justify-center px-4 py-8 text-center">
+						<div class="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface-2 text-text-3">
+							<ListTodo size={20} />
+						</div>
+						<p class="text-[13px] font-semibold text-text-1">
+							{briefing?.score ? 'Bugün öne çıkan bir sorun yok' : 'Gündem için henüz veri yok'}
+						</p>
+						<p class="mt-1.5 text-[12px] leading-relaxed text-text-3">
+							{#if briefing?.score}
+								Puan seyri ve uyarılar takip ediliyor; bir şey öne çıktığında burada görünecek.
+							{:else}
+								Yorumlar biriktikçe puan seyri ve öncelikler burada oluşacak.
+							{/if}
+						</p>
+					</div>
+				{/if}
+			</div>
 		{:else if section === 'alerts'}
 			{#if alertDetail}
 				{@const a = alertDetail}

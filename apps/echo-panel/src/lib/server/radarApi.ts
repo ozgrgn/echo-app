@@ -210,6 +210,54 @@ export async function listRadarAlerts(scope: RadarScope, fetchFn: typeof fetch =
 	return { alerts: data.alerts ?? [], recovered: data.recovered ?? [] };
 }
 
+/** Bir günün Gündem brifingi: deterministik bulgular + LLM'in yazdığı paragraf.
+ *
+ * `text` NULL gelebilir (model yapılandırılmamış ya da çağrı düştü) — bu bir hata değil,
+ * beklenen bir durumdur: karar backend'in, cümle LLM'in. Cümle gelmezse panel sayıları
+ * yine gösterir, o yüzden bu alan opsiyoneldir. */
+export type RadarBriefing = {
+	date: string;
+	score: {
+		gpi: number;
+		deltaDay: number | null;
+		deltaWeek: number | null;
+		newReviews: number | null;
+		reviewPool: number | null;
+		date: string | null;
+	} | null;
+	priorities: Array<{
+		fingerprint: string;
+		title: string;
+		severity: string;
+		impact: number | null;
+		subject: string | null;
+	}>;
+	goals: Array<{
+		goalId: string;
+		label: string;
+		metricPath: string;
+		target: number;
+		now: number | null;
+		status: string;
+		headline: string;
+		deadline: string | null;
+	}>;
+	counts: {
+		activeAlerts: number;
+		criticalAlerts: number;
+		chronicAlerts: number;
+		goalsNeedingAttention: number;
+	};
+	quiet: boolean;
+	text: string | null;
+};
+
+export async function getRadarBriefing(scope: RadarScope, fetchFn: typeof fetch = fetch) {
+	const t = encodeURIComponent(scope.tenantKey);
+	const v = encodeURIComponent(scope.venueSlug);
+	return radarGet<RadarBriefing>(scope, `/api/assist/${t}/${v}/briefing`, fetchFn);
+}
+
 /** Goal reports (definition + progress + feasibility), from the /api/os facade. */
 export async function listRadarGoals(scope: RadarScope, fetchFn: typeof fetch = fetch) {
 	const t = encodeURIComponent(scope.tenantKey);
