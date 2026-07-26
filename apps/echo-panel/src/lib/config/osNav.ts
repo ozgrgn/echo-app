@@ -10,7 +10,7 @@
  * points at the platform INDEX (/os/platform) — the overview/comparison page —
  * not a single channel. Deep-linking into one platform happens from there.
  */
-import { LayoutGrid, Globe, Swords, Users } from '@lucide/svelte';
+import { LayoutGrid, Globe, Swords, Users, MessageSquare } from '@lucide/svelte';
 import type { LensKind } from '$lib/stores/osState.svelte';
 
 export interface OsNavItem {
@@ -27,7 +27,11 @@ export const OS_NAV: OsNavItem[] = [
 	{ lens: 'genel', label: 'Genel', icon: LayoutGrid, href: '/os' },
 	{ lens: 'platform', label: 'Platformlar', icon: Globe, href: '/os/platform' },
 	{ lens: 'competitors', label: 'Rakipler', icon: Swords, href: '/os/competitors' },
-	{ lens: 'departments', label: 'Departmanlar', icon: Users, href: '/os/departments' }
+	{ lens: 'departments', label: 'Departmanlar', icon: Users, href: '/os/departments' },
+	// Yorumlar — the operator's daily work surface (review list + reply drafting).
+	// Last in the order on purpose: the first four are analytical lenses ("where do
+	// we stand"), this one is the do-something lens.
+	{ lens: 'responses', label: 'Yorumlar', icon: MessageSquare, href: '/os/responses' }
 ];
 
 /**

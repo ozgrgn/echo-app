@@ -8,7 +8,8 @@
  * network with locals.session.token.
  *
  * GET /api/os/data?resource=<name>&venueSlug=<slug>&...params
- *   resources: departments | departmentDetail | departmentKeyTrend | responseStats | responseQueue | mentions | metricMeta
+ *   resources: departments | departmentDetail | departmentKeyTrend | responseStats |
+ *              responseQueue | reviews | mentions | metricMeta
  */
 
 import { json, error } from '@sveltejs/kit';
@@ -67,6 +68,25 @@ export const GET: RequestHandler = async (event) => {
 				return json(await api.getResponseStats(venueSlug, platform, window));
 			case 'responseQueue':
 				return json(await api.getResponseQueue(venueSlug, { platform, limit }));
+			case 'reviews': {
+				// The "Yorumlar" lens list. Distinct from responseQueue: that one is
+				// unanswered-only and priority-sorted, this walks EVERY review with
+				// keyset paging, so the lens can show answered ones too.
+				const response = url.searchParams.get('response');
+				const lang = url.searchParams.get('lang') ?? undefined;
+				const sentiment = url.searchParams.get('sentiment') ?? undefined;
+				const cursor = url.searchParams.get('cursor') ?? undefined;
+				return json(
+					await api.getReviews(venueSlug, {
+						...(platform ? { platform } : {}),
+						...(lang ? { lang } : {}),
+						...(sentiment ? { sentiment } : {}),
+						...(cursor ? { cursor } : {}),
+						...(limit ? { limit } : {}),
+						...(response === 'with' || response === 'without' ? { response } : {})
+					})
+				);
+			}
 			case 'impactConcentration': {
 				// Impact-card per-category drill-down ("En çok negatif nerede yoğunlaşmış?").
 				// Lazy — fetched only when a category row is expanded.

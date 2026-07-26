@@ -13,7 +13,13 @@
  */
 
 // A lens is one context lens of the single assistant brain (not a separate brain).
-export type LensKind = 'genel' | 'platform' | 'competitors' | 'departments' | 'department';
+export type LensKind =
+	| 'genel'
+	| 'platform'
+	| 'competitors'
+	| 'departments'
+	| 'department'
+	| 'responses';
 
 export type PlatformKey = 'tripadvisor' | 'booking' | 'google' | 'holidaycheck';
 
@@ -51,8 +57,16 @@ function createOsState() {
 		selectedThreadId: string | null;
 		/** semantic id flagged by the assistant's highlightComponent UI-action */
 		highlighted: { component: string; effect: string } | null;
-		/** "?" popover → "Asistana sor" handoff (A1): the panel consumes and clears it. */
-		askMetric: { metricId: string; window?: string; currentValue?: number } | null;
+		/** "?" popover → "Asistana sor" handoff (A1): the panel consumes and clears it.
+		 *  `label` rides along because the popover already resolved it from the registry —
+		 *  without it the thread title and the question would show the raw key
+		 *  ("reviews.avgStarRating"), which means nothing to a hotelier. */
+		askMetric: {
+			metricId: string;
+			label?: string;
+			window?: string;
+			currentValue?: number;
+		} | null;
 	}>({
 		lens: { kind: 'genel' },
 		period: 'monthly',
@@ -144,7 +158,12 @@ function createOsState() {
 			return state.askMetric;
 		},
 		/** MetricInfo popover's "Asistana sor" writes here; AssistantPanel reacts. */
-		askAssistant(req: { metricId: string; window?: string; currentValue?: number }) {
+		askAssistant(req: {
+			metricId: string;
+			label?: string;
+			window?: string;
+			currentValue?: number;
+		}) {
 			state.askMetric = req;
 		},
 		clearAskMetric() {

@@ -750,7 +750,7 @@ export async function correctMention(
   return res.json();
 }
 
-// ─── Response management (OS "Yanıtlar" tab) ─────────────────────────────────
+// ─── Response management (OS "Yorumlar" lens) ────────────────────────────────
 // Real analytics + prioritized unanswered inbox from /v1/responses/*.
 // Sentiment buckets are rating5-based (see echo-backend reviews/responses.ts).
 
@@ -773,8 +773,12 @@ export interface ResponseStats {
   total: number;
   withResponse: number;
   rate: number;
+  /** null when NO answered review carries a reply date. Measured 2026-07-27: that is
+   *  always the case for Booking (0% of its replies are dated), while TripAdvisor is
+   *  100% and Google 97%. Render null as "—", NEVER as 0 — an unmeasurable delay is
+   *  not an instant reply. */
   medianResponseTimeHours: number | null;
-  /** Replies with BOTH dates (Google replies carry no respondedAt → excluded). */
+  /** Replies with BOTH dates — how much of the median above is actually measured. */
   responseTimeKnownCount: number;
   unanswered: { total: number; negative: number };
   bySentiment: ResponseRateSlice[];
@@ -836,6 +840,49 @@ export async function getResponseQueue(
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!res.ok) throw new Error(`getResponseQueue failed: ${res.status}`);
+  return res.json();
+}
+
+// ─── Reply drafting (G10) ────────────────────────────────────────────────────
+
+export interface ReplySuggestion {
+  /** The draft, in the GUEST's language — the only field that may be copied to the
+   *  platform. Empty string when shouldReply is false. */
+  reply: string;
+  /** Turkish gist of the draft, for an operator who doesn't read the guest's language.
+   *  NEVER publish this: keep the copy button bound to `reply` alone. */
+  summaryTr: string;
+  detectedLang: string;
+  /** false when the model judged a public reply inadvisable (racist/abusive/spam
+   *  review). NOT an error — a 200 with an empty draft and a reason below. */
+  shouldReply: boolean;
+  /** Turkish rationale, present only when shouldReply is false. */
+  noReplyReason?: string;
+  model: string;
+  generatedAt: string;
+  /** true when it came from the store — no model call, no spend. */
+  cached: boolean;
+}
+
+/**
+ * Draft a reply to ONE review. Cached server-side per review, so re-opening a review
+ * costs nothing; pass `regenerate` to deliberately pay for a fresh draft.
+ *
+ * echo never posts the reply — the operator copies it and publishes it on the platform.
+ */
+export async function suggestReply(
+  reviewId: string,
+  token: string,
+  opts: { regenerate?: boolean } = {},
+  fetchOpts?: FetchOpts
+): Promise<ReplySuggestion> {
+  const { base, f } = resolveFetch(fetchOpts);
+  const res = await f(`${base}/reviews/${encodeURIComponent(reviewId)}/suggest-response`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ regenerate: opts.regenerate === true })
+  });
+  if (!res.ok) throw new Error(`suggestReply failed: ${res.status}`);
   return res.json();
 }
 

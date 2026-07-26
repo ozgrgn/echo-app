@@ -38,6 +38,7 @@ import {
 	getDepartmentKeyTrend,
 	getResponseStats,
 	getResponseQueue,
+	suggestReply,
 	getReviews,
 	getMentions,
 	correctMention,
@@ -195,6 +196,14 @@ export function makeServerApi(event: RequestEvent) {
 		) => withRetry((t) => getDepartmentKeyTrend(venueSlug, deptKey, granularKey, t, opts, fo())),
 		getResponseQueue: (venueSlug: string, opts: { platform?: string; limit?: number } = {}) =>
 			withRetry((t) => getResponseQueue(venueSlug, t, opts, fo())),
+		// Deliberately NOT wrapped in withRetry: this call spends money. withRetry re-runs
+		// on a 401, and a draft request that failed late could then be billed twice for one
+		// draft the operator sees once. An expired session here surfaces as an error the
+		// operator can act on by pressing again — cheaper than a silent double charge.
+		suggestReply: (reviewId: string, opts: { regenerate?: boolean } = {}) => {
+			if (!token) throw new Unauthenticated();
+			return suggestReply(reviewId, token, opts, fo());
+		},
 
 		// ── admin (superadmin surface) ──
 		listAllVenues: () => withRetry((t) => listAllVenues(t, fo())),
