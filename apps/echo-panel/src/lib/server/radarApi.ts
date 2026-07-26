@@ -37,8 +37,9 @@ export interface RadarScope {
 	 *
 	 * This used to be a hardcoded role:'viewer' in the minted token, which radar then
 	 * ignored: every panel user could set or delete a goal and override an alert
-	 * threshold. Undefined here (legacy panel / demo sessions) means radar sees no
-	 * write authority and refuses writes — fail closed, matching echo-backend's
+	 * threshold. Radar now enforces it, so the constant became actively harmful —
+	 * see the mapping note in mintRadarToken. Undefined here (legacy panel / demo
+	 * sessions) means no write authority — fail closed, matching echo-api's
 	 * requireVenueWrite.
 	 */
 	scope?: 'venue' | 'department';
@@ -136,10 +137,20 @@ function mintRadarToken(scope: RadarScope): string {
 			// admin ids) — radar scopes threads by this. Fallback 'echo-panel' = shared reads only.
 			sub: scope.userSub ? `echo:${scope.userSub}` : 'echo-panel',
 			type: 'session',
-			// Authority radar enforces on its write endpoints (G9). Carries the session's
-			// echo_access.scope; 'viewer' is the fail-closed default for tokens that have
-			// none (legacy clientSecret logins, demo links) — read everything, write nothing.
-			role: scope.scope === 'venue' ? 'venue' : scope.scope === 'department' ? 'department' : 'viewer',
+			// Authority radar enforces on its write endpoints (G9). This was a hardcoded
+			// 'viewer', which radar now READS: auth.middleware.js:requireWriteAccess refuses
+			// writes from role 'viewer'. Left unchanged, every panel user — GMs included —
+			// would lose goals, thresholds and mutes the moment that guard ships.
+			//
+			// Radar's gate is a DENY-list ('viewer' blocked, anything else allowed) because
+			// that repo cannot enumerate ops-engine's role vocabulary. So we must not forward
+			// a scope name it doesn't know: 'department' would sail straight through and gain
+			// venue-wide write. We map to the two values its rule actually distinguishes —
+			// venue scope → 'venue' (writes), everything else → 'viewer' (reads only).
+			// Department scope therefore reads everything and writes nothing, matching
+			// echo-api's requireVenueWrite. Fail closed: no scope claim (legacy clientSecret
+			// logins, demo links) also lands on 'viewer'.
+			role: scope.scope === 'venue' ? 'venue' : 'viewer',
 			tenantKey: scope.tenantKey,
 			venueId: scope.venueSlug,
 			aud: 'radar',
