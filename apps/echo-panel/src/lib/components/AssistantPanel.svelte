@@ -211,17 +211,29 @@
 		if (!req || demo) return;
 		osState.clearAskMetric();
 		section = 'chat';
-		if (!chatEnabled) return; // OTP notice renders in the chat section
+		if (!chatEnabled) {
+			// Sohbet kapalıysa (clientSecret/demo oturumu — thread'ler kişiye özel olduğu için)
+			// SEBEBİ söyle. Önceden sessizce Sohbet sekmesine geçiyordu; kullanıcı "?"den
+			// "Asistana sor"a basıp boş ekran görüyordu (owner, 26 Tem).
+			loadError = 'Asistana sormak için telefonla (OTP) giriş yapmalısın — sohbetler kişiye özeldir.';
+			return;
+		}
 		void (async () => {
-			if (threadBusy) return;
+			// `threadBusy` KONTROLÜ BURADA OLMAZ: kullanıcı "?" → "Asistana sor" derken bu bayrak
+			// başka bir işten (liste tazeleme, önceki konu açma) açık kalmış olabilir ve tıklama
+			// SESSİZCE yutuluyordu — ekranda hiçbir şey olmuyor gibi görünüyordu (owner, 26 Tem).
+			// Bu akış kullanıcının DOĞRUDAN talebi; kuyruğa girmek yerine kendi turunu yürütür.
 			threadBusy = true;
+			// Açık bir konu varsa KAPAT: aynı bileşen yeni threadId ile yeniden monte edilsin.
+			// Aksi halde eski konu ekranda kalıyor ve "hiçbir şey olmadı" gibi görünüyordu.
+			openThread = null;
 			try {
 				const res = await fetch('/api/agenda', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ action: 'newThread', title: `Nasıl hesaplanır? · ${req.metricId}` })
 				});
-				if (!res.ok) throw new Error(`thread ${res.status}`);
+				if (!res.ok) throw new Error(`thread ${res.status} (${res.statusText})`);
 				const data = await res.json();
 				const tid = threadIdOf(data.thread);
 				if (!tid) throw new Error('threadId yok');
@@ -235,8 +247,10 @@
 					}
 				};
 				void refreshThreads();
-			} catch {
-				loadError = 'Asistan konusu açılamadı';
+			} catch (e) {
+				// Sessiz kalma: kullanıcı "Asistana sor"a bastı, bir şey olmalı. Hata sebebini de
+				// göster ki teşhis ekran görüntüsünden yapılabilsin.
+				loadError = `Asistan konusu açılamadı: ${e instanceof Error ? e.message : 'bilinmeyen hata'}`;
 			} finally {
 				threadBusy = false;
 			}
@@ -912,6 +926,19 @@
 		{/each}
 	</nav>
 
+	{#if loadError && (alerts.length || goals.length || threads.length)}
+		<!-- Aksiyon hataları (konu açılamadı, hedef silinemedi…) HİÇBİR YERDE görünmüyordu: tek
+		     gösterim yeri "üç liste de boş" haliydi, dolu panelde hata sessizce yutuluyordu —
+		     kullanıcı düğmeye basıyor, hiçbir şey olmuyor (owner, 26 Tem). Bu şerit her sekmede
+		     görünür ve tıklanınca kapanır. -->
+		<button
+			onclick={() => (loadError = null)}
+			class="mx-3 mt-2 flex items-start gap-2 rounded-lg border border-danger/30 bg-danger-light px-2.5 py-1.5 text-left text-[11.5px] text-danger"
+		>
+			<span class="flex-1">{loadError}</span>
+			<span class="text-[10px] opacity-70">kapat</span>
+		</button>
+	{/if}
 	<div class="flex-1 {openThread ? 'overflow-hidden' : 'overflow-y-auto'} p-3 [scrollbar-width:none]">
 		{#if openThread}
 			<!-- A1: an open assist thread takes over the content area (all sections route here). -->
