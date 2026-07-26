@@ -101,7 +101,7 @@
 	{:else if !draft && !loading && !errorMsg}
 		<button
 			onclick={() => generate(false)}
-			class="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90"
+			class="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90"
 		>
 			<Sparkles size={13} strokeWidth={2.5} />
 			Yanıt öner
@@ -155,7 +155,7 @@
 		<div class="mt-2.5 flex flex-wrap items-center gap-1.5">
 			<button
 				onclick={copyReply}
-				class="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90"
+				class="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90"
 			>
 				{#if copied}
 					<Check size={13} strokeWidth={2.5} /> Kopyalandı

@@ -29,6 +29,13 @@
 	// Platforms that accept no owner reply at all — measured 2026-07-27: HolidayCheck
 	// carries 0 owner responses across 49k reviews. Rows still render (the review is
 	// worth reading); only the drafting affordance is withheld.
+	//
+	// This MIRRORS echo-backend's RESPONSE_RATE_EXCLUDED_PLATFORMS env, which is the
+	// authority — the drafting endpoint refuses these platforms with a 422 regardless
+	// of what this list says. Hiding the button here is a courtesy so the operator is
+	// not offered an action that would fail. If a platform ever becomes reply-capable,
+	// the env drops it and THIS list has to follow, or the button stays hidden on a
+	// channel that now works.
 	const NO_REPLY_PLATFORMS = new Set(['holidaycheck']);
 
 	type Mode = 'urgent' | 'all';
