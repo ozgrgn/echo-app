@@ -43,7 +43,8 @@ export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 	const scope: RadarScope = {
 		tenantKey: locals.session.tenantKey,
 		venueSlug: locals.session.venueSlug,
-		...(user ? { userSub: user.sub } : {})
+		// scope carries the write authority radar gates on (G9); absent → radar refuses writes.
+		...(user ? { userSub: user.sub, ...(user.scope ? { scope: user.scope } : {}) } : {})
 	};
 
 	const resource = url.searchParams.get('resource') ?? 'all';
@@ -149,7 +150,8 @@ export const POST: RequestHandler = async ({ request, locals, fetch }) => {
 	const scope: RadarScope = {
 		tenantKey: locals.session.tenantKey,
 		venueSlug: locals.session.venueSlug,
-		...(user ? { userSub: user.sub } : {})
+		// scope carries the write authority radar gates on (G9); absent → radar refuses writes.
+		...(user ? { userSub: user.sub, ...(user.scope ? { scope: user.scope } : {}) } : {})
 	};
 
 	const body = await request.json().catch(() => null);

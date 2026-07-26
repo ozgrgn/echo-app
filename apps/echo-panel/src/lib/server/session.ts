@@ -201,16 +201,25 @@ export function clearSession(cookies: Cookies): void {
 }
 
 /**
- * Decode the session JWT's {sub, role} WITHOUT verifying (the backend already
+ * Decode the session JWT's {sub, role, scope} WITHOUT verifying (the backend already
  * verified it when it minted the cookie; this is identity display/routing only).
  * Returns null for malformed tokens.
+ *
+ * `scope` is echo_access.scope as ops-engine issued it ('venue' | 'department'). It is
+ * the AUTHORITY axis (G9) — `role` is a free-form ops-engine string with 43 distinct
+ * values in prod and must never gate anything. Undefined on legacy panel/demo tokens,
+ * which is exactly why every consumer has to fail closed on its absence.
  */
-export function tokenClaims(token: string): { sub: string; role: string } | null {
+export function tokenClaims(
+	token: string
+): { sub: string; role: string; scope?: 'venue' | 'department' } | null {
 	try {
 		const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
 		const sub = String(payload?.sub ?? '');
 		const role = String(payload?.role ?? '');
-		return sub ? { sub, role } : null;
+		const rawScope = payload?.scope;
+		const scope = rawScope === 'venue' || rawScope === 'department' ? rawScope : undefined;
+		return sub ? { sub, role, ...(scope ? { scope } : {}) } : null;
 	} catch {
 		return null;
 	}
@@ -225,7 +234,7 @@ export function tokenClaims(token: string): { sub: string; role: string } | null
  */
 export function chatUser(
 	session: (SessionIdentity & { token: string }) | null
-): { sub: string; role: string } | null {
+): { sub: string; role: string; scope?: 'venue' | 'department' } | null {
 	if (!session || session.isDemo) return null;
 	const claims = tokenClaims(session.token);
 	if (!claims || claims.role === 'panel') return null;

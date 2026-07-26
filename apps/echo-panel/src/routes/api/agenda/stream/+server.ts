@@ -40,7 +40,8 @@ export const POST: RequestHandler = async ({ request, locals, fetch }) => {
 	const scope: RadarScope = {
 		tenantKey: locals.session.tenantKey,
 		venueSlug: locals.session.venueSlug,
-		userSub: user.sub
+		userSub: user.sub,
+		...(user.scope ? { scope: user.scope } : {})
 	};
 
 	const upstream = await streamRadarChat(scope, threadId, {

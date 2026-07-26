@@ -31,6 +31,17 @@ export interface RadarScope {
 	 * tenant-shared conversation). The proxy enforces that rule.
 	 */
 	userSub?: string;
+	/**
+	 * echo_access.scope from the session token ('venue' | 'department'), forwarded so
+	 * radar can gate its OWN writes (goals, rule thresholds, alert mutes) — G9.
+	 *
+	 * This used to be a hardcoded role:'viewer' in the minted token, which radar then
+	 * ignored: every panel user could set or delete a goal and override an alert
+	 * threshold. Undefined here (legacy panel / demo sessions) means radar sees no
+	 * write authority and refuses writes — fail closed, matching echo-backend's
+	 * requireVenueWrite.
+	 */
+	scope?: 'venue' | 'department';
 }
 
 /** Active alert card from radar's alert_states (written by snapshotScan). */
@@ -125,7 +136,10 @@ function mintRadarToken(scope: RadarScope): string {
 			// admin ids) — radar scopes threads by this. Fallback 'echo-panel' = shared reads only.
 			sub: scope.userSub ? `echo:${scope.userSub}` : 'echo-panel',
 			type: 'session',
-			role: 'viewer',
+			// Authority radar enforces on its write endpoints (G9). Carries the session's
+			// echo_access.scope; 'viewer' is the fail-closed default for tokens that have
+			// none (legacy clientSecret logins, demo links) — read everything, write nothing.
+			role: scope.scope === 'venue' ? 'venue' : scope.scope === 'department' ? 'department' : 'viewer',
 			tenantKey: scope.tenantKey,
 			venueId: scope.venueSlug,
 			aud: 'radar',
