@@ -48,7 +48,7 @@
 
 	// Top-level (ungrouped) items — visible per their own `requires`.
 	const primaryNav: NavItem[] = [
-		{ href: '/dashboard', icon: '📊', label: 'Dashboard' },
+		{ href: '/dashboard', icon: '📊', label: 'Dashboard', requires: () => isSuperadmin },
 		{ href: '/os', icon: '⚡', label: 'ECHO OS (beta)' },
 		{
 			href: '/portfolio',

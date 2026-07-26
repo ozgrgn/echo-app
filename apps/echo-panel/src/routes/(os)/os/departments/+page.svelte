@@ -15,16 +15,11 @@
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import DeptCard from '$lib/components/DeptCard.svelte';
-	import { Users, TrendingDown, TrendingUp, ArrowLeft } from '@lucide/svelte';
+	import OsBackNav from '$lib/components/OsBackNav.svelte';
+	import { Users, TrendingDown, TrendingUp } from '@lucide/svelte';
 	import { type DepartmentScore } from '@talkwo/echo-ui';
 	import { DEPARTMENTS } from '$lib/mock/departments';
 	import type { OsDept } from '$lib/mock/os';
-
-	// Back to the Genel lens — replaces the global LensTabs row on this page.
-	function backToGenel() {
-		osState.setLens({ kind: 'genel' });
-		goto('/os');
-	}
 
 	// ── Real department rollup — the only source ────────────────────────────────
 	let realDepts = $state<DepartmentScore[] | null>(null);
@@ -108,16 +103,9 @@
 	}
 </script>
 
-<!-- Back to Genel + department switcher on one row (replaces the global LensTabs). -->
-<div class="mb-3.5 flex flex-wrap items-center gap-2">
-	<button
-		onclick={backToGenel}
-		class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2"
-	>
-		<ArrowLeft size={15} strokeWidth={2} />
-		Geri
-	</button>
-	<span class="mx-0.5 h-5 w-px bg-border"></span>
+<!-- Home (→ main page) + department switcher on one row. This is a LIST page (one hop
+     from Genel), so no "Geri" — Home already IS one level up. -->
+<OsBackNav>
 	{#each scored as d (d.key)}
 		{@const color = DEPARTMENTS[d.key]?.color ?? 'var(--color-text-3)'}
 		<button
@@ -129,7 +117,7 @@
 			{d.label}
 		</button>
 	{/each}
-</div>
+</OsBackNav>
 
 {#if loading}
 	<p class="py-16 text-center text-sm text-text-3">Departmanlar yükleniyor…</p>

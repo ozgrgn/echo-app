@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
 
 // SSR server load. Runs after the (app) auth guard in +layout.server.ts.
@@ -8,6 +8,9 @@ export const load: PageServerLoad = async (event) => {
 	const { url } = event;
 	const session = event.locals.session;
 	if (!session) throw error(401, 'Not authenticated');
+	// The classic dashboard is an internal superadmin surface. Customers start in
+	// ECHO OS and must not be able to reach this page by entering its URL directly.
+	if (!session.isSuperadmin) throw redirect(303, '/os');
 	const api = makeServerApi(event);
 
 	// Read ?period=YYYY-MM from URL.

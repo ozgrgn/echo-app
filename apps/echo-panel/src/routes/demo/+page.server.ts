@@ -27,10 +27,10 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ url, cookies, fetch, locals }) => {
 	const linkToken = url.searchParams.get('t');
 
-	// Already inside a demo session and no new token → just go to the hub. Lets a viewer
-	// bookmark /demo and come back without re-opening the emailed link.
+	// Already inside a demo session and no new token → straight into the demo. Lets a
+	// viewer bookmark /demo and come back without re-opening the emailed link.
 	if (!linkToken && locals.session?.isDemo) {
-		throw redirect(303, '/demo/hub');
+		throw redirect(303, '/os');
 	}
 
 	if (!linkToken) {
@@ -69,6 +69,6 @@ export const load: PageServerLoad = async ({ url, cookies, fetch, locals }) => {
 	});
 
 	// Strip the token from the URL — a bookmarked/screenshared /demo?t=… would otherwise
-	// hand the credential to whoever sees it.
-	throw redirect(303, '/demo/hub');
+	// hand the credential to whoever sees it — and drop the viewer straight into the demo.
+	throw redirect(303, '/os');
 };

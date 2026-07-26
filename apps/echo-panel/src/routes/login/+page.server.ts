@@ -45,7 +45,7 @@ import type { Actions } from './$types';
 function safeRedirectTarget(raw: string | null): string {
 	// Only allow same-site absolute paths (no protocol-relative // or external).
 	if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw;
-	return '/dashboard';
+	return '/os';
 }
 
 // ── OTP helpers ───────────────────────────────────────────────────────────────

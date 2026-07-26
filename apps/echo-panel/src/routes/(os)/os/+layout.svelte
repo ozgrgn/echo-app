@@ -80,18 +80,25 @@
      32px from the grid, hence the h-[calc(...)] below. -->
 {#if data?.session?.isDemo}
 	<div
-		class="flex h-8 items-center justify-center gap-2 bg-talkwo text-xs font-medium text-white"
+		class="relative flex h-8 items-center justify-center gap-2 bg-talkwo text-xs font-medium text-white"
 	>
 		<span class="rounded bg-white/20 px-1.5 py-0.5 font-semibold tracking-wide">DEMO</span>
 		<span>{data.session.venueName} — anonimleştirilmiş örnek veri</span>
-		<a href="/demo/hub" class="ml-2 underline underline-offset-2 opacity-80 hover:opacity-100">
-			sunum hub'ı
+		<!-- Demodan çık: clears the demo session cookies (/logout → clearSession) so the
+		     browser returns to the normal echo login instead of being stuck in the demo. -->
+		<a
+			href="/logout"
+			data-sveltekit-reload
+			class="absolute right-3 rounded bg-white/20 px-2 py-0.5 font-semibold transition hover:bg-white/30"
+			title="Demo oturumunu kapat, normal panele dön"
+		>
+			Demodan çık
 		</a>
 	</div>
 {/if}
 
 <div
-	class="grid overflow-hidden {data?.session?.isDemo ? 'h-[calc(100vh-2rem)]' : 'h-screen'}"
+	class="os-shell grid overflow-hidden {data?.session?.isDemo ? 'h-[calc(100vh-2rem)]' : 'h-screen'}"
 	style="grid-template-columns: 58px 1fr 384px;"
 >
 	<!-- ── Rail ──────────────────────────────────────────────────────────── -->
@@ -238,6 +245,50 @@
 		}
 		100% {
 			transform: translateX(400%);
+		}
+	}
+
+	/* Phones use a compact horizontal rail and a single content column. The
+	   assistant remains available on larger screens, where it can be read beside
+	   the active lens instead of competing with it for width. */
+	@media (max-width: 767px) {
+		.os-shell {
+			grid-template-columns: minmax(0, 1fr) !important;
+			grid-template-rows: auto minmax(0, 1fr);
+		}
+
+		.os-shell > nav {
+			grid-column: 1;
+			grid-row: 1;
+			flex-direction: row;
+			justify-content: flex-start;
+			gap: 0.25rem;
+			overflow-x: auto;
+			padding: 0.5rem;
+		}
+
+		.os-shell > nav > .flex-1 {
+			display: none;
+		}
+
+		.os-shell > nav > :global(.mt-3) {
+			margin-top: 0;
+			flex-direction: row;
+			border-top: 0;
+			border-left: 1px solid var(--color-border);
+			padding-top: 0;
+			padding-left: 0.5rem;
+		}
+
+		.os-shell > main {
+			grid-column: 1;
+			grid-row: 2;
+			min-width: 0;
+			padding: 1rem;
+		}
+
+		.os-shell > aside {
+			display: none;
 		}
 	}
 </style>

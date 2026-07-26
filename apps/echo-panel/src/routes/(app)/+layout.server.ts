@@ -20,7 +20,7 @@ export const load: LayoutServerLoad = ({ locals, url }) => {
 		throw redirect(303, `/login?redirectTo=${encodeURIComponent(url.pathname)}`);
 	}
 	if (locals.session.isDemo) {
-		throw redirect(303, '/demo/hub');
+		throw redirect(303, '/os');
 	}
 	return {
 		session: {
