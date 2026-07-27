@@ -7,7 +7,8 @@
 
   v1 rendering contract: text messages + follow-up pills + a minimal chart stub
   (title only — the full chart renderer lands with the chart schema work). Tool
-  events are ignored; radar streams tokens only after evidence is gathered.
+  events drive a transient loading line only: radar gathers evidence before it
+  streams any token, so without it the bubble sits empty for the whole tool phase.
 -->
 <script lang="ts">
 	import { ArrowUp, ArrowLeft, Sparkles } from '@lucide/svelte';
@@ -131,13 +132,27 @@
 	let scroller = $state<HTMLElement | null>(null);
 	// Charts streamed during the CURRENT turn (v1: title stubs under the reply).
 	let turnCharts = $state<{ title?: string }[]>([]);
+	// Transient loading line for the pre-token wait. Radar answers a data question by
+	// running tools first and only streams text afterwards, so the bubble would otherwise
+	// sit empty for seconds. Two coarse phases — the raw tool name is deliberately NOT
+	// surfaced (internal identifiers, and the list churns as tools are added).
+	//   null → nothing pending | 'thinking' → model deciding | 'tools' → a tool is running
+	let turnPhase = $state<'thinking' | 'tools' | null>(null);
+	const PHASE_TEXT = { thinking: 'Düşünüyor…', tools: 'Veriler çekiliyor…' } as const;
 
 	// Analyze button shows until the thread has any assistant reply (then pills take over).
 	const showAnalyze = $derived(
 		!!analyzeInstruction && !messages.some((m) => m.role === 'assistant' && m.content)
 	);
+	// Empty messages are hidden — EXCEPT the live bubble while a loading phase is showing:
+	// that bubble is the placeholder the status line renders into (it has no content until
+	// the first token). Without this exception the filter drops it and nothing is drawn.
 	const visible = $derived(
-		messages.filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content)
+		messages.filter(
+			(m, i) =>
+				(m.role === 'user' || m.role === 'assistant') &&
+				(!!m.content || (!!turnPhase && i === messages.length - 1 && m.role === 'assistant'))
+		)
 	);
 
 	$effect(() => {
@@ -180,6 +195,7 @@
 		if (streaming || !content.trim()) return;
 		streaming = true;
 		turnCharts = [];
+		turnPhase = 'thinking';
 		messages = [...messages, { role: 'user', content: displayContent ?? content }];
 		// Live bubble mutated in place as tokens arrive (index-stable append).
 		messages = [...messages, { role: 'assistant', content: '' }];
@@ -226,6 +242,9 @@
 			// Empty live bubble (error before first token) → drop it.
 			if (!messages[liveIdx]?.content) messages = messages.filter((_, i) => i !== liveIdx);
 			streaming = false;
+			// Clear on EVERY exit path (normal end, throw, disconnect) — a stuck
+			// "Veriler çekiliyor…" after a failed turn reads as a hung request.
+			turnPhase = null;
 			queueMicrotask(scrollDown);
 		}
 	}
@@ -244,11 +263,17 @@
 			return;
 		}
 		if (event === 'token') {
+			// First token = the answer is arriving; the loading line has done its job.
+			turnPhase = null;
 			messages[liveIdx] = {
 				...messages[liveIdx],
 				content: (messages[liveIdx].content ?? '') + String(payload.text ?? '')
 			};
 			messages = [...messages];
+			scrollDown();
+		} else if (event === 'tool') {
+			// Radar emits this per tool call, before it runs. Name intentionally unused.
+			turnPhase = 'tools';
 			scrollDown();
 		} else if (event === 'chart') {
 			turnCharts = [...turnCharts, { title: typeof payload.title === 'string' ? payload.title : undefined }];
@@ -348,7 +373,15 @@
 						<div class="max-w-[92%] rounded-2xl rounded-bl-md border border-border bg-surface-1 px-3 py-2 text-[12.5px] leading-relaxed text-text-1">
 							<!-- eslint-disable-next-line svelte/no-at-html-tags — content is HTML-escaped
 							     before whitelist markdown spans are re-added (renderMarkdown). -->
-							{@html renderMarkdown(m.content ?? '')}{#if streaming && i === visible.length - 1}<span class="animate-pulse">▍</span>{/if}
+							{#if turnPhase && i === visible.length - 1 && !m.content}<span
+								class="inline-flex items-center gap-1.5 text-text-3"
+								aria-live="polite"
+							>
+								<span class="h-1.5 w-1.5 animate-pulse rounded-full bg-text-3"></span>
+								{PHASE_TEXT[turnPhase]}
+							</span>{:else}{@html renderMarkdown(m.content ?? '')}{#if streaming && i === visible.length - 1}<span
+									class="animate-pulse">▍</span
+								>{/if}{/if}
 						</div>
 					</div>
 				{/if}

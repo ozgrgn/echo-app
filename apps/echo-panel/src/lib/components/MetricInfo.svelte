@@ -66,7 +66,13 @@
 	// registry entry this popover renders, so the two can never disagree.
 	function askAssistant() {
 		const w = page.url.searchParams.get('window');
-		osState.askAssistant({ metricId, ...(w ? { window: w } : {}) });
+		// Etiketi de gönder: popover onu zaten registry'den çözdü, panel bir daha çözmesin.
+		// Yoksa konu başlığı ve soru ham anahtarı taşıyor ("reviews.avgStarRating").
+		osState.askAssistant({
+			metricId,
+			...(meta?.label ? { label: meta.label } : {}),
+			...(w ? { window: w } : {})
+		});
 		open = false;
 	}
 
