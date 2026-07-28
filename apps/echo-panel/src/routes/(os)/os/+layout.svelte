@@ -11,7 +11,6 @@
 	import { goto } from '$app/navigation';
 	import { page, navigating } from '$app/state';
 	import { osState } from '$lib/stores/osState.svelte';
-	import { MOCK_OS_COUNTERS } from '$lib/mock/os';
 	import { Target, Bell, Settings, Wrench } from '@lucide/svelte';
 	import { OS_NAV, lensForPath, type OsNavItem } from '$lib/config/osNav';
 	import { OS_WINDOW_TABS, parseOsWindow, hidesCompetitors, DEFAULT_OS_WINDOW } from '$lib/config/window';
@@ -32,9 +31,6 @@
 	// Superadmin gates the Yönetim rail entry — same flag the classic (app) nav
 	// uses, plumbed via /auth/whoami → session cookie → PageData.
 	const isSuperadmin = $derived(data?.session?.isSuperadmin ?? false);
-	// Gates the placeholder content (assistant copy, rail badges) that quotes invented
-	// figures. A real tenant must not be shown numbers that are not theirs.
-	const isDemo = $derived(data?.session?.isDemo ?? false);
 
 	// These lenses carry their own back button + in-page switcher row, so the
 	// global LensTabs would stack a second button row. Hide it on them.
@@ -141,31 +137,22 @@
 		<div class="flex-1"></div>
 
 		<!-- Global counters: at-risk goals + open alerts (reachable from any lens).
-		     The BADGES are demo-only. There is no Goal or Alert model yet, so the numbers
-		     are invented — and a real tenant seeing a red "3" they cannot click through to
-		     is being told something false about their own hotel. The buttons stay (the
-		     shell is real, the counts are not); the badges appear once the models land. -->
+		     The BADGES are gone. They were demo-only and hardcoded (MOCK_OS_COUNTERS), which
+		     was defensible while nothing real existed — but the demo now reads live goals and
+		     alerts from radar, so a fixed "3" would contradict the panel one click away. The
+		     buttons stay: the shell is real, and the counts return when they can be read from
+		     the same source the assistant panel uses rather than invented here. -->
 		<button
 			title="Hedefler"
 			class="relative grid h-10 w-10 place-items-center rounded-xl text-text-3 transition-colors hover:bg-surface-2 hover:text-text-1"
 		>
 			<Target size={19} strokeWidth={2} />
-			{#if isDemo && MOCK_OS_COUNTERS.atRiskGoals > 0}
-				<span class="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-warning px-1 text-[10px] font-bold text-white">
-					{MOCK_OS_COUNTERS.atRiskGoals}
-				</span>
-			{/if}
 		</button>
 		<button
 			title="Uyarılar"
 			class="relative grid h-10 w-10 place-items-center rounded-xl text-text-3 transition-colors hover:bg-surface-2 hover:text-text-1"
 		>
 			<Bell size={19} strokeWidth={2} />
-			{#if isDemo && MOCK_OS_COUNTERS.openAlerts > 0}
-				<span class="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">
-					{MOCK_OS_COUNTERS.openAlerts}
-				</span>
-			{/if}
 		</button>
 
 		<!-- Ayarlar — venue settings. Lives at /settings for now; opened from the OS
@@ -219,17 +206,21 @@
 	</main>
 
 	<!-- ── Assistant (skeleton shell — A1 wires the radar brain) ───────────
-	     `demo` gates the placeholder CONTENT, not the panel. The mock brief and topic
-	     cards quote concrete figures (GPI 81.6, Resepsiyon 75.5, Google 794 reviews) —
-	     they are the DEMO venue's, drawn from its fixtures so the demo reads coherently.
-	     Shown to a real customer they would sit beside that customer's own tiles saying
-	     something different, which is worse than an obvious placeholder: it looks real
-	     and it is another hotel's. Until the radar brain lands, a real tenant sees an
-	     honest "coming soon" shell instead. -->
+	     `demo` USED TO gate placeholder content here: the mock brief quoted the demo
+	     venue's own figures, which read coherently in the demo but would have sat beside
+	     a real customer's tiles saying something different — another hotel's numbers
+	     wearing this hotel's frame. So a real tenant saw an honest "coming soon" shell
+	     and the demo saw the mock.
+
+	     The radar brain has landed, and the demo is now a real radar tenant
+	     (TEN_DEMO_AURELIA: venue config + echo-pulled snapshots + its own scanned
+	     alerts/goals). So BOTH sides read live from /api/agenda and the mock branch is
+	     dead. Passing `false` rather than deleting the prop keeps this one diff small
+	     and revertible; the branch itself comes out in a follow-up. -->
 	<aside class="overflow-hidden border-l border-border bg-surface-1 shadow-[-16px_0_40px_-24px_rgba(15,23,42,0.18)]">
 		<AssistantPanel
 			venueName={data?.session?.venueName ?? ''}
-			demo={data?.session?.isDemo ?? false}
+			demo={false}
 		/>
 	</aside>
 </div>
