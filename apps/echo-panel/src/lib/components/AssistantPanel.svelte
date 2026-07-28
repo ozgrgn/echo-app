@@ -168,9 +168,13 @@
 	const eventAlerts = $derived(alerts.filter((a) => a.kind !== 'chronic'));
 	const chronicAlerts = $derived(alerts.filter((a) => a.kind === 'chronic'));
 
-	// ── A1: live chat/threads. chatEnabled comes from the proxy (OTP sessions only —
-	// radar threads are per-user; clientSecret/demo sessions stay read-only, G6).
+	// ── A1: live chat/threads. chatEnabled comes from the proxy (OTP sessions, plus demo
+	// links which carry their own per-link identity; clientSecret sessions stay read-only, G6).
 	let chatEnabled = $state(false);
+	// Demo links are capped per day. Present only for demo sessions — null means "not
+	// metered", which is every real tenant. Shown so the viewer sees the ceiling coming
+	// instead of hitting a 429 mid-sentence.
+	let demoQuota = $state<{ remaining: number; limit: number } | null>(null);
 	type OpenThread = {
 		threadId: string;
 		title?: string;
@@ -357,6 +361,7 @@
 				goals = data.goals ?? [];
 				threads = data.threads ?? [];
 				chatEnabled = !!data.chatEnabled;
+				demoQuota = data.demoQuota ?? null;
 				// Label maps for render-time repair — fetch as soon as the list needs them
 				// (not only on detail open): echo label_tr for granular keys, echo dept
 				// labels for department tokens.
@@ -1604,6 +1609,20 @@
 					<ArrowUp size={16} />
 				</button>
 			</div>
+		</div>
+	{/if}
+
+	<!-- Demo links get a daily question allowance. Shown as a quiet footnote so the ceiling
+	     is visible BEFORE it is hit; a viewer who runs out mid-presentation should know why
+	     rather than read it as a broken assistant. Real tenants never see this (demoQuota is
+	     only sent for demo sessions). -->
+	{#if demoQuota}
+		<div class="border-t border-border px-3 py-2 text-center text-[10px] text-text-3">
+			{#if demoQuota.remaining > 0}
+				Demo · bugün {demoQuota.remaining}/{demoQuota.limit} soru hakkınız kaldı
+			{:else}
+				Demo · bugünlük soru hakkınız doldu ({demoQuota.limit}). Yarın yenilenir.
+			{/if}
 		</div>
 	{/if}
 {:else}

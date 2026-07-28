@@ -28,6 +28,7 @@ import {
 } from '$lib/server/radarApi';
 import type { RadarScope, RadarAlertCard } from '$lib/server/radarApi';
 import { chatUser } from '$lib/server/session';
+import { peekDemoChatQuota } from '$lib/server/demoChatQuota';
 import type { RequestHandler } from './$types';
 
 /** ECHO panel is the REPUTATION lens of the shared radar store. PMS-domain cards
@@ -121,9 +122,16 @@ export const GET: RequestHandler = async ({ url, locals, fetch }) => {
 					recovered: alerts.status === 'fulfilled' ? reputationOnly(alerts.value.recovered) : [],
 					goals: goals.status === 'fulfilled' ? goals.value : [],
 					threads: threads.status === 'fulfilled' ? threads.value : [],
-					// Chat/threads interactivity flag: true only for OTP sessions (per-user
-					// identity). Legacy clientSecret + demo stay read-only (G6 rule).
+					// Chat/threads interactivity flag: OTP sessions (per-user identity) and
+					// demo links (metered, keyed by demoJti). Legacy clientSecret logins stay
+					// read-only — nothing there tells two humans apart (G6 rule).
 					chatEnabled: !!user,
+					// Demo only: what is left of this LINK's daily allowance, so the panel can
+					// say so before the viewer hits a 429 mid-sentence. Absent for real tenants,
+					// who are not metered.
+					...(locals.session.isDemo && user?.demoJti
+						? { demoQuota: peekDemoChatQuota(user.demoJti) }
+						: {}),
 					partial:
 						alerts.status === 'rejected' ||
 						goals.status === 'rejected' ||

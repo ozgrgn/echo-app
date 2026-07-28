@@ -212,14 +212,16 @@ export function clearSession(cookies: Cookies): void {
  */
 export function tokenClaims(
 	token: string
-): { sub: string; role: string; scope?: 'venue' | 'department' } | null {
+): { sub: string; role: string; scope?: 'venue' | 'department'; demoJti?: string } | null {
 	try {
 		const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
 		const sub = String(payload?.sub ?? '');
 		const role = String(payload?.role ?? '');
 		const rawScope = payload?.scope;
 		const scope = rawScope === 'venue' || rawScope === 'department' ? rawScope : undefined;
-		return sub ? { sub, role, ...(scope ? { scope } : {}) } : null;
+		// Demo links only: the link's own id, used to meter the assistant per link.
+		const demoJti = typeof payload?.demoJti === 'string' ? payload.demoJti : undefined;
+		return sub ? { sub, role, ...(scope ? { scope } : {}), ...(demoJti ? { demoJti } : {}) } : null;
 	} catch {
 		return null;
 	}
@@ -228,15 +230,26 @@ export function tokenClaims(
 /**
  * The per-user chat identity, or null when this session may not use chat/threads.
  * Rule (G6): threads are PER USER on radar's side — only an OTP session carries a
- * real staff identity. Legacy clientSecret logins (role 'panel') and demo sessions
- * share one tenant identity, so chat stays off for them (a shared conversation
- * would leak between users; demo additionally awaits the LLM quota guardrails).
+ * real staff identity. Legacy clientSecret logins (role 'panel') still share one
+ * tenant identity with nothing to tell two humans apart, so chat stays off for them:
+ * their conversations would pool into one thread list.
+ *
+ * DEMO IS ALLOWED, keyed by the LINK. A demo token carries `demoJti` — unique per
+ * link — so each prospect gets their own thread list rather than reading whoever
+ * browsed before them. That same id is what the assistant's daily quota is metered
+ * against (see demoChatQuota), which is the other half of why this can be open at
+ * all: the demo is public, and an unmetered LLM surface is an unmetered bill.
+ *
+ * A demo token minted before demoJti existed has no id to separate or meter by, so
+ * it keeps the old behaviour and gets no chat — it expires on its own within 30 days.
  */
 export function chatUser(
 	session: (SessionIdentity & { token: string }) | null
-): { sub: string; role: string; scope?: 'venue' | 'department' } | null {
-	if (!session || session.isDemo) return null;
+): { sub: string; role: string; scope?: 'venue' | 'department'; demoJti?: string } | null {
+	if (!session) return null;
 	const claims = tokenClaims(session.token);
-	if (!claims || claims.role === 'panel') return null;
+	if (!claims) return null;
+	if (session.isDemo) return claims.demoJti ? claims : null;
+	if (claims.role === 'panel') return null;
 	return claims;
 }

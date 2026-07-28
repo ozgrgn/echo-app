@@ -13,6 +13,7 @@ import { error, json } from '@sveltejs/kit';
 import { streamRadarChat } from '$lib/server/radarApi';
 import type { RadarScope } from '$lib/server/radarApi';
 import { chatUser } from '$lib/server/session';
+import { spendDemoChatQuota } from '$lib/server/demoChatQuota';
 import { OS_WINDOWS } from '$lib/config/window';
 import type { RequestHandler } from './$types';
 
@@ -29,6 +30,19 @@ export const POST: RequestHandler = async ({ request, locals, fetch }) => {
 	if (!threadId) throw error(400, 'threadId required');
 	if (!content) throw error(400, 'content required');
 	if (content.length > MAX_CONTENT_LENGTH) throw error(400, 'Mesaj çok uzun');
+
+	// Demo links are metered (public URL → unbounded LLM spend otherwise). Charged AFTER
+	// the shape checks so a malformed request never costs a question, and BEFORE radar is
+	// called so an exhausted link spends nothing. Real tenants are not metered here.
+	if (locals.session.isDemo && user.demoJti) {
+		const quota = spendDemoChatQuota(user.demoJti);
+		if (!quota.ok) {
+			throw error(
+				429,
+				`Demo için günlük soru hakkınız doldu (${quota.limit}). Yarın yeniden deneyebilirsiniz.`
+			);
+		}
+	}
 
 	const displayContent =
 		body?.displayContent != null ? String(body.displayContent).slice(0, 500) : undefined;
