@@ -1507,6 +1507,9 @@ export interface OsBundleResponse {
   window: string;
   period: string | null;
   chartDaily: boolean;
+  /** Present only for window=custom (G12): cards are the daily point at `effectiveDate`
+   *  (nearest day ≤ `to`). The UI MUST label cards "… itibarıyla {effectiveDate}". */
+  customRange?: { from: string; to: string; effectiveDate: string };
   /** Blended 'all' snapshot (RPI-enriched). Every lens. */
   blended: HotelScore | null;
   /** Per-platform snapshots. lens=genel|platform. */
@@ -1534,6 +1537,9 @@ export async function getOsBundle(
     period?: string;
     chartDaily?: boolean;
     chartFrom?: string;
+    /** Custom date range bounds — required with window='custom' (G12), ignored otherwise. */
+    from?: string;
+    to?: string;
     /** Goal-driven impact target (the venue's radar reviews.gpi goal). The backend
      *  computes the hedef line + impact lifts toward this instead of its constant. */
     impactTarget?: number;
@@ -1543,6 +1549,10 @@ export async function getOsBundle(
   const { base, f } = resolveFetch(fetchOpts);
   const params = new URLSearchParams({ lens: opts.lens });
   if (opts.window && opts.window !== '24mo') params.set('window', opts.window);
+  if (opts.window === 'custom' && opts.from && opts.to) {
+    params.set('from', opts.from);
+    params.set('to', opts.to);
+  }
   if (opts.period) params.set('period', opts.period);
   if (opts.chartDaily) {
     params.set('chartDaily', '1');

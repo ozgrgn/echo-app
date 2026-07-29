@@ -47,6 +47,45 @@ export function parseOsWindow(raw: string | null | undefined): OsWindow {
 	return OS_WINDOWS.includes(raw as OsWindow) ? (raw as OsWindow) : DEFAULT_OS_WINDOW;
 }
 
+// ── Custom date range (G12 — "Özel") ────────────────────────────────────────
+//
+// `?window=custom&from=YYYY-MM-DD&to=YYYY-MM-DD`. Semantics are the backend's
+// (SERBEST_ARALIK_TASARIM.md): cards are the daily-series point at the nearest day
+// ≤ `to` ("time machine" — `from` never cuts the scoring pool), the chart is the
+// [from, to] slice. The backend reads its DEFAULT (24mo) series for custom ranges,
+// so the rail's fixed-window choice does not apply here.
+
+export interface CustomRange {
+	from: string;
+	to: string;
+}
+
+const isIsoDay = (s: string | null | undefined): s is string =>
+	typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+
+/** The active custom range, or null when the URL isn't a valid custom-range URL
+ *  (wrong/missing dates or from > to fall back to the fixed-window path — never throw). */
+export function parseCustomRange(params: URLSearchParams): CustomRange | null {
+	if (params.get('window') !== 'custom') return null;
+	const from = params.get('from');
+	const to = params.get('to');
+	if (!isIsoDay(from) || !isIsoDay(to) || from > to) return null;
+	return { from, to };
+}
+
+/** Chart resolution for a custom range: day points for short ranges, month-end thinned
+ *  for long ones — same readability rule as the fixed windows (≤ ~6 months → daily).
+ *  Return type mirrors windowChartMode so call sites can hold either union member;
+ *  `from`/`window` stay undefined — the custom bounds travel as from/to params. */
+export function customChartMode(range: CustomRange): {
+	daily: boolean;
+	from?: string;
+	window?: OsWindow;
+} {
+	const days = (Date.parse(range.to) - Date.parse(range.from)) / 86_400_000;
+	return { daily: days <= 190 };
+}
+
 /**
  * The `?window=` query string to pass to a scored endpoint, or undefined only when
  * the UI default ALSO matches the backend's own default. NOTE: the backend's default

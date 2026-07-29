@@ -13,7 +13,13 @@
 	import { osState } from '$lib/stores/osState.svelte';
 	import { Target, Bell, Settings, Wrench } from '@lucide/svelte';
 	import { OS_NAV, lensForPath, type OsNavItem } from '$lib/config/osNav';
-	import { OS_WINDOW_TABS, parseOsWindow, hidesCompetitors, DEFAULT_OS_WINDOW } from '$lib/config/window';
+	import {
+		OS_WINDOW_TABS,
+		parseOsWindow,
+		parseCustomRange,
+		hidesCompetitors,
+		DEFAULT_OS_WINDOW
+	} from '$lib/config/window';
 	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
 	import TalkwoMark from '$lib/components/TalkwoMark.svelte';
 	import LensTabs from '$lib/components/LensTabs.svelte';
@@ -57,16 +63,50 @@
 	// the same horizon and it survives refresh/share. Active window comes from the
 	// URL, not client state (SSR must see it).
 	const activeWindow = $derived(parseOsWindow(page.url.searchParams.get('window')));
+	// G12 custom range: `?window=custom&from&to`. When active, the rail highlights "Özel"
+	// instead of a fixed window (parseOsWindow falls back to the default for 'custom', so
+	// activeWindow alone would wrongly light up 6A).
+	const customRange = $derived(parseCustomRange(page.url.searchParams));
 	function selectWindow(key: string) {
-		if (key === activeWindow) return;
+		if (key === activeWindow && !customRange) return;
 		// Preserve the current path + other params; swap only `window`. Drop the param only
 		// for the ACTUAL default (6mo) to keep those URLs clean — every other window, incl.
 		// 24mo, must be set EXPLICITLY. (Bug fix: this used to delete for 24mo, back when the
 		// default was 24mo; the default is now 6mo — DEFAULT_OS_WINDOW — so deleting on 24mo
 		// made parseOsWindow read "absent" → fall back to 6mo, i.e. 2Y silently became 6A.)
+		// Leaving a custom range also clears its from/to so stale bounds never linger.
 		const url = new URL(page.url);
+		url.searchParams.delete('from');
+		url.searchParams.delete('to');
 		if (key === DEFAULT_OS_WINDOW) url.searchParams.delete('window');
 		else url.searchParams.set('window', key);
+		goto(url.pathname + url.search, { keepFocus: true, noScroll: true, invalidateAll: true });
+	}
+
+	// ── "Özel" (custom date range) picker state ──────────────────────────────
+	// Two native date inputs in a small popover next to the rail. Apply → URL, so the
+	// range is SSR-visible, shareable and refresh-proof like every fixed window.
+	let customOpen = $state(false);
+	let customFrom = $state('');
+	let customTo = $state('');
+	const todayIso = () => new Date().toISOString().slice(0, 10);
+	function openCustom() {
+		// Seed the form: active range if set, else last 30 days — an immediately
+		// applicable default beats two empty inputs.
+		const to = customRange?.to ?? todayIso();
+		const from =
+			customRange?.from ?? new Date(Date.parse(to) - 30 * 86_400_000).toISOString().slice(0, 10);
+		customFrom = from;
+		customTo = to;
+		customOpen = !customOpen;
+	}
+	function applyCustom() {
+		if (!customFrom || !customTo || customFrom > customTo) return;
+		const url = new URL(page.url);
+		url.searchParams.set('window', 'custom');
+		url.searchParams.set('from', customFrom);
+		url.searchParams.set('to', customTo);
+		customOpen = false;
 		goto(url.pathname + url.search, { keepFocus: true, noScroll: true, invalidateAll: true });
 	}
 </script>
@@ -125,13 +165,69 @@
 					onclick={() => selectWindow(t.key)}
 					title="Zaman aralığı: {t.label}"
 					class="grid h-8 w-9 place-items-center rounded-lg text-[11px] font-bold transition-colors
-						{activeWindow === t.key
+						{activeWindow === t.key && !customRange
 						? 'bg-brand/12 text-brand'
 						: 'text-text-3 hover:bg-surface-2 hover:text-text-1'}"
 				>
 					{t.short}
 				</button>
 			{/each}
+
+			<!-- "Özel" — free date range (G12). Cards read as of the range END (time machine);
+			     the popover writes ?window=custom&from&to so SSR sees it like any window. -->
+			<div class="relative">
+				<button
+					onclick={openCustom}
+					title={customRange
+						? `Özel aralık: ${customRange.from} → ${customRange.to}`
+						: 'Özel tarih aralığı'}
+					class="grid h-8 w-9 place-items-center rounded-lg text-[10px] font-bold transition-colors
+						{customRange ? 'bg-brand/12 text-brand' : 'text-text-3 hover:bg-surface-2 hover:text-text-1'}"
+				>
+					Özel
+				</button>
+				{#if customOpen}
+					<div
+						class="absolute left-full top-0 z-50 ml-2 w-56 rounded-xl border border-border bg-surface-1 p-3 shadow-lg"
+					>
+						<div class="mb-2 text-xs font-semibold text-text-1">Özel tarih aralığı</div>
+						<label class="mb-2 block text-[11px] text-text-3">
+							Başlangıç
+							<input
+								type="date"
+								bind:value={customFrom}
+								max={customTo || todayIso()}
+								class="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-2 py-1 text-xs text-text-1"
+							/>
+						</label>
+						<label class="mb-3 block text-[11px] text-text-3">
+							Bitiş
+							<input
+								type="date"
+								bind:value={customTo}
+								min={customFrom}
+								max={todayIso()}
+								class="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-2 py-1 text-xs text-text-1"
+							/>
+						</label>
+						<div class="flex items-center justify-end gap-2">
+							<button
+								onclick={() => (customOpen = false)}
+								class="rounded-lg px-2 py-1 text-[11px] text-text-3 hover:bg-surface-2"
+							>
+								Vazgeç
+							</button>
+							<button
+								onclick={applyCustom}
+								disabled={!customFrom || !customTo || customFrom > customTo}
+								class="rounded-lg bg-brand px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40"
+							>
+								Uygula
+							</button>
+						</div>
+					</div>
+				{/if}
+			</div>
 		</div>
 
 		<div class="flex-1"></div>

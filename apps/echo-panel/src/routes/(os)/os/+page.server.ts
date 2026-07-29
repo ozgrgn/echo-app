@@ -4,7 +4,13 @@ import type { ResponseRateRow } from '$lib/mock/os';
 import { error } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
 import { listRadarGoals } from '$lib/server/radarApi';
-import { parseOsWindow, windowParam, windowChartMode } from '$lib/config/window';
+import {
+	parseOsWindow,
+	parseCustomRange,
+	customChartMode,
+	windowParam,
+	windowChartMode
+} from '$lib/config/window';
 
 // Human labels for the response breakdown (backend slices carry a raw platform key).
 const PLATFORM_LABEL: Record<string, string> = {
@@ -67,9 +73,13 @@ export const load: PageServerLoad = async (event) => {
 	const paramPeriod = url.searchParams.get('period');
 	const requestPeriod = /^\d{4}-\d{2}$/.test(paramPeriod ?? '') ? (paramPeriod as string) : undefined;
 
+	// G12 custom range: ?window=custom&from&to → the bundle's time-machine mode (cards as
+	// of the range END, chart sliced to [from, to]). An invalid custom URL parses to null
+	// and falls back to the fixed-window path — never a crash.
+	const customRange = parseCustomRange(url.searchParams);
 	const window = parseOsWindow(url.searchParams.get('window'));
 	const w = windowParam(window);
-	const chart = windowChartMode(window, new Date());
+	const chart = customRange ? customChartMode(customRange) : windowChartMode(window, new Date());
 
 	// ── Goal-driven hedef ────────────────────────────────────────────────────
 	// The venue's radar GPI goal (Hedefler panel, reviews.gpi) drives BOTH the chart's
@@ -114,18 +124,35 @@ export const load: PageServerLoad = async (event) => {
 		// crash the page on — the venue simply has no data yet. Catch it and fall through
 		// to the empty state below, so the panel says "henüz veri yok" instead of a 500.
 		api
-			.getOsBundle(venueSlug, {
-				lens: 'genel',
-				window: w,
-				period: requestPeriod,
-				chartDaily: chart.daily,
-				chartFrom: chart.from,
-				impactTarget: gpiGoalTarget
-			})
+			.getOsBundle(
+				venueSlug,
+				customRange
+					? {
+							lens: 'genel',
+							window: 'custom',
+							from: customRange.from,
+							to: customRange.to,
+							chartDaily: chart.daily,
+							impactTarget: gpiGoalTarget
+						}
+					: {
+							lens: 'genel',
+							window: w,
+							period: requestPeriod,
+							chartDaily: chart.daily,
+							chartFrom: chart.from,
+							impactTarget: gpiGoalTarget
+						}
+			)
 			.catch(() => null),
 		// Same window as everything else on the page, so the card's rows and the
-		// headline "%X" beside them count the same universe of reviews.
-		api.getResponseStats(venueSlug, undefined, w).catch(() => null)
+		// headline "%X" beside them count the same universe of reviews. Custom range
+		// SKIPS this fetch: the endpoint knows no custom mode, and current-period
+		// breakdown rows next to as-of cards would silently mix two universes —
+		// honest absence (empty card state) beats that.
+		customRange
+			? Promise.resolve(null)
+			: api.getResponseStats(venueSlug, undefined, w).catch(() => null)
 	]);
 
 	// No bundle or no blended score → the venue has no analyzed reviews yet. Return a
@@ -159,6 +186,9 @@ export const load: PageServerLoad = async (event) => {
 		impact: b.impact,
 		responseBreakdown,
 		window,
+		// Custom range (G12): from/to as requested + the day the cards actually show
+		// (nearest ≤ to). The page MUST render "… itibarıyla {effectiveDate}".
+		customRange: b.customRange ?? null,
 		chartDaily: chart.daily,
 		// Grafiğin "Hedef" çizgisinin SON TARİHİ — hedef bir taahhüttür, tarihsiz gösterilirse
 		// "ne zamana kadar" bilgisi kaybolur (owner, 26 Tem). null = tarihsiz hedef ya da hedef yok.

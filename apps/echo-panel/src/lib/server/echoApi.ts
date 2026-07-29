@@ -145,6 +145,8 @@ export function makeServerApi(event: RequestEvent) {
 				period?: string;
 				chartDaily?: boolean;
 				chartFrom?: string;
+				from?: string;
+				to?: string;
 				impactTarget?: number;
 			}
 		) => withRetry((t) => getOsBundle(venueSlug, t, opts, fo())),

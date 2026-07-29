@@ -24,7 +24,7 @@
 	import SegmentBreakdown from '$lib/components/SegmentBreakdown.svelte';
 	import MultiTrendChart from '$lib/components/MultiTrendChart.svelte';
 	import ImpactList from '$lib/components/ImpactList.svelte';
-	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert, CircleCheck, MessageCircleReply, PieChart, LineChart, Rocket } from '@lucide/svelte';
+	import { TrendingUp, Globe, Activity, Users, CircleAlert, ThumbsUp, TriangleAlert, CircleCheck, MessageCircleReply, PieChart, LineChart, Rocket, CalendarRange } from '@lucide/svelte';
 
 	import {
 		PLATFORM_COLOR,
@@ -429,6 +429,25 @@
 		</p>
 	</div>
 {:else}
+{#if data.customRange}
+	<!-- G12 custom-range banner. The "itibarıyla" label is MANDATORY (design): cards show
+	     the state at effectiveDate (nearest scored day ≤ the chosen end), the chart shows
+	     the [from, to] journey. Without this line a gap-day read would be misleading. -->
+	<div class="mb-3.5 flex flex-wrap items-center gap-2 rounded-[14px] border border-brand/25 bg-brand/8 px-4 py-2.5 text-[12.5px] text-text-2">
+		<CalendarRange size={15} class="text-brand" strokeWidth={2} />
+		<span>
+			Özel aralık: <b class="text-text-1">{data.customRange.from}</b> →
+			<b class="text-text-1">{data.customRange.to}</b>
+		</span>
+		<span class="text-text-3">·</span>
+		<span>
+			kartlar <b class="text-text-1">{data.customRange.effectiveDate}</b> itibarıyla
+			{#if data.customRange.effectiveDate !== data.customRange.to}
+				<span class="text-text-3">(seçilen bitişte skorlanmış gün yok — en yakın önceki gün)</span>
+			{/if}
+		</span>
+	</div>
+{/if}
 <!-- ── Venue hero: neutral band, same skeleton as PlatformHero so lenses align ── -->
 <div class="mb-3.5 flex flex-wrap items-center gap-5 rounded-[18px] border border-border bg-surface-1 p-5 shadow-card">
 	{#if hs.logoUrl}
