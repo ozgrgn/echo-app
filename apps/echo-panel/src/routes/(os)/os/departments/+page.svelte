@@ -11,7 +11,7 @@
 	import { page } from '$app/state';
 	import { osState } from '$lib/stores/osState.svelte';
 	import { zoneClass, gpiZone } from '@talkwo/echo-core';
-	import { windowParam, parseOsWindow } from '$lib/config/window';
+	import { windowParam, parseOsWindow, parseCustomRange } from '$lib/config/window';
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import DeptCard from '$lib/components/DeptCard.svelte';
@@ -26,25 +26,42 @@
 	let loading = $state(false);
 	let errored = $state(false);
 
-	async function load(window: string | undefined) {
+	// Custom mode: the day the cards are actually as of (nearest row ≤ `to`). Drives the
+	// mandatory "… itibarıyla" label — a range ending on a gap day is served from an
+	// earlier row, and an unlabelled card there would claim a date it isn't.
+	let effectiveDate = $state<string | null>(null);
+
+	async function load(window: string | undefined, asof?: string) {
 		loading = true;
 		errored = false;
 		try {
-			const qs = new URLSearchParams({ resource: 'departments', ...(window ? { window } : {}) });
+			// asof and window are alternatives, not companions: in custom mode the backend
+			// reads the daily row for that day (its own default series), so sending a fixed
+			// window alongside it would only invite the two to disagree.
+			const qs = new URLSearchParams({
+				resource: 'departments',
+				...(asof ? { asof } : window ? { window } : {})
+			});
 			const r = await fetch(`/api/os/data?${qs}`);
 			const res = r.ok ? await r.json() : { departments: [] };
 			realDepts = res.departments;
+			effectiveDate = res.effectiveDate ?? null;
 		} catch {
 			errored = true;
 			realDepts = null;
+			effectiveDate = null;
 		} finally {
 			loading = false;
 		}
 	}
 	// Re-fetch when the global window changes (reading page.url inside the effect
-	// subscribes it to the rail selector's ?window= updates).
+	// subscribes it to the rail selector's ?window= updates). G12: a custom range asks for
+	// its END day instead of a window — this lens used to fall back to 6mo while the rail
+	// lit "Özel", so the page silently disagreed with the selector above it.
 	$effect(() => {
-		load(windowParam(parseOsWindow(page.url.searchParams.get('window'))));
+		const custom = parseCustomRange(page.url.searchParams);
+		if (custom) load(undefined, custom.to);
+		else load(windowParam(parseOsWindow(page.url.searchParams.get('window'))));
 	});
 
 	// Adapt a real DepartmentScore into the OsDept shape DeptCard/switcher expect.

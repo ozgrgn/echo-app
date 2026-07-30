@@ -183,8 +183,10 @@ export function makeServerApi(event: RequestEvent) {
 			withRetry((t) => getImpact(venueSlug, t, opts, fo())),
 		getImpactConcentration: (venueSlug: string, category: string, opts: { window?: string } = {}) =>
 			withRetry((t) => getImpactConcentration(venueSlug, category, t, opts, fo())),
-		getDepartments: (venueSlug: string, opts: { platform?: string; period?: string; window?: string } = {}) =>
-			withRetry((t) => getDepartments(venueSlug, t, opts, fo())),
+		getDepartments: (
+			venueSlug: string,
+			opts: { platform?: string; period?: string; window?: string; asof?: string } = {}
+		) => withRetry((t) => getDepartments(venueSlug, t, opts, fo())),
 		getDepartmentDetail: (
 			venueSlug: string,
 			deptKey: string,

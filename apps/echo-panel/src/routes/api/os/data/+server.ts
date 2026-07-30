@@ -27,13 +27,16 @@ export const GET: RequestHandler = async (event) => {
 	const period = url.searchParams.get('period') ?? undefined;
 	// Time-window horizon, forwarded to the windowed scored endpoints (absent = 24mo).
 	const window = url.searchParams.get('window') ?? undefined;
+	// G12 custom range: read as of a past day. Forwarded only where the backend knows it
+	// (departments today); the caller sends it INSTEAD of a fixed window, never both.
+	const asof = url.searchParams.get('asof') ?? undefined;
 	const limitRaw = url.searchParams.get('limit');
 	const limit = limitRaw ? Number(limitRaw) : undefined;
 
 	try {
 		switch (resource) {
 			case 'departments':
-				return json(await api.getDepartments(venueSlug, { platform, period, window }));
+				return json(await api.getDepartments(venueSlug, { platform, period, window, asof }));
 			case 'departmentDetail': {
 				const deptKey = url.searchParams.get('deptKey');
 				if (!deptKey) throw error(400, 'deptKey required');

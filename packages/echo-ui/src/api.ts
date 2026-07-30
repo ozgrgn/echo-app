@@ -945,14 +945,18 @@ export interface DepartmentDetail extends DepartmentScore {
 export async function getDepartments(
   venueSlug: string,
   token: string,
-  opts: { platform?: string; period?: string; window?: string } = {},
+  opts: { platform?: string; period?: string; window?: string; asof?: string } = {},
   fetchOpts?: FetchOpts
-): Promise<{ departments: DepartmentScore[] }> {
+): Promise<{ departments: DepartmentScore[]; effectiveDate?: string }> {
   const { base, f } = resolveFetch(fetchOpts);
   const params = new URLSearchParams({
     ...(opts.platform ? { platform: opts.platform } : {}),
     ...(opts.period ? { period: opts.period } : {}),
-    ...(opts.window ? { window: opts.window } : {})
+    ...(opts.window ? { window: opts.window } : {}),
+    // G12 custom range: read the daily row as of a past day instead of the latest
+    // snapshot. Mutually exclusive with `period` in practice — the backend prefers asof
+    // and answers with `effectiveDate` (the nearest day ≤ asof that actually has a row).
+    ...(opts.asof ? { asof: opts.asof } : {})
   });
   const qs = params.toString();
   const res = await f(`${base}/departments/${encodeURIComponent(venueSlug)}${qs ? `?${qs}` : ''}`, {

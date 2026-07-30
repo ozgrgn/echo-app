@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { error } from '@sveltejs/kit';
 import { makeServerApi } from '$lib/server/echoApi';
-import { DEFAULT_OS_WINDOW } from '$lib/config/window';
+import { DEFAULT_OS_WINDOW, parseCustomRange } from '$lib/config/window';
 
 // Competitors lens (SSR). Same data shape as (app)/benchmark, in OS lens style.
 //
@@ -31,6 +31,11 @@ function parseWindow(raw: string | null): Window {
 }
 
 export const load: PageServerLoad = async (event) => {
+	// G12 custom range: ?window=custom&from&to. The bundle resolves custom BEFORE the lens
+	// fan-out, so competitors already worked server-side — this loader just never asked.
+	// The local parseWindow above has no 'custom' member and fell back to 6mo, so the rail
+	// lit "Özel" over a six-month page. Invalid custom URL → null → fixed-window path.
+	const customRange = parseCustomRange(event.url.searchParams);
 	const window = parseWindow(event.url.searchParams.get('window'));
 
 	// ONE bundle call. This lens was the worst offender — ~10 calls in TWO serial waves
@@ -44,10 +49,12 @@ export const load: PageServerLoad = async (event) => {
 	// Always send the resolved window EXPLICITLY. The backend's own default is 24mo, so
 	// sending undefined at 6mo would make it score 24 months — the exact mismatch we're
 	// fixing. `window` here is already the correct resolved value (6mo when absent).
-	const b = await api.getOsBundle(session.venueSlug, {
-		lens: 'competitors',
-		window
-	});
+	const b = await api.getOsBundle(
+		session.venueSlug,
+		customRange
+			? { lens: 'competitors', window: 'custom', from: customRange.from, to: customRange.to }
+			: { lens: 'competitors', window }
+	);
 
 	// The bundle 404s without a snapshot, so a 200 always carries blended.
 	if (!b.blended) throw error(404, 'No score snapshot for this venue');
@@ -68,6 +75,8 @@ export const load: PageServerLoad = async (event) => {
 		competitors: b.competitors, // empty means empty — the UI shows an empty state
 		venueName: session.venueName ?? session.venueSlug,
 		window,
-		platformCompare
+		platformCompare,
+		// Custom mode only — carries effectiveDate for the mandatory "… itibarıyla" label.
+		customRange: b.customRange ?? null
 	};
 };
