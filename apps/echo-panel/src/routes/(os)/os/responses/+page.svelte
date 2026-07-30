@@ -17,7 +17,7 @@
 -->
 <script lang="ts">
 	import { page } from '$app/state';
-	import { windowParam, parseOsWindow } from '$lib/config/window';
+	import { windowParam, parseOsWindow, parseCustomRange } from '$lib/config/window';
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import ReplyDraft from '$lib/components/ReplyDraft.svelte';
@@ -46,6 +46,14 @@
 
 	let stats = $state<ResponseStats | null>(null);
 	let queue = $state<ResponseQueueItem[]>([]);
+	// G12: in custom mode the review LIST really is cropped to [from, to] — unlike the
+	// scores, where `from` never cuts the pool. A list is a raw query over those days;
+	// a score is a state as of a day, with memory. Same URL, two honest readings.
+	const listRange = $derived(parseCustomRange(page.url.searchParams));
+	const rangeParams = $derived.by((): Record<string, string> =>
+		listRange ? { from: listRange.from, to: listRange.to } : {}
+	);
+
 	let reviews = $state<Review[]>([]);
 	let nextCursor = $state<string | null>(null);
 	let loading = $state(false);
@@ -85,7 +93,8 @@
 					resource: 'reviews',
 					limit: '40',
 					...(platformFilter ? { platform: platformFilter } : {}),
-					...(answered === 'all' ? {} : { response: answered })
+					...(answered === 'all' ? {} : { response: answered }),
+					...rangeParams
 				});
 				const r = await fetch(`/api/os/data?${qs}`);
 				if (!r.ok) throw new Error(String(r.status));
@@ -113,7 +122,10 @@
 				limit: '40',
 				cursor: nextCursor,
 				...(platformFilter ? { platform: platformFilter } : {}),
-				...(answered === 'all' ? {} : { response: answered })
+				...(answered === 'all' ? {} : { response: answered }),
+				// The range must ride along on EVERY page, not just the first — otherwise
+				// scrolling silently walks out of the selected window.
+				...rangeParams
 			});
 			const r = await fetch(`/api/os/data?${qs}`);
 			if (r.ok) {
@@ -133,6 +145,9 @@
 		void mode;
 		void answered;
 		void platformFilter;
+		// …including the custom range: without this the list keeps whatever days it first
+		// loaded while the rail says "Özel" over them.
+		void rangeParams;
 		void loadStats(w);
 		void loadList(w);
 	});

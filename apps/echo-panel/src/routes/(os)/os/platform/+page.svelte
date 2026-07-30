@@ -13,6 +13,7 @@
 	import { osState } from '$lib/stores/osState.svelte';
 	import { PLATFORM_COLOR } from '$lib/mock/os';
 	import { Globe, TrendingUp, Layers, ChevronRight } from '@lucide/svelte';
+	import CustomRangeBanner from '$lib/components/CustomRangeBanner.svelte';
 
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import MultiTrendChart from '$lib/components/MultiTrendChart.svelte';
@@ -142,6 +143,9 @@
 		return z === 'green' ? 'text-success' : z === 'yellow' ? 'text-warning' : 'text-danger';
 	}
 </script>
+
+<!-- G12: cards are as-of the range end, so say which day they speak for. -->
+<CustomRangeBanner range={data.customRange ?? null} />
 
 <!-- Header — this is the overview, not one channel. -->
 <div class="mb-4 flex items-center gap-2.5">

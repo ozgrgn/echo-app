@@ -640,6 +640,11 @@ export interface ReviewFilters {
   response?: 'with' | 'without';
   cursor?: string;
   limit?: number;
+  /** G12 custom range, inclusive 'YYYY-MM-DD'. A LIST is a raw query, so unlike the
+   *  scores it genuinely crops to these days — "from never cuts the pool" governs
+   *  SCORES (a state as of a day, with memory), not the reviews from those days. */
+  from?: string;
+  to?: string;
 }
 
 export async function getReviews(

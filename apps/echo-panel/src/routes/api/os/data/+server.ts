@@ -30,6 +30,10 @@ export const GET: RequestHandler = async (event) => {
 	// G12 custom range: read as of a past day. Forwarded only where the backend knows it
 	// (departments today); the caller sends it INSTEAD of a fixed window, never both.
 	const asof = url.searchParams.get('asof') ?? undefined;
+	// …and for LIST resources the range crops the query itself (reviews/mentions), which is
+	// a different question from the scores' as-of read — hence separate params.
+	const rangeFrom = url.searchParams.get('from') ?? undefined;
+	const rangeTo = url.searchParams.get('to') ?? undefined;
 	const limitRaw = url.searchParams.get('limit');
 	const limit = limitRaw ? Number(limitRaw) : undefined;
 
@@ -86,7 +90,10 @@ export const GET: RequestHandler = async (event) => {
 						...(sentiment ? { sentiment } : {}),
 						...(cursor ? { cursor } : {}),
 						...(limit ? { limit } : {}),
-						...(response === 'with' || response === 'without' ? { response } : {})
+						...(response === 'with' || response === 'without' ? { response } : {}),
+						// G12: a custom range really does crop the LIST (see ReviewFilters).
+						...(rangeFrom ? { from: rangeFrom } : {}),
+						...(rangeTo ? { to: rangeTo } : {})
 					})
 				);
 			}

@@ -10,6 +10,7 @@
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import { Swords, BarChart3, Grid3x3, Building2, Globe } from '@lucide/svelte';
+	import CustomRangeBanner from '$lib/components/CustomRangeBanner.svelte';
 
 	let { data } = $props();
 
@@ -184,6 +185,9 @@
 		return z === 'green' ? 'bg-success' : z === 'yellow' ? 'bg-warning' : 'bg-danger';
 	}
 </script>
+
+<!-- G12: cards are as-of the range end, so say which day they speak for. -->
+<CustomRangeBanner range={data.customRange ?? null} />
 
 <!-- ── Header: title. The time window is chosen from the global rail selector
      (shared across every lens), so no per-page control here. ──────────────── -->

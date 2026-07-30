@@ -16,6 +16,7 @@
 	import StatTile from '$lib/components/StatTile.svelte';
 	import DeptCard from '$lib/components/DeptCard.svelte';
 	import OsBackNav from '$lib/components/OsBackNav.svelte';
+	import CustomRangeBanner from '$lib/components/CustomRangeBanner.svelte';
 	import { Users, TrendingDown, TrendingUp } from '@lucide/svelte';
 	import { type DepartmentScore } from '@talkwo/echo-ui';
 	import { DEPARTMENTS } from '$lib/mock/departments';
@@ -30,6 +31,13 @@
 	// mandatory "… itibarıyla" label — a range ending on a gap day is served from an
 	// earlier row, and an unlabelled card there would claim a date it isn't.
 	let effectiveDate = $state<string | null>(null);
+	// The banner wants {from, to, effectiveDate}. from/to come from the URL (this lens
+	// reads a day, not a bundle, so nothing echoes them back); effectiveDate comes from
+	// the response. Null until both exist — a half-filled banner would be worse than none.
+	const bannerRange = $derived.by(() => {
+		const c = parseCustomRange(page.url.searchParams);
+		return c && effectiveDate ? { from: c.from, to: c.to, effectiveDate } : null;
+	});
 
 	async function load(window: string | undefined, asof?: string) {
 		loading = true;
@@ -119,6 +127,9 @@
 		goto(`/os/department/${key}`);
 	}
 </script>
+
+<!-- G12: cards are as-of the range end, so say which day they speak for. -->
+<CustomRangeBanner range={bannerRange} />
 
 <!-- Home (→ main page) + department switcher on one row. This is a LIST page (one hop
      from Genel), so no "Geri" — Home already IS one level up. -->
