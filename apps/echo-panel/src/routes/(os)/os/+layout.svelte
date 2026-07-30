@@ -8,10 +8,10 @@
   wires it to the radar federated brain.
 -->
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
 	import { page, navigating } from '$app/state';
 	import { osState } from '$lib/stores/osState.svelte';
-	import { Target, Bell, Settings, Wrench } from '@lucide/svelte';
+	import { Target, Bell, Settings, Sparkles, X } from '@lucide/svelte';
 	import { OS_NAV, lensForPath, type OsNavItem } from '$lib/config/osNav';
 	import {
 		OS_WINDOW_TABS,
@@ -34,10 +34,6 @@
 	// stays put, which would desync the rail highlight from the actual route.
 	const activeKind = $derived(lensForPath(page.url.pathname) ?? osState.lens.kind);
 
-	// Superadmin gates the Yönetim rail entry — same flag the classic (app) nav
-	// uses, plumbed via /auth/whoami → session cookie → PageData.
-	const isSuperadmin = $derived(data?.session?.isSuperadmin ?? false);
-
 	// These lenses carry their own back button + in-page switcher row, so the
 	// global LensTabs would stack a second button row. Hide it on them.
 	const hideLensTabs = $derived(
@@ -59,6 +55,24 @@
 		goto(item.href);
 	}
 
+	// The canvas <main> is its OWN scroll container, and SvelteKit only resets the
+	// window's scroll on navigation — so switching lenses mid-scroll used to land
+	// the new page at the old scroll offset ("the page continues at the bottom").
+	// Reset it on PATH changes only: window/date changes rewrite just the query
+	// string and deliberately keep the reading position (their goto passes noScroll).
+	let mainEl = $state<HTMLElement>();
+	afterNavigate((nav) => {
+		if (nav.from?.url.pathname !== nav.to?.url.pathname) mainEl?.scrollTo(0, 0);
+		// Any navigation closes the mobile assistant sheet — e.g. tapping a deep link
+		// the assistant offered; staying open would hide the very page it opened.
+		assistantOpen = false;
+	});
+
+	// Mobile assistant sheet: on phones the aside is a full-screen overlay (see the
+	// media query) toggled by a floating button above the bottom tab bar. Desktop
+	// ignores this entirely — the aside is a fixed grid column there.
+	let assistantOpen = $state(false);
+
 	// Global time-window — URL-driven (`?window=`), so every lens's SSR load reads
 	// the same horizon and it survives refresh/share. Active window comes from the
 	// URL, not client state (SSR must see it).
@@ -67,6 +81,13 @@
 	// instead of a fixed window (parseOsWindow falls back to the default for 'custom', so
 	// activeWindow alone would wrongly light up 6A).
 	const customRange = $derived(parseCustomRange(page.url.searchParams));
+
+	// Lens entries shared by the desktop rail and the mobile bottom tab bar.
+	// 'max' (Tümü) hides competitor comparison → drop the Rakipler entry (owner
+	// decision: owned full history isn't comparable to a rival's ~2yr).
+	const navTabs = $derived(
+		OS_NAV.filter((i) => !(i.lens === 'competitors' && hidesCompetitors(activeWindow)))
+	);
 	function selectWindow(key: string) {
 		if (key === activeWindow && !customRange) return;
 		// Preserve the current path + other params; swap only `window`. Drop the param only
@@ -141,14 +162,12 @@
 	<nav class="flex flex-col items-center gap-1 border-r border-border bg-surface-1 py-3.5">
 		<TalkwoMark size={24} class="mb-3" />
 
-		<!-- 'max' (Tümü) lens hides competitor comparison → drop the Rakipler nav item
-		     (owner decision: owned full history isn't comparable to a rival's ~2yr). -->
-		{#each OS_NAV.filter((i) => !(i.lens === 'competitors' && hidesCompetitors(activeWindow))) as item (item.lens)}
+		{#each navTabs as item (item.lens)}
 			{@const Icon = item.icon}
 			<button
 				onclick={() => go(item)}
 				title={item.label}
-				class="grid h-10 w-10 place-items-center rounded-xl transition-colors
+				class="nav-lens grid h-10 w-10 place-items-center rounded-xl transition-colors
 					{activeKind === item.lens
 					? 'bg-text-1 text-white'
 					: 'text-text-3 hover:bg-surface-2 hover:text-text-1'}"
@@ -161,10 +180,19 @@
 		     so every lens reflects the same horizon (2 Yıl = full history, default). -->
 		<div class="mt-3 flex flex-col items-center gap-1 border-t border-border pt-3">
 			{#each OS_WINDOW_TABS as t (t.key)}
+				<!-- In the Rakipler lens, windows that hide competitor comparison ('max')
+				     are DISABLED, not just tolerated: selecting Tümü there would silently
+				     drop the very lens the user is standing in. Visibly off + a title
+				     explaining why beats a click that appears to do something weird. -->
+				{@const offInLens = activeKind === 'competitors' && hidesCompetitors(t.key)}
 				<button
 					onclick={() => selectWindow(t.key)}
-					title="Zaman aralığı: {t.label}"
+					disabled={offInLens}
+					title={offInLens
+						? 'Rakipler görünümünde kapalı — rakip verisi son 2 yılla sınırlı'
+						: `Zaman aralığı: ${t.label}`}
 					class="grid h-8 w-9 place-items-center rounded-lg text-[11px] font-bold transition-colors
+						disabled:cursor-not-allowed disabled:opacity-35
 						{activeWindow === t.key && !customRange
 						? 'bg-brand/12 text-brand'
 						: 'text-text-3 hover:bg-surface-2 hover:text-text-1'}"
@@ -188,7 +216,7 @@
 				</button>
 				{#if customOpen}
 					<div
-						class="absolute left-full top-0 z-50 ml-2 w-56 rounded-xl border border-border bg-surface-1 p-3 shadow-lg"
+						class="custom-pop absolute left-full top-0 z-50 ml-2 w-56 rounded-xl border border-border bg-surface-1 p-3 shadow-lg"
 					>
 						<div class="mb-2 text-xs font-semibold text-text-1">Özel tarih aralığı</div>
 						<label class="mb-2 block text-[11px] text-text-3">
@@ -257,32 +285,21 @@
 			onclick={() => goto('/settings')}
 			title="Ayarlar"
 			class="grid h-10 w-10 place-items-center rounded-xl transition-colors
-				{page.url.pathname.startsWith('/settings') && !page.url.pathname.startsWith('/settings/owner-routing')
+				{page.url.pathname.startsWith('/settings')
 				? 'bg-text-1 text-white'
 				: 'text-text-3 hover:bg-surface-2 hover:text-text-1'}"
 		>
 			<Settings size={19} strokeWidth={2} />
 		</button>
 
-		<!-- Yönetim — superadmin-only (venue/platform/refs/watches + Yönlendirme).
-		     Hidden entirely for non-superadmins; backend also enforces requireSuperadmin. -->
-		{#if isSuperadmin}
-			<button
-				onclick={() => goto('/admin')}
-				title="Yönetim"
-				class="grid h-10 w-10 place-items-center rounded-xl transition-colors
-					{page.url.pathname.startsWith('/admin') || page.url.pathname.startsWith('/settings/owner-routing')
-					? 'bg-text-1 text-white'
-					: 'text-text-3 hover:bg-surface-2 hover:text-text-1'}"
-			>
-				<Wrench size={19} strokeWidth={2} />
-			</button>
-		{/if}
+		<!-- Yönetim (superadmin) no longer has its own rail icon — it moved inside the
+		     Ayarlar page (owner request: the rail was getting crowded). Backend still
+		     enforces requireSuperadmin on /admin either way. -->
 	</nav>
 
 	<!-- ── Canvas (lens views render here) ───────────────────────────────── -->
 	<!-- Slightly cooler/darker than --color-bg so the white cards read as raised. -->
-	<main class="relative overflow-y-auto px-7 py-6" style="background:#eef0f4">
+	<main bind:this={mainEl} class="relative overflow-y-auto px-7 py-6" style="background:#eef0f4">
 		<!-- Navigation feedback: an indeterminate top bar while a lens load resolves.
 		     SvelteKit holds the old page until `load` settles; this is the only cue
 		     that a click registered. Rendered only during navigation, so no flicker
@@ -313,13 +330,70 @@
 	     alerts/goals). So BOTH sides read live from /api/agenda and the mock branch is
 	     dead. Passing `false` rather than deleting the prop keeps this one diff small
 	     and revertible; the branch itself comes out in a follow-up. -->
-	<aside class="overflow-hidden border-l border-border bg-surface-1 shadow-[-16px_0_40px_-24px_rgba(15,23,42,0.18)]">
-		<AssistantPanel
-			venueName={data?.session?.venueName ?? ''}
-			demo={false}
-		/>
+	<aside
+		class="flex flex-col overflow-hidden border-l border-border bg-surface-1 shadow-[-16px_0_40px_-24px_rgba(15,23,42,0.18)] {assistantOpen
+			? 'assistant-open'
+			: ''}"
+	>
+		<!-- Sheet/drawer header (phone + tablet): the overlay needs its own close
+		     affordance. Hidden ≥lg, where the aside is a fixed grid column. -->
+		<div class="flex items-center justify-between border-b border-border px-4 py-2 lg:hidden">
+			<span class="inline-flex items-center gap-1.5 text-[13px] font-bold text-text-1">
+				<Sparkles size={15} strokeWidth={2} class="text-talkwo" />
+				Asistan
+			</span>
+			<button
+				onclick={() => (assistantOpen = false)}
+				title="Kapat"
+				class="grid h-8 w-8 place-items-center rounded-lg text-text-3 transition-colors hover:bg-surface-2 hover:text-text-1"
+			>
+				<X size={18} strokeWidth={2} />
+			</button>
+		</div>
+		<div class="min-h-0 flex-1">
+			<AssistantPanel
+				venueName={data?.session?.venueName ?? ''}
+				demo={false}
+			/>
+		</div>
 	</aside>
 </div>
+
+<!-- Assistant launcher (phone + tablet) — floats above the bottom tab bar on
+     phones, bottom-right corner on tablets (no bottom bar there). Hidden while
+     the sheet is open (the sheet covers it anyway, but the exit animation would
+     flash it) and ≥lg, where the assistant is a permanent column. -->
+{#if !assistantOpen}
+	<button
+		onclick={() => (assistantOpen = true)}
+		title="Asistan"
+		class="fixed right-4 bottom-[calc(4.25rem_+_env(safe-area-inset-bottom))] z-40 grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br from-talkwo to-talkwo-2 text-white shadow-raised md:right-6 md:bottom-6 lg:hidden"
+	>
+		<Sparkles size={20} strokeWidth={2} />
+	</button>
+{/if}
+
+<!-- ── Mobile bottom tab bar ─────────────────────────────────────────────
+     The lens pills ARE the navigation (owner decision) — on phones they live in
+     an app-style fixed bottom bar instead of the in-canvas LensTabs row (hidden
+     <md). Rendered on EVERY os page, including the ones that set hideLensTabs:
+     those only suppress the TOP pills to avoid stacking two button rows, a
+     concern the bottom bar doesn't have. -->
+<nav
+	class="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-border bg-surface-1 pb-[env(safe-area-inset-bottom)] md:hidden"
+>
+	{#each navTabs as item (item.lens)}
+		{@const Icon = item.icon}
+		<button
+			onclick={() => go(item)}
+			class="flex min-w-0 flex-1 flex-col items-center gap-0.5 px-1 py-2 text-[10px] font-semibold transition-colors
+				{activeKind === item.lens ? 'text-brand' : 'text-text-3'}"
+		>
+			<Icon size={19} strokeWidth={2} />
+			<span class="max-w-full truncate">{item.label}</span>
+		</button>
+	{/each}
+</nav>
 
 <style>
 	/* Indeterminate progress: a short segment sweeps left→right while loading. */
@@ -335,7 +409,34 @@
 		}
 	}
 
-	/* Phones use a compact horizontal rail and a single content column. The
+	/* Tablets (768–1023px) keep the vertical rail but NOT the fixed assistant
+	   column — 384px out of an iPad-portrait 768px would leave the canvas 326px.
+	   The aside becomes a right-side drawer over the content, opened by the same
+	   floating launcher phones use; ≥1024px it returns to a permanent column. */
+	@media (min-width: 768px) and (max-width: 1023px) {
+		.os-shell {
+			grid-template-columns: 58px minmax(0, 1fr) !important;
+		}
+
+		.os-shell > aside {
+			position: fixed;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			z-index: 60;
+			width: 384px;
+			max-width: 90vw;
+			transform: translateX(100%);
+			transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+		}
+		.os-shell > aside.assistant-open {
+			transform: translateX(0);
+		}
+	}
+
+	/* Phones use a compact horizontal TOP bar (time window + globals) and a single
+	   content column. Lens navigation is NOT here — the in-canvas pills carry it
+	   (a mobile pill/bottom structure for those is planned separately). The
 	   assistant remains available on larger screens, where it can be read beside
 	   the active lens instead of competing with it for width. */
 	@media (max-width: 767px) {
@@ -352,9 +453,18 @@
 			gap: 0.25rem;
 			overflow-x: auto;
 			padding: 0.5rem;
+			border-right: 0;
+			border-bottom: 1px solid var(--color-border);
 		}
 
 		.os-shell > nav > .flex-1 {
+			display: none;
+		}
+
+		/* The rail duplicates LensTabs (both render from OS_NAV), so the compact bar
+		   drops the lens icons and lets the in-canvas pills carry lens navigation.
+		   Desktop's vertical rail keeps them. */
+		.os-shell > nav > :global(.nav-lens) {
 			display: none;
 		}
 
@@ -367,15 +477,43 @@
 			padding-left: 0.5rem;
 		}
 
+		/* The bar scrolls horizontally (overflow-x: auto), which would clip the
+		   absolutely-positioned "Özel" popover — pin it to the viewport just below
+		   the bar instead. (With the demo banner present the bar sits 2rem lower and
+		   the popover overlaps its bottom edge — rare combo, accepted.) */
+		.os-shell > nav :global(.custom-pop) {
+			position: fixed;
+			left: 0.75rem;
+			right: 0.75rem;
+			top: 3.75rem;
+			bottom: auto;
+			width: auto;
+			margin-left: 0;
+		}
+
 		.os-shell > main {
 			grid-column: 1;
 			grid-row: 2;
 			min-width: 0;
 			padding: 1rem;
+			/* Clear the fixed bottom tab bar (+ iOS home indicator). */
+			padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
 		}
 
+		/* The assistant column becomes a full-screen sheet that slides up OVER the
+		   canvas + bottom bar, toggled by the floating launcher. Kept mounted (not
+		   display:none) so the panel's state — an in-progress chat — survives
+		   open/close cycles. */
 		.os-shell > aside {
-			display: none;
+			position: fixed;
+			inset: 0;
+			z-index: 60;
+			border-left: 0;
+			transform: translateY(100%);
+			transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+		}
+		.os-shell > aside.assistant-open {
+			transform: translateY(0);
 		}
 	}
 </style>

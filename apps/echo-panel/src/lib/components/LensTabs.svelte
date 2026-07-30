@@ -30,8 +30,9 @@
 </script>
 
 <!-- Same shape as the platform switcher: individual bordered pills, active one
-     filled dark. -->
-<div class="mb-4 flex flex-wrap items-center gap-2">
+     filled dark. Hidden on phones — the OS layout renders these same tabs as a
+     fixed bottom bar there. -->
+<div class="mb-4 hidden flex-wrap items-center gap-2 md:flex">
 	{#each tabs as tab (tab.lens)}
 		{@const Icon = tab.icon}
 		{@const isActive = active === tab.lens}

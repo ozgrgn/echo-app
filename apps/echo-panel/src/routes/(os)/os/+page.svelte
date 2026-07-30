@@ -449,26 +449,26 @@
 	</div>
 {/if}
 <!-- ── Venue hero: neutral band, same skeleton as PlatformHero so lenses align ── -->
-<div class="mb-3.5 flex flex-wrap items-center gap-5 rounded-[18px] border border-border bg-surface-1 p-5 shadow-card">
+<div class="mb-3.5 flex flex-wrap items-center gap-5 rounded-[18px] border border-border bg-surface-1 p-5 shadow-card max-md:flex-nowrap max-md:gap-3 max-md:p-3.5">
 	{#if hs.logoUrl}
 		<!-- Real venue logo when set on the venue doc; object-contain so a wide/tall SVG
 		     never distorts inside the 50×50 box. Falls back to the letter placeholder below. -->
 		<img
 			src={hs.logoUrl}
 			alt={hs.venueName}
-			class="h-[50px] w-[50px] flex-none rounded-[13px] object-contain"
+			class="h-[50px] w-[50px] flex-none rounded-[13px] object-contain max-md:h-9 max-md:w-9 max-md:rounded-[10px]"
 		/>
 	{:else}
-		<div class="grid h-[50px] w-[50px] flex-none place-items-center rounded-[13px] bg-gradient-to-br from-[#4f46e5] to-[#a855f7] text-[17px] font-extrabold text-white">
+		<div class="grid h-[50px] w-[50px] flex-none place-items-center rounded-[13px] bg-gradient-to-br from-[#4f46e5] to-[#a855f7] text-[17px] font-extrabold text-white max-md:h-9 max-md:w-9 max-md:rounded-[10px] max-md:text-sm">
 			{hs.venueName.slice(0, 1)}
 		</div>
 	{/if}
 	<div class="min-w-0">
-		<div class="text-base font-extrabold tracking-tight text-text-1">{hs.venueName}</div>
+		<div class="text-base font-extrabold tracking-tight text-text-1 max-md:truncate">{hs.venueName}</div>
 		<!-- Region + season were hardcoded to one customer's venue and are not in the
 		     score payload; the subtitle now states only what the data actually says.
 		     The count is window-scoped, so say which window it covers. -->
-		<div class="mt-0.5 text-xs text-text-3">
+		<div class="mt-0.5 text-xs text-text-3 max-md:truncate">
 			{hs.reviewCount.toLocaleString('tr-TR')} yorum{curWindow === 'max' ? '' : ` · ${windowLabel.toLocaleLowerCase('tr-TR')}`}
 		</div>
 	</div>
@@ -476,7 +476,7 @@
 	<div class="ml-auto flex items-end gap-4">
 		<div class="flex flex-col items-end">
 			<span class="text-[10.5px] font-bold uppercase tracking-wide text-text-3">Genel GPI</span>
-			<span class="text-[42px] font-extrabold leading-none tracking-tight {gpiTextClass}">{hs.gpi.toFixed(1)}</span>
+			<span class="text-[42px] font-extrabold leading-none tracking-tight max-md:text-[26px] {gpiTextClass}">{hs.gpi.toFixed(1)}</span>
 		</div>
 	</div>
 </div>

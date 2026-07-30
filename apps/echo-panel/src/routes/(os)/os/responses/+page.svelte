@@ -20,7 +20,6 @@
 	import { windowParam, parseOsWindow } from '$lib/config/window';
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
-	import OsBackNav from '$lib/components/OsBackNav.svelte';
 	import ReplyDraft from '$lib/components/ReplyDraft.svelte';
 	import { MessageSquare, Flame } from '@lucide/svelte';
 	import type { ResponseStats, ResponseQueueItem } from '@talkwo/echo-ui';
@@ -198,7 +197,9 @@
 	];
 </script>
 
-<OsBackNav />
+<!-- No OsBackNav here: this is a top-level lens page — the global LensTabs row
+     right above (or the mobile bottom bar) already carries "Genel" as the way
+     home, so a lone Home button under the pills was pure noise. -->
 
 <!-- KPI strip -->
 <div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">

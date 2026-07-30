@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Tabs } from 'bits-ui';
+	import { Wrench } from '@lucide/svelte';
 	import { PLATFORM_REGISTRY, type HoopsNotifSettings } from '@talkwo/echo-core';
 
 	let { data } = $props();
@@ -143,7 +144,7 @@
 </script>
 
 <div class="space-y-6">
-	<header>
+	<header class="flex items-center justify-between gap-3">
 		<p class="text-sm text-text-2">
 			Tenant: <code class="font-mono text-text-1">{data.tenantKey}</code>
 			{#if sub}
@@ -152,6 +153,17 @@
 				</span>
 			{/if}
 		</p>
+		<!-- Yönetim used to be a wrench icon on the OS rail; it lives here now so the
+		     rail stays lean. Superadmin-only; backend also enforces requireSuperadmin. -->
+		{#if data.session?.isSuperadmin}
+			<a
+				href="/admin"
+				class="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface-1 px-3 py-1.5 text-sm font-medium text-text-2 transition-colors hover:bg-surface-2 hover:text-text-1"
+			>
+				<Wrench size={15} strokeWidth={2} />
+				Yönetim
+			</a>
+		{/if}
 	</header>
 
 	<Tabs.Root bind:value={activeTab} class="flex flex-col gap-6">

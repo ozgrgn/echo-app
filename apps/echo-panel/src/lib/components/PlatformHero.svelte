@@ -36,19 +36,19 @@
 </script>
 
 <div
-	class="mb-3.5 flex flex-wrap items-center gap-5 rounded-[18px] border p-5"
+	class="mb-3.5 flex flex-wrap items-center gap-5 rounded-[18px] border p-5 max-md:flex-nowrap max-md:gap-3 max-md:p-3.5"
 	style="background:{pal.soft};border-color:{pal.border}"
 >
 	<span
-		class="grid h-[50px] w-[50px] flex-none place-items-center rounded-[13px] text-[17px] font-extrabold"
+		class="grid h-[50px] w-[50px] flex-none place-items-center rounded-[13px] text-[17px] font-extrabold max-md:h-9 max-md:w-9 max-md:rounded-[10px] max-md:text-sm"
 		style="background:{pal.bright};color:{pal.onBright}"
 	>
 		{label.slice(0, 1)}
 	</span>
 	<div class="min-w-0">
 		<div class="flex items-center gap-2 text-base font-extrabold text-text-1">
-			{label}
-			<span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide" style="background:{pal.soft};color:{pal.deep}">canlı veri</span>
+			<span class="max-md:truncate">{label}</span>
+			<span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide max-md:hidden" style="background:{pal.soft};color:{pal.deep}">canlı veri</span>
 		</div>
 		<!-- Review count + the platform's NATIVE OTA star (its own scale) — what the guest
 		     sees on that site (Booking 7.5/10, HolidayCheck 5.5/6, TA/Google 4.4/5). -->
@@ -66,9 +66,11 @@
 	<div class="ml-auto flex items-end gap-3">
 		<div class="flex flex-col items-end">
 			<span class="text-[10.5px] font-bold uppercase tracking-wide text-text-3">GPI</span>
-			<span class="text-[42px] font-extrabold leading-none tracking-tight" style="color:{pal.deep}">{gpi.toFixed(1)}</span>
+			<span class="text-[42px] font-extrabold leading-none tracking-tight max-md:text-[26px]" style="color:{pal.deep}">{gpi.toFixed(1)}</span>
 		</div>
-		<div class="flex min-w-[92px] flex-col gap-0.5 rounded-xl border border-border bg-surface-1 px-3 py-2.5">
+		<!-- Blend reference tile — desktop only; on phones the nowrap hero has no room
+		     for a second number block, and the blended GPI is one tap away on Genel. -->
+		<div class="flex min-w-[92px] flex-col gap-0.5 rounded-xl border border-border bg-surface-1 px-3 py-2.5 max-md:hidden">
 			<span class="text-[10px] font-bold uppercase tracking-wide text-text-3">Blend (tüm)</span>
 			<span class="text-[22px] font-extrabold leading-tight text-text-1">{blendedGpi.toFixed(1)}</span>
 			<span class="text-[10px] {vsBlended >= 0 ? 'text-success' : 'text-danger'}">

@@ -129,17 +129,17 @@
 	</p>
 {:else}
 	<!-- ── Hero band: same skeleton as the Genel/Platform lenses so they align ── -->
-	<div class="mb-3.5 flex flex-wrap items-center gap-5 rounded-[18px] border border-border bg-surface-1 p-5 shadow-card">
-		<div class="grid h-[50px] w-[50px] flex-none place-items-center rounded-[13px] bg-gradient-to-br from-[#4f46e5] to-[#a855f7] text-white">
+	<div class="mb-3.5 flex flex-wrap items-center gap-5 rounded-[18px] border border-border bg-surface-1 p-5 shadow-card max-md:flex-nowrap max-md:gap-3 max-md:p-3.5">
+		<div class="grid h-[50px] w-[50px] flex-none place-items-center rounded-[13px] bg-gradient-to-br from-[#4f46e5] to-[#a855f7] text-white max-md:h-9 max-md:w-9 max-md:rounded-[10px]">
 			<Users size={24} strokeWidth={2} />
 		</div>
 		<div class="min-w-0">
-			<div class="text-base font-extrabold tracking-tight text-text-1">Departmanlar</div>
-			<div class="mt-0.5 text-xs text-text-3">{depts.length} ekip · ekip bazlı performans · tıkla → detay</div>
+			<div class="text-base font-extrabold tracking-tight text-text-1 max-md:truncate">Departmanlar</div>
+			<div class="mt-0.5 text-xs text-text-3 max-md:truncate">{depts.length} ekip · ekip bazlı performans · tıkla → detay</div>
 		</div>
 		<div class="ml-auto flex flex-col items-end">
 			<span class="text-[10.5px] font-bold uppercase tracking-wide text-text-3">Departman Ort.</span>
-			<span class="text-[42px] font-extrabold leading-none tracking-tight {zoneClass(avgScore)}">{avgScore.toFixed(0)}</span>
+			<span class="text-[42px] font-extrabold leading-none tracking-tight max-md:text-[26px] {zoneClass(avgScore)}">{avgScore.toFixed(0)}</span>
 		</div>
 	</div>
 

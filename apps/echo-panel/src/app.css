@@ -80,3 +80,26 @@
 	html { font-family: var(--font-sans); }
 	body { background: var(--color-bg); color: var(--color-text-1); }
 }
+
+/* ─── Mobile chip strip (os-chip-strip) ──────────────────────────────────
+ * Any horizontal pill/chip switcher row (OsBackNav, platform overview, …):
+ * on phones it becomes a single swipeable line instead of a multi-row wall.
+ * Chips must not shrink (nowrap flex would squeeze their text); the strip
+ * bleeds into the canvas's 1rem padding for an edge-to-edge swipe, and the
+ * scrollbar is hidden — the cut-off chip at the edge signals scrollability.
+ */
+@media (max-width: 767px) {
+	.os-chip-strip {
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		margin-inline: -1rem;
+		padding-inline: 1rem;
+		scrollbar-width: none;
+	}
+	.os-chip-strip::-webkit-scrollbar {
+		display: none;
+	}
+	.os-chip-strip > * {
+		flex: none;
+	}
+}

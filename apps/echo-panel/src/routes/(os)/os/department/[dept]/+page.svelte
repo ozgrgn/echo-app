@@ -403,6 +403,7 @@
 		{@const c = DEPT_COLOR[s.key] ?? 'var(--color-text-3)'}
 		<button
 			onclick={() => switchTo(s.key)}
+			aria-current={active ? 'true' : undefined}
 			class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors
 				{active ? 'border-transparent text-white' : 'border-border bg-surface-1 text-text-2 hover:bg-surface-2'}"
 			style={active ? `background:${c}` : ''}
@@ -419,19 +420,19 @@
 	<p class="py-16 text-center text-sm text-text-3">Departman verisi alınamadı. Sayfayı yenileyin.</p>
 {:else}
 	<!-- ── Hero band (target/progress = 0 until Goal model lands) ──────────────── -->
-	<div class="mb-3.5 flex flex-wrap items-center gap-5 rounded-[18px] border p-5" style="background:{color}12;border-color:{color}40">
-		<span class="grid h-[50px] w-[50px] flex-none place-items-center rounded-[13px] text-white" style="background:{color}">
+	<div class="mb-3.5 flex flex-wrap items-center gap-5 rounded-[18px] border p-5 max-md:flex-nowrap max-md:gap-3 max-md:p-3.5" style="background:{color}12;border-color:{color}40">
+		<span class="grid h-[50px] w-[50px] flex-none place-items-center rounded-[13px] text-white max-md:h-9 max-md:w-9 max-md:rounded-[10px]" style="background:{color}">
 			<ListTree size={24} strokeWidth={2} />
 		</span>
 		<div class="min-w-0">
-			<div class="text-base font-extrabold text-text-1">{detail.label}</div>
-			<div class="mt-0.5 text-xs text-text-3">
+			<div class="text-base font-extrabold text-text-1 max-md:truncate">{detail.label}</div>
+			<div class="mt-0.5 text-xs text-text-3 max-md:truncate">
 				{detail.categories.length} kategoriden sorumlu · {detail.mentionCount} mention
 			</div>
 		</div>
 		<div class="ml-auto flex flex-col items-end">
 			<span class="text-[10.5px] font-bold uppercase tracking-wide text-text-3">Departman skoru</span>
-			<span class="text-[42px] font-extrabold leading-none tracking-tight {scoreColor}">{score.toFixed(0)}</span>
+			<span class="text-[42px] font-extrabold leading-none tracking-tight max-md:text-[26px] {scoreColor}">{score.toFixed(0)}</span>
 		</div>
 	</div>
 

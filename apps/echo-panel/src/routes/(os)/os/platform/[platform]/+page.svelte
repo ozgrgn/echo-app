@@ -274,6 +274,7 @@
 		{@const color = PLATFORM_COLOR[p as keyof typeof PLATFORM_COLOR]}
 		<button
 			onclick={() => switchTo(p)}
+			aria-current={isActive ? 'true' : undefined}
 			class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors
 				{isActive ? 'border-transparent text-white' : 'border-border bg-surface-1 text-text-2 hover:bg-surface-2'}"
 			style={isActive ? `background:${color}` : ''}

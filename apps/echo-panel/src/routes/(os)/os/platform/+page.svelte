@@ -159,7 +159,7 @@
 <!-- Channel switcher — 'Genel' (this overview, active) + a pill per channel that
      deep-links into its universe. Mirrors the detail page's switcher so navigation is
      obvious and consistent; the tiles below stay clickable as a secondary path. -->
-<div class="mb-3.5 flex flex-wrap items-center gap-2">
+<div class="os-chip-strip mb-3.5 flex flex-wrap items-center gap-2">
 	<!-- 'Genel' = the overview itself (active on this page). -->
 	<span
 		class="inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-text-1 px-2.5 py-1.5 text-[12.5px] font-semibold text-white"

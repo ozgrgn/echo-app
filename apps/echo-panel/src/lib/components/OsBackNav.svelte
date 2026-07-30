@@ -47,6 +47,28 @@
 		children
 	}: Props = $props();
 
+	// On phones the row becomes a single-line horizontal carousel (.os-chip-strip, app.css).
+	// The active chip (marked by the page with aria-current) can sit far right of
+	// 17 siblings — center it whenever the strip actually overflows. Chips often
+	// render AFTER mount (pages fetch their sibling lists), so a MutationObserver
+	// re-centers when they appear; on desktop the flex-wrap row never overflows
+	// and the guard makes this a no-op.
+	let rootEl = $state<HTMLDivElement>();
+	$effect(() => {
+		const el = rootEl;
+		if (!el) return;
+		const center = () => {
+			const active = el.querySelector<HTMLElement>('[aria-current]');
+			if (!active || el.scrollWidth <= el.clientWidth) return;
+			const delta = active.getBoundingClientRect().left - el.getBoundingClientRect().left;
+			el.scrollLeft += delta - (el.clientWidth - active.clientWidth) / 2;
+		};
+		center();
+		const mo = new MutationObserver(center);
+		mo.observe(el, { childList: true, subtree: true });
+		return () => mo.disconnect();
+	});
+
 	function goHome() {
 		osState.setLens({ kind: homeLens });
 		goto(homeHref);
@@ -58,7 +80,7 @@
 	}
 </script>
 
-<div class="mb-3.5 flex flex-wrap items-center gap-2">
+<div bind:this={rootEl} class="os-chip-strip mb-3.5 flex flex-wrap items-center gap-2">
 	<!-- Home — always present, always → the main page. Rendered as a compact SQUARE
 	     button (same height as the text pills, but only wide enough to hold the icon)
 	     so it reads as a distinct "home" affordance, not one of the switcher pills. -->
@@ -89,3 +111,5 @@
 	<!-- Page-specific switcher (department / platform pills). -->
 	{@render children?.()}
 </div>
+<!-- Mobile carousel styling comes from the shared .os-chip-strip utility (app.css) —
+     the platform overview's hand-rolled switcher uses the same class. -->
