@@ -13,13 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # corepack ÖNCE: setup-node'un 'cache: pnpm' adımı pnpm binary'sini arar,
-      # corepack sonra çalışırsa cache adımı 'pnpm bulunamadı' ile düşer.
+      # Corepack must run before setup-node because pnpm caching resolves the pnpm binary.
       - run: corepack enable
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
       - run: pnpm check
+      - run: pnpm test
       - run: pnpm build

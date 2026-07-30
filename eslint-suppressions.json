@@ -1,0 +1,262 @@
+{
+  "apps/echo-panel/src/lib/components/AssistantChat.svelte": {
+    "svelte/no-at-html-tags": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/lib/components/AssistantPanel.svelte": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    },
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/lib/components/Card.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/lib/components/DeptHero.svelte": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/lib/components/LensTabs.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/lib/components/MentionExplorer.svelte": {
+    "svelte/prefer-svelte-reactivity": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/lib/components/OsBackNav.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 2
+    }
+  },
+  "apps/echo-panel/src/lib/components/PlatformHero.svelte": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/lib/components/PlatformRow.svelte": {
+    "no-duplicate-imports": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/lib/components/PolarityHistogram.svelte": {
+    "svelte/require-each-key": {
+      "count": 3
+    }
+  },
+  "apps/echo-panel/src/lib/components/ReplyDraft.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/lib/components/ResponseInbox.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/lib/components/ReviewDetailModal.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/lib/server/echoApi.ts": {
+    "no-duplicate-imports": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/(app)/+layout.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 2
+    }
+  },
+  "apps/echo-panel/src/routes/(app)/admin/+page.svelte": {
+    "svelte/prefer-svelte-reactivity": {
+      "count": 1
+    },
+    "svelte/prefer-writable-derived": {
+      "count": 2
+    }
+  },
+  "apps/echo-panel/src/routes/(app)/admin/harvest/+page.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/(app)/admin/users/+page.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/(app)/benchmark/+page.svelte": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 2
+    },
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/(app)/categories/+page.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/(app)/categories/[category]/+page.svelte": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    },
+    "svelte/prefer-svelte-reactivity": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/(app)/dashboard/+page.svelte": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 3
+    },
+    "svelte/no-navigation-without-resolve": {
+      "count": 3
+    }
+  },
+  "apps/echo-panel/src/routes/(app)/settings/+page.svelte": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/(app)/settings/owner-routing/+page.svelte": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "svelte/prefer-svelte-reactivity": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/(os)/os/+layout.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 5
+    }
+  },
+  "apps/echo-panel/src/routes/(os)/os/+page.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 2
+    }
+  },
+  "apps/echo-panel/src/routes/(os)/os/denetim/+page@.svelte": {
+    "svelte/require-each-key": {
+      "count": 33
+    }
+  },
+  "apps/echo-panel/src/routes/(os)/os/department/[dept]/+page.svelte": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    },
+    "svelte/prefer-svelte-reactivity": {
+      "count": 2
+    }
+  },
+  "apps/echo-panel/src/routes/(os)/os/departments/+page.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/(os)/os/platform/+page.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/(os)/os/platform/[platform]/+page.svelte": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "svelte/no-navigation-without-resolve": {
+      "count": 2
+    },
+    "svelte/prefer-svelte-reactivity": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/(os)/os/responses/+page.svelte": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/+layout.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/api/agenda/+server.ts": {
+    "no-duplicate-imports": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/api/agenda/stream/+server.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "no-duplicate-imports": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/dev/+page.svelte": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "svelte/require-each-key": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/login/+page.server.ts": {
+    "no-duplicate-imports": {
+      "count": 1
+    }
+  },
+  "apps/echo-panel/src/routes/login/+page.svelte": {
+    "svelte/no-navigation-without-resolve": {
+      "count": 3
+    }
+  },
+  "packages/absa-service/evals/metrics.ts": {
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "packages/absa-service/evals/run-eval.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "no-duplicate-imports": {
+      "count": 3
+    }
+  },
+  "packages/absa-service/src/contract/schema.ts": {
+    "no-duplicate-imports": {
+      "count": 1
+    }
+  },
+  "packages/echo-ui/src/api.ts": {
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
+  "packages/echo-ui/src/mock/review-helpers.ts": {
+    "no-duplicate-imports": {
+      "count": 1
+    }
+  }
+}

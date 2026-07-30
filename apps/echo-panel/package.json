@@ -11,7 +11,9 @@
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-		"lint": "echo 'echo-panel lint: TODO'"
+		"lint": "echo 'echo-panel lint is managed from the workspace root'",
+		"test": "vitest run",
+		"test:watch": "vitest"
 	},
 	"dependencies": {
 		"@lucide/svelte": "^1.20.0",
@@ -29,6 +31,7 @@
 		"svelte-check": "^4.4.6",
 		"tailwindcss": "^4.0.0",
 		"typescript": "^5.6.0",
-		"vite": "^8.0.7"
+		"vite": "^8.0.7",
+		"vitest": "^4.1.10"
 	}
 }
