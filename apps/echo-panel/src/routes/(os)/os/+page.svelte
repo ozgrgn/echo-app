@@ -579,8 +579,10 @@
 			<MetricInfo metricId="reviews.categories.sentiment" align="left" />
 			{#if CATEGORY_MOVEMENT_SENTIMENT}
 				<!-- Counts follow the selected window; arrows always compare the last 30 days
-				     (window-independent cohort). Label makes the two time scales explicit. -->
-				<span class="ml-auto text-[11px] font-medium text-text-3">Trendler · son 30 gün</span>
+				     (window-independent cohort). Label spells out BOTH time scales — the old
+				     "Trendler · son 30 gün" sat next to the counts and read as if the counts
+				     were 30-day too. mentionPeriodLabel tracks the window so it can't drift. -->
+				<span class="ml-auto text-[11px] font-medium text-text-3">Sayılar: {mentionPeriodLabel} · Ok: son 30 gün</span>
 			{/if}
 		</div>
 		{#each topCategories as c (c.label)}
