@@ -385,6 +385,17 @@
 	 *  to the raw key so an unregistered platform still renders instead of vanishing. */
 	const platformLabel = (key: string) => PLATFORM_REGISTRY[key.toLowerCase()]?.label ?? key;
 
+	// Mail-style compact date: "31 Tem" this year, "31 Tem 25" otherwise. A full ISO
+	// date in a 380px list row is what got truncated to "2026-07-3…" under the scrollbar.
+	const TR_MONTHS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+	function shortDate(iso: string): string {
+		if (!iso) return '';
+		const [y, m, d] = iso.split('-').map(Number);
+		if (!y || !m || !d) return iso;
+		const suffix = y === new Date().getFullYear() ? '' : ` ${String(y).slice(2)}`;
+		return `${d} ${TR_MONTHS[m - 1]}${suffix}`;
+	}
+
 	const DISPUTE_BADGE: Record<ReviewDisputeState['status'], { label: string; cls: string }> = {
 		requested: { label: 'itiraz edildi', cls: 'bg-warning-light text-warning' },
 		removed: { label: 'kaldırıldı', cls: 'bg-success-light text-success' },
@@ -500,88 +511,102 @@
 				: 'Bu filtrelerde yorum yok.'}
 		</p>
 	{:else}
-		<div class="grid gap-4 lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)] lg:items-start">
+		<!-- One bordered shell, a real divider between the panes, both panes scrolling
+		     independently behind a thin custom scrollbar — the mail-client silhouette,
+		     instead of two cards floating in a gap. -->
+		<div class="overflow-hidden rounded-xl border border-border lg:grid lg:grid-cols-[minmax(320px,400px)_minmax(0,1fr)]">
 			<!-- ── List pane ── -->
 			<aside
-				class="{mobileDetail ? 'hidden lg:block' : ''} lg:max-h-[calc(100vh-250px)] lg:overflow-y-auto lg:pr-1"
+				class="{mobileDetail ? 'hidden lg:block' : ''} inbox-scroll bg-surface-1 lg:h-[calc(100vh-250px)] lg:overflow-y-auto lg:border-r lg:border-border"
 			>
-				<ul class="flex flex-col">
-					{#each items as r, i (r.id)}
+				<ul class="divide-y divide-surface-2">
+					{#each items as r (r.id)}
 						{@const sel = selected?.id === r.id}
 						{@const t = tx[r.id]}
-						<li class="border-t border-surface-2 first:border-t-0">
+						{@const unanswered = !r.ownerResponse}
+						<li>
 							<button
 								onclick={() => select(r.id)}
-								class="grid w-full grid-cols-[3px_1fr] items-stretch gap-2.5 rounded-lg px-2 py-2.5 text-left transition-colors
-									{sel ? 'bg-surface-2' : 'hover:bg-surface-2/50'}"
+								class="relative block w-full px-3.5 py-3 text-left transition-colors
+									{sel ? 'bg-brand/5' : 'hover:bg-surface-2/60'}"
 							>
-								<span class="w-[3px] rounded-full {railTone(r.r5)}"></span>
-								<span class="min-w-0">
-									<span class="flex items-center gap-1.5">
-										<span class="rounded px-1.5 py-0.5 text-[10.5px] font-extrabold {ratingTone(r.r5)}">
-											{starLabel(r.r5)}
-										</span>
-										<span class="text-[10.5px] font-semibold uppercase tracking-wide text-text-3">
-											{platformLabel(r.platform)}
-										</span>
-										{#if r.priority != null}
-											<span
-												class="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[10.5px] font-extrabold {prioTone(r.priority)}"
-												title="Öncelik skoru: olumsuzluk × tazelik × metin"
-											>
-												{#if r.priority >= 60}<Flame size={10} strokeWidth={2.5} />{/if}
-												{r.priority.toFixed(0)}
-											</span>
-										{:else}
-											<span class="ml-auto shrink-0 text-[10.5px] text-text-3">{r.date}</span>
-										{/if}
+								<span class="absolute inset-y-2 left-0 w-[3px] rounded-r-full {railTone(r.r5)}"></span>
+
+								<!-- Line 1: sender + time — the mail row grammar. Unanswered reads
+								     like unread: dot + bold. -->
+								<span class="flex items-center gap-1.5">
+									{#if unanswered}
+										<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" title="Yanıtsız"></span>
+									{/if}
+									<span class="truncate text-[13px] {unanswered ? 'font-bold text-text-1' : 'font-semibold text-text-2'}">
+										{r.author || (t?.shown && t.titleTr ? t.titleTr : r.title) || 'İsimsiz misafir'}
 									</span>
-									<span class="mt-0.5 flex items-center gap-1.5">
-										<span class="truncate text-[12.5px] font-semibold text-text-1">
-											{r.author || (t?.shown && t.titleTr ? t.titleTr : r.title) || 'İsimsiz misafir'}
-										</span>
-										{#if r.ownerResponse}
-											<span class="shrink-0 rounded bg-success-light px-1 py-px text-[10px] font-bold text-success">yanıtlandı</span>
-										{:else if mode === 'all'}
-											<span class="shrink-0 rounded bg-surface-2 px-1 py-px text-[10px] font-bold text-text-3">yanıtsız</span>
-										{/if}
-										{#if r.dispute}
-											<span class="shrink-0 rounded px-1 py-px text-[10px] font-bold {DISPUTE_BADGE[r.dispute.status].cls}">
-												{DISPUTE_BADGE[r.dispute.status].label}
-											</span>
-										{/if}
-									</span>
-									{#if r.text}
-										<span class="mt-0.5 line-clamp-2 text-[12px] leading-snug text-text-2">
-											{t?.shown ? t.textTr : r.text}
+									{#if r.priority != null}
+										<span
+											class="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[10.5px] font-extrabold {prioTone(r.priority)}"
+											title="Öncelik skoru: olumsuzluk × tazelik × metin"
+										>
+											{#if r.priority >= 60}<Flame size={10} strokeWidth={2.5} />{/if}
+											{r.priority.toFixed(0)}
 										</span>
 									{:else}
-										<span class="mt-0.5 block text-[11.5px] italic text-text-3">Metinsiz yorum (yalnız puan).</span>
+										<span class="ml-auto shrink-0 text-[10.5px] tabular-nums text-text-3">{shortDate(r.date)}</span>
 									{/if}
-									{#if r.ageDays != null}
-										<span class="mt-0.5 block text-[10.5px] font-semibold text-warning">
-											{r.date} · {ageLabel(r.ageDays)}
+								</span>
+
+								<!-- Line 2: rating + channel + state chips. -->
+								<span class="mt-1 flex items-center gap-1.5">
+									<span class="rounded px-1.5 py-0.5 text-[10.5px] font-extrabold {ratingTone(r.r5)}">
+										{starLabel(r.r5)}
+									</span>
+									<span class="truncate text-[10.5px] font-semibold uppercase tracking-wide text-text-3">
+										{platformLabel(r.platform)}
+									</span>
+									{#if r.ownerResponse}
+										<span class="shrink-0 rounded bg-success-light px-1 py-px text-[10px] font-bold text-success">✓ yanıtlandı</span>
+									{/if}
+									{#if r.dispute}
+										<span class="shrink-0 rounded px-1 py-px text-[10px] font-bold {DISPUTE_BADGE[r.dispute.status].cls}">
+											{DISPUTE_BADGE[r.dispute.status].label}
 										</span>
 									{/if}
 								</span>
+
+								<!-- Line 3: snippet, muted when the work is done. -->
+								{#if r.text}
+									<span class="mt-1 line-clamp-2 text-[12px] leading-snug {unanswered ? 'text-text-2' : 'text-text-3'}">
+										{t?.shown ? t.textTr : r.text}
+									</span>
+								{:else}
+									<span class="mt-1 block text-[11.5px] italic text-text-3">Metinsiz yorum (yalnız puan).</span>
+								{/if}
+								{#if r.ageDays != null}
+									<span class="mt-1 block text-[10.5px] font-semibold text-warning">
+										{shortDate(r.date)} · {ageLabel(r.ageDays)}
+									</span>
+								{/if}
 							</button>
 						</li>
 					{/each}
 				</ul>
 
 				{#if mode === 'all' && nextCursor}
-					<button
-						onclick={loadMore}
-						disabled={loadingMore}
-						class="mt-2 w-full rounded-lg border border-border py-2 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2 disabled:opacity-60"
-					>
-						{loadingMore ? 'Yükleniyor…' : 'Daha fazla yorum'}
-					</button>
+					<div class="border-t border-surface-2 p-2">
+						<button
+							onclick={loadMore}
+							disabled={loadingMore}
+							class="w-full rounded-lg py-2 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2 disabled:opacity-60"
+						>
+							{loadingMore ? 'Yükleniyor…' : 'Daha fazla yorum'}
+						</button>
+					</div>
 				{/if}
 			</aside>
 
 			<!-- ── Detail pane ── -->
-			<section class="{mobileDetail ? '' : 'hidden lg:block'} min-w-0">
+			<section
+				class="{mobileDetail ? '' : 'hidden lg:block'} inbox-scroll min-w-0 bg-surface-1 lg:h-[calc(100vh-250px)] lg:overflow-y-auto"
+			>
 				{#if selected}
 					<!-- Keyed by review id: ReplyDraft and ReviewRowActions hold per-review state
 					     (draft, optimistic dispute). Without the key Svelte would reuse the same
@@ -589,7 +614,7 @@
 					{#key selected.id}
 						{@const t = tx[selected.id]}
 						{@const showTx = !!t?.shown}
-						<div class="rounded-xl border border-border bg-surface-1 p-4">
+						<div class="p-4 lg:p-5">
 							<!-- Mobile: way back to the list. -->
 							<button
 								onclick={() => (mobileDetail = false)}
@@ -722,3 +747,26 @@
 		</div>
 	{/if}
 </SectionCard>
+
+<style>
+	/* Thin, quiet scrollbars for the two inbox panes. The browser default gutter sat
+	   ON TOP of the list rows and truncated the dates ("2026-07-3…"). Theme tokens so
+	   it stays coherent if the palette ever changes. */
+	.inbox-scroll {
+		scrollbar-width: thin; /* Firefox */
+		scrollbar-color: var(--color-surface-3) transparent;
+	}
+	.inbox-scroll::-webkit-scrollbar {
+		width: 6px;
+	}
+	.inbox-scroll::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	.inbox-scroll::-webkit-scrollbar-thumb {
+		background: var(--color-surface-3);
+		border-radius: 6px;
+	}
+	.inbox-scroll::-webkit-scrollbar-thumb:hover {
+		background: var(--color-text-3);
+	}
+</style>
