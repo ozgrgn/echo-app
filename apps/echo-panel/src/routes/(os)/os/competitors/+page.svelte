@@ -317,9 +317,15 @@
 						{#each allRows as row, i (row.venueSlug)}
 							{@const gpi = rowVals[i]}
 							<td class="px-1 py-1">
-								<div class="rounded-md py-1.5 text-center font-mono text-[12.5px] font-semibold {heatmapBg(gpi)} {row.isOwn ? 'ring-1 ring-warning/40' : ''}">
+								<!-- relative + absolute star: the number stays centred in the cell no
+								     matter whether the row has a winner, so columns line up across
+								     rows. Inline would shift every starred value a few px left. -->
+								<div class="relative rounded-md py-1.5 text-center font-mono text-[12.5px] font-semibold {heatmapBg(gpi)} {row.isOwn ? 'ring-1 ring-warning/40' : ''}">
 									{#if gpi !== null && gpi === best}
-										<span class="mr-0.5 text-[11px] text-warning" title="Bu kategoride en iyi">★</span>
+										<span
+											class="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[15px] leading-none text-warning"
+											title="Bu kategoride en iyi"
+										>★</span>
 									{/if}
 									{gpi !== null ? gpi.toFixed(1) : '—'}
 								</div>
