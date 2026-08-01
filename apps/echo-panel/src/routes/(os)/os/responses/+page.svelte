@@ -21,9 +21,10 @@
 	import SectionCard from '$lib/components/SectionCard.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import ReplyDraft from '$lib/components/ReplyDraft.svelte';
+	import ReviewRowActions from '$lib/components/ReviewRowActions.svelte';
 	import { MessageSquare, Flame } from '@lucide/svelte';
 	import type { ResponseStats, ResponseQueueItem } from '@talkwo/echo-ui';
-	import type { Review } from '@talkwo/echo-core';
+	import { PLATFORM_REGISTRY, type Review } from '@talkwo/echo-core';
 
 	// Platforms that accept no owner reply at all — measured 2026-07-27: HolidayCheck
 	// carries 0 owner responses across 49k reviews. Rows still render (the review is
@@ -40,7 +41,10 @@
 	type Mode = 'urgent' | 'all';
 	type AnsweredFilter = 'all' | 'without' | 'with';
 
-	let mode = $state<Mode>('urgent');
+	// Default is the FULL list, not the triage queue (owner decision 2026-08-01):
+	// first entry shows the last 7 days of ALL reviews with their replies, so the
+	// operator sees what happened, not only what is owed. "En acil" stays one click away.
+	let mode = $state<Mode>('all');
 	let answered = $state<AnsweredFilter>('all');
 	let platformFilter = $state<string>('');
 
@@ -50,9 +54,54 @@
 	// scores, where `from` never cuts the pool. A list is a raw query over those days;
 	// a score is a state as of a day, with memory. Same URL, two honest readings.
 	const listRange = $derived(parseCustomRange(page.url.searchParams));
-	const rangeParams = $derived.by((): Record<string, string> =>
-		listRange ? { from: listRange.from, to: listRange.to } : {}
-	);
+
+	// ── Date presets ("Tüm yorumlar" only) ──
+	// Local shortcuts over the same ?from&to the backend already crops by. 'ozel' is
+	// not a picker of its own: it mirrors the rail's custom range and only appears
+	// when one is set — two date pickers on one screen would fight over the truth.
+	type DatePreset = 'bugun' | 'dun' | 'son7' | 'buay' | 'tumu' | 'ozel';
+	let datePreset = $state<DatePreset>('son7');
+
+	// A rail range arriving (or changing) pulls the dropdown onto it; picking a
+	// preset afterwards deliberately overrides the rail FOR THIS LIST only. When the
+	// rail range is cleared, 'ozel' loses its meaning (and its <option>) — fall back
+	// to the default week rather than leaving the select on a value it can't render.
+	$effect(() => {
+		if (listRange) datePreset = 'ozel';
+		else if (datePreset === 'ozel') datePreset = 'son7';
+	});
+
+	/** YYYY-MM-DD in the operator's local clock, offset by whole days. */
+	function ymd(offsetDays: number): string {
+		const d = new Date();
+		d.setDate(d.getDate() + offsetDays);
+		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+	}
+
+	const DATE_PRESETS: { k: DatePreset; l: string }[] = [
+		{ k: 'bugun', l: 'Bugün' },
+		{ k: 'dun', l: 'Dün' },
+		{ k: 'son7', l: 'Son 7 gün' },
+		{ k: 'buay', l: 'Bu ay' },
+		{ k: 'tumu', l: 'Tümü' }
+	];
+
+	const rangeParams = $derived.by((): Record<string, string> => {
+		switch (datePreset) {
+			case 'ozel':
+				return listRange ? { from: listRange.from, to: listRange.to } : {};
+			case 'tumu':
+				return {};
+			case 'bugun':
+				return { from: ymd(0), to: ymd(0) };
+			case 'dun':
+				return { from: ymd(-1), to: ymd(-1) };
+			case 'son7':
+				return { from: ymd(-6), to: ymd(0) };
+			case 'buay':
+				return { from: `${ymd(0).slice(0, 8)}01`, to: ymd(0) };
+		}
+	});
 
 	let reviews = $state<Review[]>([]);
 	let nextCursor = $state<string | null>(null);
@@ -60,6 +109,63 @@
 	let loadingMore = $state(false);
 	let errored = $state(false);
 	let expandedId = $state<string | null>(null);
+	// Set ONLY by the row-level "Yanıt öner" button: the ReplyDraft it opens starts
+	// drafting immediately. A plain row click clears it, so expanding a row to READ
+	// never silently spends a model call.
+	let autoStartId = $state<string | null>(null);
+
+	function toggleRow(id: string) {
+		expandedId = expandedId === id ? null : id;
+		autoStartId = null;
+	}
+	function suggestFor(id: string) {
+		expandedId = id;
+		autoStartId = id;
+	}
+
+	// ── Translation ("Çevir") ──
+	// The page owns the translated text because the page renders the review body;
+	// ReviewRowActions only renders the button face for the current phase. Once
+	// fetched, toggling never re-calls the API — the backend cache protects OTHER
+	// operators, this map protects repeat clicks in this session.
+	type TxEntry = { titleTr: string; textTr: string; shown: boolean; loading: boolean; error: boolean };
+	let tx = $state<Record<string, TxEntry>>({});
+
+	function txStateFor(id: string): 'idle' | 'loading' | 'shown' | 'hidden' | 'error' {
+		const t = tx[id];
+		if (!t) return 'idle';
+		if (t.loading) return 'loading';
+		if (t.error) return 'error';
+		return t.shown ? 'shown' : 'hidden';
+	}
+
+	/** Reviews already in Turkish (or with no text) get no translate button. An empty
+	 *  lang is treated as foreign: ingest's tinyld detection covers virtually all rows,
+	 *  and when it failed the text is exactly the kind an operator can't read either. */
+	const needsTx = (lang: string | null | undefined, text: string | null | undefined) =>
+		!!text?.trim() && (lang ?? '').toLowerCase() !== 'tr';
+
+	async function translate(id: string) {
+		const cur = tx[id];
+		if (cur?.loading) return;
+		if (cur && !cur.error) {
+			cur.shown = !cur.shown;
+			return;
+		}
+		tx[id] = { titleTr: '', textTr: '', shown: false, loading: true, error: false };
+		try {
+			const r = await fetch('/api/review-translate', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ reviewId: id })
+			});
+			if (!r.ok) throw new Error(String(r.status));
+			const j = await r.json();
+			tx[id] = { titleTr: j.titleTr ?? '', textTr: j.textTr ?? '', shown: true, loading: false, error: false };
+		} catch {
+			tx[id] = { titleTr: '', textTr: '', shown: false, loading: false, error: true };
+		}
+	}
 
 	const windowQ = $derived(windowParam(parseOsWindow(page.url.searchParams.get('window'))));
 
@@ -77,6 +183,7 @@
 		loading = true;
 		errored = false;
 		expandedId = null;
+		autoStartId = null;
 		try {
 			if (mode === 'urgent') {
 				const qs = new URLSearchParams({
@@ -201,6 +308,10 @@
 	}
 	const canReply = (platform: string) => !NO_REPLY_PLATFORMS.has(platform.toLowerCase());
 
+	/** Display label for a platform key ("holidaycheck" → "HolidayCheck"). Falls back
+	 *  to the raw key so an unregistered platform still renders instead of vanishing. */
+	const platformLabel = (key: string) => PLATFORM_REGISTRY[key.toLowerCase()]?.label ?? key;
+
 	const MODES: { k: Mode; l: string; hint: string }[] = [
 		{ k: 'urgent', l: 'En acil', hint: 'Yanıtsızlar, aciliyet sırasıyla' },
 		{ k: 'all', l: 'Tüm yorumlar', hint: 'Hepsi, en yeniden eskiye' }
@@ -272,6 +383,18 @@
 					</button>
 				{/each}
 			</div>
+
+			<select
+				bind:value={datePreset}
+				class="rounded-lg border border-border bg-surface-1 px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2"
+			>
+				{#each DATE_PRESETS as p (p.k)}
+					<option value={p.k}>{p.l}</option>
+				{/each}
+				{#if listRange}
+					<option value="ozel">Özel ({listRange.from} → {listRange.to})</option>
+				{/if}
+			</select>
 		{/if}
 
 		{#if stats?.byPlatform?.length}
@@ -281,7 +404,7 @@
 			>
 				<option value="">Tüm platformlar</option>
 				{#each stats.byPlatform as p (p.platform)}
-					<option value={p.platform}>{p.platform} ({p.total})</option>
+					<option value={p.platform}>{platformLabel(p.platform)} ({p.total})</option>
 				{/each}
 			</select>
 		{/if}
@@ -300,10 +423,12 @@
 			<ul class="flex flex-col">
 				{#each queue as r (r.id)}
 					{@const open = expandedId === r.id}
+					{@const t = tx[r.id]}
+					{@const showTx = !!t?.shown}
 					<li class="grid grid-cols-[3px_1fr_auto] items-start gap-3 border-t border-surface-2 py-2.5 first:border-t-0">
 						<span class="mt-1 h-full w-[3px] rounded-full {railTone(r.rating5)}"></span>
 						<div class="min-w-0">
-							<button class="w-full text-left" onclick={() => (expandedId = open ? null : r.id)}>
+							<button class="w-full text-left" onclick={() => toggleRow(r.id)}>
 								<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
 									<!-- rating5, NOT rating: /v1/responses/queue serves the platform-native
 									     value too, and a Booking 8 rendered as "8★" beside a green (4.1-based)
@@ -311,25 +436,50 @@
 									<span class="rounded px-1.5 py-0.5 text-[11px] font-extrabold {ratingTone(r.rating5)}">
 										{starLabel(r.rating5)}
 									</span>
-									<span class="text-[11px] font-semibold uppercase tracking-wide text-text-3">{r.platform}</span>
+									<span class="text-[11px] font-semibold uppercase tracking-wide text-text-3">{platformLabel(r.platform)}</span>
+									{#if showTx}
+										<span class="rounded bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-bold text-text-3">çeviri</span>
+									{/if}
 									{#if r.title}
-										<span class="truncate text-[13px] font-semibold text-text-1">{r.title}</span>
+										<span class="truncate text-[13px] font-semibold text-text-1">
+											{showTx && t.titleTr ? t.titleTr : r.title}
+										</span>
 									{/if}
 								</div>
 								{#if r.text}
-									<p class="mt-1 text-[13px] leading-snug text-text-1 {open ? '' : 'line-clamp-2'}">"{r.text}"</p>
+									<p class="mt-1 text-[13px] leading-snug text-text-1 {open ? '' : 'line-clamp-2'}">
+										"{showTx ? t.textTr : r.text}"
+									</p>
 								{:else}
 									<p class="mt-1 text-[12.5px] italic text-text-3">Metinsiz yorum (yalnız puan).</p>
 								{/if}
-								<div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-text-3">
-									{#if r.author}<span class="font-semibold text-text-2">{r.author}</span><span>·</span>{/if}
-									{#if r.publishedDate}<span>{r.publishedDate.slice(0, 10)}</span><span>·</span>{/if}
-									<span class="font-semibold text-warning">{ageLabel(r.ageDays)}</span>
-									{#if r.lang}<span>·</span><span class="uppercase">{r.lang}</span>{/if}
-								</div>
 							</button>
+							<!-- Meta line OUTSIDE the expand toggle: it now carries real buttons, and
+							     nested interactive elements inside a <button> are invalid HTML. -->
+							<div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-3">
+								{#if r.author}<span class="font-semibold text-text-2">{r.author}</span><span>·</span>{/if}
+								{#if r.publishedDate}<span>{r.publishedDate.slice(0, 10)}</span><span>·</span>{/if}
+								<span class="font-semibold text-warning">{ageLabel(r.ageDays)}</span>
+								{#if r.lang}<span>·</span><span class="uppercase">{r.lang}</span>{/if}
+								<ReviewRowActions
+									reviewId={r.id}
+									platform={r.platform}
+									url={r.url}
+									canSuggest={canReply(r.platform) && !!r.text}
+									txState={needsTx(r.lang, r.text) ? txStateFor(r.id) : null}
+									dispute={r.dispute}
+									onsuggest={() => suggestFor(r.id)}
+									ontranslate={() => translate(r.id)}
+								/>
+							</div>
 							{#if open && r.text}
-								<ReplyDraft reviewId={r.id} platform={r.platform} url={r.url} canReply={canReply(r.platform)} />
+								<ReplyDraft
+									reviewId={r.id}
+									platform={r.platform}
+									url={r.url}
+									canReply={canReply(r.platform)}
+									autoStart={autoStartId === r.id}
+								/>
 							{/if}
 						</div>
 						<span
@@ -350,15 +500,17 @@
 			{#each reviews as r (r.id)}
 				{@const open = expandedId === r.id}
 				{@const r5 = r.rating ?? null}
+				{@const t = tx[r.id]}
+				{@const showTx = !!t?.shown}
 				<li class="grid grid-cols-[3px_1fr] items-start gap-3 border-t border-surface-2 py-2.5 first:border-t-0">
 					<span class="mt-1 h-full w-[3px] rounded-full {railTone(r5)}"></span>
 					<div class="min-w-0">
-						<button class="w-full text-left" onclick={() => (expandedId = open ? null : r.id)}>
+						<button class="w-full text-left" onclick={() => toggleRow(r.id)}>
 							<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
 								<span class="rounded px-1.5 py-0.5 text-[11px] font-extrabold {ratingTone(r5)}">
 									{starLabel(r.rating)}
 								</span>
-								<span class="text-[11px] font-semibold uppercase tracking-wide text-text-3">{r.platform}</span>
+								<span class="text-[11px] font-semibold uppercase tracking-wide text-text-3">{platformLabel(r.platform)}</span>
 								{#if r.ownerResponse}
 									<span class="rounded bg-success-light px-1.5 py-0.5 text-[10.5px] font-bold text-success">
 										yanıtlandı
@@ -368,20 +520,38 @@
 										yanıtsız
 									</span>
 								{/if}
+								{#if showTx}
+									<span class="rounded bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-bold text-text-3">çeviri</span>
+								{/if}
 								{#if r.title}
-									<span class="truncate text-[13px] font-semibold text-text-1">{r.title}</span>
+									<span class="truncate text-[13px] font-semibold text-text-1">
+										{showTx && t.titleTr ? t.titleTr : r.title}
+									</span>
 								{/if}
 							</div>
 							{#if r.text}
-								<p class="mt-1 text-[13px] leading-snug text-text-1 {open ? '' : 'line-clamp-2'}">"{r.text}"</p>
+								<p class="mt-1 text-[13px] leading-snug text-text-1 {open ? '' : 'line-clamp-2'}">
+									"{showTx ? t.textTr : r.text}"
+								</p>
 							{:else}
 								<p class="mt-1 text-[12.5px] italic text-text-3">Metinsiz yorum (yalnız puan).</p>
 							{/if}
-							<div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-text-3">
-								{#if r.publishedDate}<span>{r.publishedDate.slice(0, 10)}</span>{/if}
-								{#if r.lang}<span>·</span><span class="uppercase">{r.lang}</span>{/if}
-							</div>
 						</button>
+						<!-- Meta line outside the toggle — same reasoning as the urgent list. -->
+						<div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-3">
+							{#if r.publishedDate}<span>{r.publishedDate.slice(0, 10)}</span>{/if}
+							{#if r.lang}<span>·</span><span class="uppercase">{r.lang}</span>{/if}
+							<ReviewRowActions
+								reviewId={r.id}
+								platform={r.platform}
+								url={r.sourceUrl ?? null}
+								canSuggest={canReply(r.platform) && !!r.text && !r.ownerResponse}
+								txState={needsTx(r.lang, r.text) ? txStateFor(r.id) : null}
+								dispute={r.dispute}
+								onsuggest={() => suggestFor(r.id)}
+								ontranslate={() => translate(r.id)}
+							/>
+						</div>
 
 						{#if open}
 							{#if r.ownerResponse}
@@ -404,6 +574,7 @@
 									platform={r.platform}
 									url={r.sourceUrl ?? null}
 									canReply={canReply(r.platform)}
+									autoStart={autoStartId === r.id}
 								/>
 							{/if}
 						{/if}

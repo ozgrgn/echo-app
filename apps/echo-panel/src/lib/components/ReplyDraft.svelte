@@ -31,9 +31,12 @@
 		url: string | null;
 		/** false for platforms with no reply channel at all — the button is not rendered. */
 		canReply: boolean;
+		/** True when the row-level "Yanıt öner" button opened this panel: start drafting
+		 *  immediately instead of showing a second button to click (one-click flow). */
+		autoStart?: boolean;
 	}
 
-	let { reviewId, platform, url, canReply }: Props = $props();
+	let { reviewId, platform, url, canReply, autoStart = false }: Props = $props();
 
 	let draft = $state<ReplySuggestion | null>(null);
 	let loading = $state(false);
@@ -79,6 +82,13 @@
 			loading = false;
 		}
 	}
+
+	// Fires on mount and on a false→true flip (row already open, operator hits the
+	// row-level button). The guards make it a no-op once anything is in flight or
+	// rendered — it can never re-bill a draft that is already on screen.
+	$effect(() => {
+		if (autoStart && canReply && !draft && !loading && !errorMsg) void generate(false);
+	});
 
 	async function copyReply() {
 		if (!draft?.reply) return;
