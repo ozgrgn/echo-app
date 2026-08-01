@@ -805,6 +805,67 @@ export interface ResponseQueueItem {
   ageDays: number;
   /** 0–100 triage score: negativity × freshness × has-text ("en yanan üstte"). */
   priority: number;
+  /** Removal-dispute state ("İtiraz"), absent when never disputed. */
+  dispute?: ReviewDisputeState;
+}
+
+// ─── Review dispute ("İtiraz") ───────────────────────────────────────────────
+
+export type DisputeStatus = 'requested' | 'removed' | 'rejected';
+
+export interface ReviewDisputeState {
+  status: DisputeStatus;
+  updatedAt: string;
+}
+
+// ─── Review translation ("Çevir") ────────────────────────────────────────────
+
+export interface ReviewTranslation {
+  titleTr: string;
+  textTr: string;
+  detectedLang: string;
+  model: string;
+  generatedAt: string;
+  /** true when served from the backend cache (no LLM call was made). */
+  cached: boolean;
+}
+
+/**
+ * POST /v1/reviews/:id/translate — Turkish translation of one review (title+body).
+ * Costs an LLM call on first use, cached per review after that.
+ */
+export async function translateReview(
+  reviewId: string,
+  token: string,
+  fetchOpts?: FetchOpts
+): Promise<ReviewTranslation> {
+  const { base, f } = resolveFetch(fetchOpts);
+  const res = await f(`${base}/reviews/${encodeURIComponent(reviewId)}/translate`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  });
+  if (!res.ok) throw new Error(`translateReview failed: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * PATCH /v1/reviews/:id/dispute — set or clear ("none") the removal-dispute state.
+ * Returns the stored dispute, or null when cleared.
+ */
+export async function setReviewDispute(
+  reviewId: string,
+  status: DisputeStatus | 'none',
+  token: string,
+  fetchOpts?: FetchOpts
+): Promise<{ id: string; dispute: ReviewDisputeState | null }> {
+  const { base, f } = resolveFetch(fetchOpts);
+  const res = await f(`${base}/reviews/${encodeURIComponent(reviewId)}/dispute`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status })
+  });
+  if (!res.ok) throw new Error(`setReviewDispute failed: ${res.status}`);
+  return res.json();
 }
 
 export async function getResponseStats(
@@ -1157,6 +1218,12 @@ export interface HistoryPoint {
   /** Reviews PUBLISHED in this period — window-independent, always ≥0. The honest
    *  "new this month" metric. (Absent on older backend versions → treat as 0.) */
   newReviews?: number;
+  /** Owner response rate (0..1) as of this point — same windowed measure as the
+   *  Yanıt Oranı KPI. Null on rows predating responseStats; absent on older backends. */
+  responseRate?: number | null;
+  /** RPI vs the same-day competitor average — BLENDED series only. Null on days no
+   *  competitor was scored; absent on per-platform series and older backends. */
+  rpi?: number | null;
 }
 
 export async function getScoreHistory(

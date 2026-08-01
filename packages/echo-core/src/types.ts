@@ -196,6 +196,9 @@ export interface Review {
   sentiments: SentimentItem[];
   ownerResponse?: OwnerResponse;
   sourceUrl?: string;
+  /** Removal-dispute ("İtiraz") state, when GR staff reported this review to the
+   *  platform. Absent = never disputed. */
+  dispute?: { status: 'requested' | 'removed' | 'rejected'; updatedAt: string };
 }
 
 /** Owner's published reply to a review. Pre-computed fields (responseTimeHours)
