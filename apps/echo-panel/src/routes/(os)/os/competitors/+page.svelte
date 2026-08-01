@@ -303,15 +303,24 @@
 			<tbody>
 				{#each allCategories as cat (cat)}
 					{@const meta = CATEGORIES[cat]}
+					<!-- Row best gets a star. Computed once per row (not per cell), and a TIE
+					     stars every holder — a lone star on an arbitrary tie member would read
+					     as "why that one?". Empty rows: max of nothing is -Infinity, which no
+					     real gpi ever equals, so no star appears. -->
+					{@const rowVals = allRows.map((r) => categoryGpiForVenue(r.venueSlug, cat))}
+					{@const best = Math.max(...rowVals.filter((v): v is number => v !== null))}
 					<tr class="border-b border-border last:border-b-0">
 						<td class="sticky left-0 bg-surface-1 py-2 pr-3">
 							<div class="text-[12.5px] font-semibold text-text-1">{meta.label}</div>
 							<div class="text-[10.5px] text-text-3">×{(meta.weight * 100).toFixed(0)}%</div>
 						</td>
-						{#each allRows as row (row.venueSlug)}
-							{@const gpi = categoryGpiForVenue(row.venueSlug, cat)}
+						{#each allRows as row, i (row.venueSlug)}
+							{@const gpi = rowVals[i]}
 							<td class="px-1 py-1">
 								<div class="rounded-md py-1.5 text-center font-mono text-[12.5px] font-semibold {heatmapBg(gpi)} {row.isOwn ? 'ring-1 ring-warning/40' : ''}">
+									{#if gpi !== null && gpi === best}
+										<span class="mr-0.5 text-[11px] text-warning" title="Bu kategoride en iyi">★</span>
+									{/if}
 									{gpi !== null ? gpi.toFixed(1) : '—'}
 								</div>
 							</td>
