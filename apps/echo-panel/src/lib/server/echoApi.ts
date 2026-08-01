@@ -39,6 +39,9 @@ import {
 	getResponseStats,
 	getResponseQueue,
 	suggestReply,
+	translateReview,
+	setReviewDispute,
+	type DisputeStatus,
 	getReviews,
 	getMentions,
 	correctMention,
@@ -207,6 +210,19 @@ export function makeServerApi(event: RequestEvent) {
 		suggestReply: (reviewId: string, opts: { regenerate?: boolean } = {}) => {
 			if (!token) throw new Unauthenticated();
 			return suggestReply(reviewId, token, opts, fo());
+		},
+
+		// No-retry for the same reason as suggestReply: first call can spend money.
+		translateReview: (reviewId: string) => {
+			if (!token) throw new Unauthenticated();
+			return translateReview(reviewId, token, fo());
+		},
+
+		// Same no-retry stance as suggestReply: it's a write. A retried PATCH is
+		// idempotent in effect, but surfacing the auth failure beats masking it.
+		setReviewDispute: (reviewId: string, status: DisputeStatus | 'none') => {
+			if (!token) throw new Unauthenticated();
+			return setReviewDispute(reviewId, status, token, fo());
 		},
 
 		// ── admin (superadmin surface) ──
