@@ -1,19 +1,24 @@
 <!--
-  ECHO OS — "Yorumlar" lens (/os/responses).
+  ECHO OS — "Yorumlar" lens (/os/responses), INBOX layout (2026-08-01 redesign).
 
-  The operator's daily work surface. Before this page, response management was
-  scattered: ResponseAnalytics sat on Genel, on platform detail AND on department
-  detail, while ResponseInbox lived only inside platform detail — so "let me go
-  through the reviews" had no home.
+  Mail-client split view: compact review list on the left, ONE selected review
+  worked on the right. Replaced the expand-in-place list because triage is a
+  read → translate → draft → copy → next loop, and expanding rows both ballooned
+  the page and lost the operator's place in the list.
 
   Two modes over ONE list, because they answer different questions:
     • "En acil"  → GET /v1/responses/queue: unanswered only, ordered by the backend's
                    priority score (negativity × freshness × has-text).
     • "Tüm yorumlar" → GET /v1/reviews: every review, newest first, with filters
-                   (answered/unanswered, platform, sentiment). Keyset-paged.
+                   (answered/unanswered, date preset, platform). Keyset-paged.
+  Both are mapped into ONE InboxItem shape so the list and the detail pane render
+  a single vocabulary.
 
-  Reply drafting hangs off each row (ReplyDraft). echo never publishes a reply —
-  the operator copies the draft and posts it on the platform.
+  Reply drafting lives in the detail pane (ReplyDraft). echo never publishes a
+  reply — the operator copies the draft and posts it on the platform.
+
+  Mobile: classic mail pattern — list only; tapping a row opens the detail
+  full-width with a back link. lg+ shows both panes.
 -->
 <script lang="ts">
 	import { page } from '$app/state';
@@ -22,8 +27,8 @@
 	import StatTile from '$lib/components/StatTile.svelte';
 	import ReplyDraft from '$lib/components/ReplyDraft.svelte';
 	import ReviewRowActions from '$lib/components/ReviewRowActions.svelte';
-	import { MessageSquare, Flame } from '@lucide/svelte';
-	import type { ResponseStats, ResponseQueueItem } from '@talkwo/echo-ui';
+	import { MessageSquare, Flame, ChevronLeft, ChevronRight, ArrowLeft, CornerDownRight } from '@lucide/svelte';
+	import type { ResponseStats, ResponseQueueItem, ReviewDisputeState } from '@talkwo/echo-ui';
 	import { PLATFORM_REGISTRY, type Review } from '@talkwo/echo-core';
 
 	// Platforms that accept no owner reply at all — measured 2026-07-27: HolidayCheck
@@ -108,20 +113,88 @@
 	let loading = $state(false);
 	let loadingMore = $state(false);
 	let errored = $state(false);
-	let expandedId = $state<string | null>(null);
-	// Set ONLY by the row-level "Yanıt öner" button: the ReplyDraft it opens starts
-	// drafting immediately. A plain row click clears it, so expanding a row to READ
-	// never silently spends a model call.
-	let autoStartId = $state<string | null>(null);
 
-	function toggleRow(id: string) {
-		expandedId = expandedId === id ? null : id;
-		autoStartId = null;
+	// ── Inbox selection ──
+	// One item shape for both sources so the list rows and the detail pane speak a
+	// single vocabulary; the queue's extras (age, priority) are simply null on the
+	// /v1/reviews side.
+	interface InboxItem {
+		id: string;
+		platform: string;
+		date: string;
+		r5: number | null;
+		title: string;
+		text: string;
+		lang: string;
+		author: string;
+		url: string | null;
+		ageDays: number | null;
+		priority: number | null;
+		ownerResponse: Review['ownerResponse'] | null;
+		dispute?: ReviewDisputeState;
 	}
-	function suggestFor(id: string) {
-		expandedId = id;
-		autoStartId = id;
+
+	const items = $derived.by((): InboxItem[] =>
+		mode === 'urgent'
+			? queue.map((r) => ({
+					id: r.id,
+					platform: r.platform,
+					date: r.publishedDate?.slice(0, 10) ?? '',
+					// rating5, NOT rating: the queue serves the platform-native value too, and
+					// a Booking 8 rendered as "8★" beside a green (4.1-based) chip once already.
+					r5: r.rating5,
+					title: r.title,
+					text: r.text,
+					lang: r.lang,
+					author: r.author,
+					url: r.url,
+					ageDays: r.ageDays,
+					priority: r.priority,
+					ownerResponse: null, // queue is unanswered by definition
+					dispute: r.dispute
+				}))
+			: reviews.map((r) => ({
+					id: r.id,
+					platform: r.platform,
+					date: r.publishedDate?.slice(0, 10) ?? '',
+					r5: r.rating ?? null,
+					title: r.title,
+					text: r.text,
+					lang: r.lang,
+					author: r.author ?? '',
+					url: r.sourceUrl ?? null,
+					ageDays: null,
+					priority: null,
+					ownerResponse: r.ownerResponse ?? null,
+					dispute: r.dispute
+				}))
+	);
+
+	// Mail-pattern selection: first item auto-selected, so the detail pane is never
+	// pointlessly empty on desktop. selectedId survives paging (loadMore appends);
+	// filter changes reset it in loadList.
+	let selectedId = $state<string | null>(null);
+	// Small screens only: a tapped row switches to the full-width detail "screen".
+	let mobileDetail = $state(false);
+
+	const selected = $derived(items.find((i) => i.id === selectedId) ?? items[0] ?? null);
+	const selIdx = $derived(selected ? items.findIndex((i) => i.id === selected.id) : -1);
+
+	function select(id: string) {
+		selectedId = id;
+		mobileDetail = true;
 	}
+	function selectAt(i: number) {
+		const it = items[i];
+		if (it) selectedId = it.id;
+	}
+	/** The triage loop's exit: jump past everything already handled. */
+	function nextUnanswered() {
+		for (let i = selIdx + 1; i < items.length; i++) {
+			if (!items[i].ownerResponse) return void (selectedId = items[i].id);
+		}
+	}
+	const hasNextUnanswered = $derived(selIdx >= 0 && items.slice(selIdx + 1).some((i) => !i.ownerResponse));
 
 	// ── Translation ("Çevir") ──
 	// The page owns the translated text because the page renders the review body;
@@ -182,8 +255,8 @@
 	async function loadList(w: string | undefined) {
 		loading = true;
 		errored = false;
-		expandedId = null;
-		autoStartId = null;
+		selectedId = null;
+		mobileDetail = false;
 		try {
 			if (mode === 'urgent') {
 				const qs = new URLSearchParams({
@@ -312,6 +385,12 @@
 	 *  to the raw key so an unregistered platform still renders instead of vanishing. */
 	const platformLabel = (key: string) => PLATFORM_REGISTRY[key.toLowerCase()]?.label ?? key;
 
+	const DISPUTE_BADGE: Record<ReviewDisputeState['status'], { label: string; cls: string }> = {
+		requested: { label: 'itiraz edildi', cls: 'bg-warning-light text-warning' },
+		removed: { label: 'kaldırıldı', cls: 'bg-success-light text-success' },
+		rejected: { label: 'itiraz reddedildi', cls: 'bg-surface-2 text-text-3' }
+	};
+
 	const MODES: { k: Mode; l: string; hint: string }[] = [
 		{ k: 'urgent', l: 'En acil', hint: 'Yanıtsızlar, aciliyet sırasıyla' },
 		{ k: 'all', l: 'Tüm yorumlar', hint: 'Hepsi, en yeniden eskiye' }
@@ -414,183 +493,232 @@
 		<p class="py-10 text-center text-sm text-text-3">Yorumlar yükleniyor…</p>
 	{:else if errored}
 		<p class="py-10 text-center text-sm text-text-3">Yorumlar alınamadı. Sayfayı yenileyin.</p>
-	{:else if mode === 'urgent'}
-		{#if queue.length === 0}
-			<p class="py-10 text-center text-sm text-text-3">
-				Yanıt bekleyen yorum yok — tüm yorumlar yanıtlanmış. 🎉
-			</p>
-		{:else}
-			<ul class="flex flex-col">
-				{#each queue as r (r.id)}
-					{@const open = expandedId === r.id}
-					{@const t = tx[r.id]}
-					{@const showTx = !!t?.shown}
-					<li class="grid grid-cols-[3px_1fr_auto] items-start gap-3 border-t border-surface-2 py-2.5 first:border-t-0">
-						<span class="mt-1 h-full w-[3px] rounded-full {railTone(r.rating5)}"></span>
-						<div class="min-w-0">
-							<button class="w-full text-left" onclick={() => toggleRow(r.id)}>
-								<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-									<!-- rating5, NOT rating: /v1/responses/queue serves the platform-native
-									     value too, and a Booking 8 rendered as "8★" beside a green (4.1-based)
-									     chip — same row, two scales. -->
-									<span class="rounded px-1.5 py-0.5 text-[11px] font-extrabold {ratingTone(r.rating5)}">
-										{starLabel(r.rating5)}
+	{:else if items.length === 0}
+		<p class="py-10 text-center text-sm text-text-3">
+			{mode === 'urgent'
+				? 'Yanıt bekleyen yorum yok — tüm yorumlar yanıtlanmış. 🎉'
+				: 'Bu filtrelerde yorum yok.'}
+		</p>
+	{:else}
+		<div class="grid gap-4 lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)] lg:items-start">
+			<!-- ── List pane ── -->
+			<aside
+				class="{mobileDetail ? 'hidden lg:block' : ''} lg:max-h-[calc(100vh-250px)] lg:overflow-y-auto lg:pr-1"
+			>
+				<ul class="flex flex-col">
+					{#each items as r, i (r.id)}
+						{@const sel = selected?.id === r.id}
+						{@const t = tx[r.id]}
+						<li class="border-t border-surface-2 first:border-t-0">
+							<button
+								onclick={() => select(r.id)}
+								class="grid w-full grid-cols-[3px_1fr] items-stretch gap-2.5 rounded-lg px-2 py-2.5 text-left transition-colors
+									{sel ? 'bg-surface-2' : 'hover:bg-surface-2/50'}"
+							>
+								<span class="w-[3px] rounded-full {railTone(r.r5)}"></span>
+								<span class="min-w-0">
+									<span class="flex items-center gap-1.5">
+										<span class="rounded px-1.5 py-0.5 text-[10.5px] font-extrabold {ratingTone(r.r5)}">
+											{starLabel(r.r5)}
+										</span>
+										<span class="text-[10.5px] font-semibold uppercase tracking-wide text-text-3">
+											{platformLabel(r.platform)}
+										</span>
+										{#if r.priority != null}
+											<span
+												class="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[10.5px] font-extrabold {prioTone(r.priority)}"
+												title="Öncelik skoru: olumsuzluk × tazelik × metin"
+											>
+												{#if r.priority >= 60}<Flame size={10} strokeWidth={2.5} />{/if}
+												{r.priority.toFixed(0)}
+											</span>
+										{:else}
+											<span class="ml-auto shrink-0 text-[10.5px] text-text-3">{r.date}</span>
+										{/if}
 									</span>
-									<span class="text-[11px] font-semibold uppercase tracking-wide text-text-3">{platformLabel(r.platform)}</span>
-									{#if showTx}
-										<span class="rounded bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-bold text-text-3">çeviri</span>
+									<span class="mt-0.5 flex items-center gap-1.5">
+										<span class="truncate text-[12.5px] font-semibold text-text-1">
+											{r.author || (t?.shown && t.titleTr ? t.titleTr : r.title) || 'İsimsiz misafir'}
+										</span>
+										{#if r.ownerResponse}
+											<span class="shrink-0 rounded bg-success-light px-1 py-px text-[10px] font-bold text-success">yanıtlandı</span>
+										{:else if mode === 'all'}
+											<span class="shrink-0 rounded bg-surface-2 px-1 py-px text-[10px] font-bold text-text-3">yanıtsız</span>
+										{/if}
+										{#if r.dispute}
+											<span class="shrink-0 rounded px-1 py-px text-[10px] font-bold {DISPUTE_BADGE[r.dispute.status].cls}">
+												{DISPUTE_BADGE[r.dispute.status].label}
+											</span>
+										{/if}
+									</span>
+									{#if r.text}
+										<span class="mt-0.5 line-clamp-2 text-[12px] leading-snug text-text-2">
+											{t?.shown ? t.textTr : r.text}
+										</span>
+									{:else}
+										<span class="mt-0.5 block text-[11.5px] italic text-text-3">Metinsiz yorum (yalnız puan).</span>
 									{/if}
-									{#if r.title}
-										<span class="truncate text-[13px] font-semibold text-text-1">
-											{showTx && t.titleTr ? t.titleTr : r.title}
+									{#if r.ageDays != null}
+										<span class="mt-0.5 block text-[10.5px] font-semibold text-warning">
+											{r.date} · {ageLabel(r.ageDays)}
 										</span>
 									{/if}
-								</div>
-								{#if r.text}
-									<p class="mt-1 text-[13px] leading-snug text-text-1 {open ? '' : 'line-clamp-2'}">
-										"{showTx ? t.textTr : r.text}"
-									</p>
-								{:else}
-									<p class="mt-1 text-[12.5px] italic text-text-3">Metinsiz yorum (yalnız puan).</p>
-								{/if}
-							</button>
-							<!-- Meta line OUTSIDE the expand toggle: it now carries real buttons, and
-							     nested interactive elements inside a <button> are invalid HTML. -->
-							<div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-3">
-								{#if r.author}<span class="font-semibold text-text-2">{r.author}</span><span>·</span>{/if}
-								{#if r.publishedDate}<span>{r.publishedDate.slice(0, 10)}</span><span>·</span>{/if}
-								<span class="font-semibold text-warning">{ageLabel(r.ageDays)}</span>
-								{#if r.lang}<span>·</span><span class="uppercase">{r.lang}</span>{/if}
-								<ReviewRowActions
-									reviewId={r.id}
-									platform={r.platform}
-									url={r.url}
-									canSuggest={canReply(r.platform) && !!r.text}
-									txState={needsTx(r.lang, r.text) ? txStateFor(r.id) : null}
-									dispute={r.dispute}
-									onsuggest={() => suggestFor(r.id)}
-									ontranslate={() => translate(r.id)}
-								/>
-							</div>
-							{#if open && r.text}
-								<ReplyDraft
-									reviewId={r.id}
-									platform={r.platform}
-									url={r.url}
-									canReply={canReply(r.platform)}
-									autoStart={autoStartId === r.id}
-								/>
-							{/if}
-						</div>
-						<span
-							class="inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[11.5px] font-extrabold {prioTone(r.priority)}"
-							title="Öncelik skoru: olumsuzluk × tazelik × metin"
-						>
-							{#if r.priority >= 60}<Flame size={12} strokeWidth={2.5} />{/if}
-							{r.priority.toFixed(0)}
-						</span>
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	{:else if reviews.length === 0}
-		<p class="py-10 text-center text-sm text-text-3">Bu filtrelerde yorum yok.</p>
-	{:else}
-		<ul class="flex flex-col">
-			{#each reviews as r (r.id)}
-				{@const open = expandedId === r.id}
-				{@const r5 = r.rating ?? null}
-				{@const t = tx[r.id]}
-				{@const showTx = !!t?.shown}
-				<li class="grid grid-cols-[3px_1fr] items-start gap-3 border-t border-surface-2 py-2.5 first:border-t-0">
-					<span class="mt-1 h-full w-[3px] rounded-full {railTone(r5)}"></span>
-					<div class="min-w-0">
-						<button class="w-full text-left" onclick={() => toggleRow(r.id)}>
-							<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-								<span class="rounded px-1.5 py-0.5 text-[11px] font-extrabold {ratingTone(r5)}">
-									{starLabel(r.rating)}
 								</span>
-								<span class="text-[11px] font-semibold uppercase tracking-wide text-text-3">{platformLabel(r.platform)}</span>
-								{#if r.ownerResponse}
-									<span class="rounded bg-success-light px-1.5 py-0.5 text-[10.5px] font-bold text-success">
-										yanıtlandı
-									</span>
-								{:else}
-									<span class="rounded bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-bold text-text-3">
-										yanıtsız
+							</button>
+						</li>
+					{/each}
+				</ul>
+
+				{#if mode === 'all' && nextCursor}
+					<button
+						onclick={loadMore}
+						disabled={loadingMore}
+						class="mt-2 w-full rounded-lg border border-border py-2 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2 disabled:opacity-60"
+					>
+						{loadingMore ? 'Yükleniyor…' : 'Daha fazla yorum'}
+					</button>
+				{/if}
+			</aside>
+
+			<!-- ── Detail pane ── -->
+			<section class="{mobileDetail ? '' : 'hidden lg:block'} min-w-0">
+				{#if selected}
+					<!-- Keyed by review id: ReplyDraft and ReviewRowActions hold per-review state
+					     (draft, optimistic dispute). Without the key Svelte would reuse the same
+					     component instances across selections and show review A's draft on review B. -->
+					{#key selected.id}
+						{@const t = tx[selected.id]}
+						{@const showTx = !!t?.shown}
+						<div class="rounded-xl border border-border bg-surface-1 p-4">
+							<!-- Mobile: way back to the list. -->
+							<button
+								onclick={() => (mobileDetail = false)}
+								class="mb-3 inline-flex items-center gap-1 text-[12px] font-semibold text-text-2 lg:hidden"
+							>
+								<ArrowLeft size={13} strokeWidth={2.5} />
+								Listeye dön
+							</button>
+
+							<div class="flex flex-wrap items-center gap-2">
+								<span class="rounded px-2 py-0.5 text-[13px] font-extrabold {ratingTone(selected.r5)}">
+									{starLabel(selected.r5)}
+								</span>
+								<span class="text-[11.5px] font-semibold uppercase tracking-wide text-text-3">
+									{platformLabel(selected.platform)}
+								</span>
+								{#if selected.ownerResponse}
+									<span class="rounded bg-success-light px-1.5 py-0.5 text-[10.5px] font-bold text-success">yanıtlandı</span>
+								{/if}
+								{#if selected.priority != null}
+									<span
+										class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-extrabold {prioTone(selected.priority)}"
+										title="Öncelik skoru: olumsuzluk × tazelik × metin"
+									>
+										{#if selected.priority >= 60}<Flame size={11} strokeWidth={2.5} />{/if}
+										{selected.priority.toFixed(0)}
 									</span>
 								{/if}
 								{#if showTx}
 									<span class="rounded bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-bold text-text-3">çeviri</span>
 								{/if}
-								{#if r.title}
-									<span class="truncate text-[13px] font-semibold text-text-1">
-										{showTx && t.titleTr ? t.titleTr : r.title}
-									</span>
-								{/if}
+
+								<!-- Prev/next keep the operator inside the pane — mail's j/k, as buttons. -->
+								<span class="ml-auto inline-flex items-center gap-1">
+									<button
+										onclick={() => selectAt(selIdx - 1)}
+										disabled={selIdx <= 0}
+										title="Önceki yorum"
+										class="rounded-md border border-border p-1 text-text-2 transition-colors hover:bg-surface-2 disabled:opacity-40"
+									>
+										<ChevronLeft size={14} strokeWidth={2.5} />
+									</button>
+									<span class="text-[10.5px] tabular-nums text-text-3">{selIdx + 1} / {items.length}</span>
+									<button
+										onclick={() => selectAt(selIdx + 1)}
+										disabled={selIdx >= items.length - 1}
+										title="Sonraki yorum"
+										class="rounded-md border border-border p-1 text-text-2 transition-colors hover:bg-surface-2 disabled:opacity-40"
+									>
+										<ChevronRight size={14} strokeWidth={2.5} />
+									</button>
+								</span>
 							</div>
-							{#if r.text}
-								<p class="mt-1 text-[13px] leading-snug text-text-1 {open ? '' : 'line-clamp-2'}">
-									"{showTx ? t.textTr : r.text}"
+
+							{#if selected.title}
+								<h3 class="mt-2 text-[14.5px] font-bold leading-snug text-text-1">
+									{showTx && t.titleTr ? t.titleTr : selected.title}
+								</h3>
+							{/if}
+
+							<div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-text-3">
+								<span class="font-semibold text-text-2">{selected.author || 'İsimsiz misafir'}</span>
+								{#if selected.date}<span>·</span><span>{selected.date}</span>{/if}
+								{#if selected.lang}<span>·</span><span class="uppercase">{selected.lang}</span>{/if}
+								{#if selected.ageDays != null && !selected.ownerResponse}
+									<span>·</span><span class="font-semibold text-warning">{ageLabel(selected.ageDays)}</span>
+								{/if}
+								<ReviewRowActions
+									reviewId={selected.id}
+									platform={selected.platform}
+									url={selected.url}
+									canSuggest={false}
+									txState={needsTx(selected.lang, selected.text) ? txStateFor(selected.id) : null}
+									dispute={selected.dispute}
+									onsuggest={() => {}}
+									ontranslate={() => translate(selected.id)}
+								/>
+							</div>
+
+							{#if selected.text}
+								<p class="mt-3 whitespace-pre-wrap text-[13.5px] leading-relaxed text-text-1">
+									"{showTx ? t.textTr : selected.text}"
 								</p>
 							{:else}
-								<p class="mt-1 text-[12.5px] italic text-text-3">Metinsiz yorum (yalnız puan).</p>
+								<p class="mt-3 text-[12.5px] italic text-text-3">
+									Metinsiz yorum — misafir yalnız puan bıraktı. Yanıtlanacak bir metin yok.
+								</p>
 							{/if}
-						</button>
-						<!-- Meta line outside the toggle — same reasoning as the urgent list. -->
-						<div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-3">
-							{#if r.publishedDate}<span>{r.publishedDate.slice(0, 10)}</span>{/if}
-							{#if r.lang}<span>·</span><span class="uppercase">{r.lang}</span>{/if}
-							<ReviewRowActions
-								reviewId={r.id}
-								platform={r.platform}
-								url={r.sourceUrl ?? null}
-								canSuggest={canReply(r.platform) && !!r.text && !r.ownerResponse}
-								txState={needsTx(r.lang, r.text) ? txStateFor(r.id) : null}
-								dispute={r.dispute}
-								onsuggest={() => suggestFor(r.id)}
-								ontranslate={() => translate(r.id)}
-							/>
-						</div>
 
-						{#if open}
-							{#if r.ownerResponse}
+							{#if selected.ownerResponse}
 								<!-- Already answered: show the published reply instead of drafting a new
 								     one. Re-drafting over an existing reply is not a real workflow. -->
-								<div class="mt-2 rounded-xl border border-border bg-surface-2/50 p-3">
+								<div class="mt-3 rounded-xl border border-border bg-surface-2/50 p-3">
 									<p class="text-[11px] font-bold uppercase tracking-wide text-text-3">
 										Yayınlanan yanıt
-										{#if r.ownerResponse.respondedAt}
-											· {r.ownerResponse.respondedAt.slice(0, 10)}
+										{#if selected.ownerResponse.respondedAt}
+											· {selected.ownerResponse.respondedAt.slice(0, 10)}
 										{/if}
 									</p>
 									<p class="mt-1 whitespace-pre-wrap text-[12.5px] leading-relaxed text-text-2">
-										{r.ownerResponse.text}
+										{selected.ownerResponse.text}
 									</p>
 								</div>
-							{:else if r.text}
+							{:else if selected.text}
 								<ReplyDraft
-									reviewId={r.id}
-									platform={r.platform}
-									url={r.sourceUrl ?? null}
-									canReply={canReply(r.platform)}
-									autoStart={autoStartId === r.id}
+									reviewId={selected.id}
+									platform={selected.platform}
+									url={selected.url}
+									canReply={canReply(selected.platform)}
 								/>
 							{/if}
-						{/if}
-					</div>
-				</li>
-			{/each}
-		</ul>
 
-		{#if nextCursor}
-			<button
-				onclick={loadMore}
-				disabled={loadingMore}
-				class="mt-3 w-full rounded-lg border border-border py-2 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2 disabled:opacity-60"
-			>
-				{loadingMore ? 'Yükleniyor…' : 'Daha fazla yorum'}
-			</button>
-		{/if}
+							{#if hasNextUnanswered}
+								<div class="mt-3 flex justify-end border-t border-surface-2 pt-3">
+									<button
+										onclick={nextUnanswered}
+										class="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] font-semibold text-text-2 transition-colors hover:bg-surface-2"
+									>
+										<CornerDownRight size={13} strokeWidth={2.5} />
+										Sıradaki yanıtsız
+									</button>
+								</div>
+							{/if}
+						</div>
+					{/key}
+				{:else}
+					<p class="py-10 text-center text-sm text-text-3">Soldaki listeden bir yorum seçin.</p>
+				{/if}
+			</section>
+		</div>
 	{/if}
 </SectionCard>

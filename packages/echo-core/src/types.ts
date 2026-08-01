@@ -196,6 +196,9 @@ export interface Review {
   sentiments: SentimentItem[];
   ownerResponse?: OwnerResponse;
   sourceUrl?: string;
+  /** Reviewer display name. Absent when the source carries none — the inbox
+   *  detail pane (its "sender" line) is the consumer. */
+  author?: string;
   /** Removal-dispute ("İtiraz") state, when GR staff reported this review to the
    *  platform. Absent = never disputed. */
   dispute?: { status: 'requested' | 'removed' | 'rejected'; updatedAt: string };
